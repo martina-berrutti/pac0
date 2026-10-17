@@ -1,6 +1,9 @@
 {
 	"id": "garganta-01",
 	"title": "Dolor de garganta",
+	"group": "lucia",
+	"problem": "Problema 1",
+	"relevantExams": ["orofaringe"],
 	"origin": "banco",
 	"reviewedBy": null,
 	"patient": {

@@ -1,0 +1,208 @@
+{
+	"id": "oido-03",
+	"title": "Dolor de oído",
+	"group": "diego",
+	"problem": "Problema 3",
+	"relevantExams": ["oido"],
+	"origin": "banco",
+	"reviewedBy": null,
+	"patient": {
+		"name": "Diego",
+		"age": 29,
+		"occupation": "guardavidas",
+		"sex": "m"
+	},
+	"personality": {
+		"cooperacion": 0.9,
+		"ansiedad": 0.4,
+		"locuacidad": 0.6,
+		"desconfianza": 0.1,
+		"paciencia": 0.6,
+		"audicion": "normal",
+		"vocabulario": "simple"
+	},
+	"profile": {
+		"edad": "29 años",
+		"ocupacion": "soy guardavidas en una piscina",
+		"vive": "con mi novia"
+	},
+	"personalityStyle": "Directo y simpático, con voseo. Te molesta el oído y te lo tocás seguido.",
+	"chiefComplaint": "Me duele el oído derecho hace como dos semanas, va y viene",
+	"hiddenHistory": {
+		"inicio": "hace como dos semanas; va y viene, y a la mañana es peor",
+		"dolor": "es como una puntada adelante del oído, me duele cuando mastico carne o chicle",
+		"mandibula": "a veces me hace un ruidito la mandíbula cuando abro la boca",
+		"dientes": "mi novia dice que de noche aprieto los dientes",
+		"estres": "ando estresado con los exámenes del curso de salvavidas",
+		"agua": "sí, estoy en la piscina, pero uso tapones",
+		"secrecion": "no me sale nada del oído",
+		"audicion": "escucho bien",
+		"fiebre": "no tuve fiebre",
+		"resfrio": "no estoy resfriado",
+		"medicacion": "a veces un ibuprofeno",
+		"antecedentes": "nunca tuve problemas de oído",
+		"alcohol": "los fines de semana, poco",
+		"tabaco": "no fumo",
+		"drogas": "no",
+		"alergias": "soy alérgico a la penicilina"
+	},
+	"variations": {},
+	"vitals": {
+		"pa": [118, 74],
+		"fc": 74,
+		"fr": 14,
+		"tax": 36.6
+	},
+	"exam": {
+		"orofaringe": {
+			"variants": {
+				"parcial": "mouth-partial-01",
+				"completa": "throat-normal-01"
+			},
+			"hotspots": [
+				"amigdala-izq",
+				"amigdala-der",
+				"uvula",
+				"paladar",
+				"lengua",
+				"pared-posterior"
+			],
+			"expected": "Orofaringe normal: sin eritema ni exudado"
+		}
+	},
+	"expectedChecklist": [
+		{
+			"id": "presentacion",
+			"item": "se presenta y saluda",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["hola", "buen día", "buenas", "me llamo", "soy"]
+		},
+		{
+			"id": "pregunta-abierta",
+			"item": "empieza con una pregunta abierta",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["qué te trae", "en qué te puedo", "contame", "qué te pasa"]
+		},
+		{
+			"id": "inicio",
+			"item": "pregunta desde cuándo",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"desde cuándo",
+				"cuándo empez",
+				"hace cuánto",
+				"cuántos días"
+			]
+		},
+		{
+			"id": "caracteristicas-dolor",
+			"item": "caracteriza el dolor (qué lo empeora)",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"cuánto te duele",
+				"del 1 al 10",
+				"cómo es el dolor",
+				"empeora",
+				"cuándo te duele"
+			]
+		},
+		{
+			"id": "mandibula",
+			"item": "pregunta por la mandíbula, al masticar o si aprieta los dientes",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"mandíbula",
+				"mastic",
+				"apretás",
+				"dientes",
+				"rechin",
+				"boca"
+			]
+		},
+		{
+			"id": "secrecion",
+			"item": "pregunta por secreción y audición",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"secreción",
+				"líquido",
+				"supura",
+				"escuchás",
+				"tapado",
+				"audición"
+			]
+		},
+		{
+			"id": "fiebre",
+			"item": "pregunta por fiebre",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": ["fiebre", "temperatura"]
+		},
+		{
+			"id": "alergias",
+			"item": "alergias medicamentosas",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["alérgic", "alergia"]
+		},
+		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"tomaste algo",
+				"estás tomando",
+				"remedio"
+			]
+		},
+		{
+			"id": "consentimiento",
+			"item": "explica y pide consentimiento antes de examinar",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"te voy a revisar",
+				"te voy a mirar",
+				"puedo",
+				"permiso",
+				"te parece si"
+			]
+		},
+		{
+			"id": "otoscopia",
+			"item": "otoscopia con buena técnica (ambos oídos, empezando por el sano)",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": []
+		},
+		{
+			"id": "resume",
+			"item": "resume y verifica que entendió",
+			"dimension": "comunicacion",
+			"weight": 1,
+			"keywords": ["entonces", "si entendí bien", "resumiendo", "alguna duda"]
+		}
+	],
+	"notApplicable": [
+		"gineco-obstetricos",
+		"palpacion-cv",
+		"contacto-ocular",
+		"expresion-facial"
+	],
+	"criticalErrors": ["examen sin consentimiento"],
+	"truth": {
+		"diagnosis": "otalgia referida por disfunción temporomandibular",
+		"acceptable": ["temporomandibular", "otalgia referida", "bruxismo"],
+		"differentials": ["otitis externa", "otitis media", "dolor dental"]
+	}
+}

@@ -13,6 +13,19 @@ Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hiz
 - **Pendiente:** fotos de la Persona 3, ítems de signos de alarma en garganta y oído, verificar la planilla y la prueba con la estudiante. Lo de comparar la hipótesis en código antes de confiar en la IA (`ai-judge.ts`) queda para después.
 - Validación: 185 tests en web y 20 en backend; lint, tipos y build pasan.
 
+## 17/10 · Persona 1 · Dos pacientes con tres problemas cada uno, y todos los exámenes en cualquier caso
+
+- **Banco:** quedan Lucía (garganta) y Diego (oído). Se elige el paciente y después el problema (o «Al azar»). Los problemas se llaman «Problema 1, 2, 3» para no decir el diagnóstico (AGENTS.md: el diagnóstico vive en el servidor).
+  - Lucía: faringoamigdalitis (`garganta-01`), faringitis viral (`garganta-02`, lo clínico del caso de Jorge) y mononucleosis (`garganta-03`: cansancio, ganglios y manchas en la piel después de amoxicilina).
+  - Diego: otitis externa (`oido-01`), otitis media aguda después de un resfrío (`oido-02`, tímpano abombado) y dolor que viene de la mandíbula (`oido-03`, oídos normales: la otoscopia sirve para descartar).
+  - Se sacaron Rosa y Jorge del banco. `hipertension-01.json` queda para el generador de pacientes de presión.
+- **Todos los exámenes en cualquier caso:** garganta, oído y presión. Diego ahora tiene garganta (normal o con leve eritema). Lo que no tiene que ver con el problema (`relevantExams` del caso) resta 1 punto de examen por tipo, con su tarjeta en el informe («Mediste la presión, que no tenía que ver con el problema del paciente»). Los casos generados no restan.
+- Esquema del caso: `group`, `problem` y `relevantExams`. La pantalla de casos agrupa por paciente.
+- Si el estudiante le tira de la oreja, el paciente se queja solo si en su historia le duele (antes lo decía siempre).
+- **Para la Persona 2:** los tests de técnica de presión y otoscopio usan a Lucía con todos los exámenes indicados, para que el punto nuevo no les cambie la cuenta.
+- **Para la Persona 3:** los seis problemas son borrador y hay que revisarlos con un médico.
+- Validación: 158 tests en web; lint, tipos y build pasan.
+
 ## 17/10 · Persona 1 · Arreglo y prevención de bugs (integrado con main)
 
 Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. Donde `main` ya resolvía algo (limpieza de invitados en Convex, tope de 6 conexiones de voz, tensiómetro, frecuencias de audio, mensajes del micrófono, costo de la voz), quedó su versión.

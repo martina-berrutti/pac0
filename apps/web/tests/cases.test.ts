@@ -1,11 +1,10 @@
 import { describe, expect, test } from "vitest";
 
 import { caseBank } from "@/cases";
-import { armFor, measure } from "@/lib/exam/blood-pressure";
+import { toSummary } from "@/cases/schema";
 import { otoscopyScenario } from "@/lib/exam/otoscope";
 import { buildPatientBrief, buildPatientPrompt } from "@/lib/patient/brief";
 import { generateCase } from "@/lib/patient/generator";
-import { BP_STEPS } from "@/lib/patient/tools";
 import { startSession } from "@/server/consultation";
 import type { Viewer } from "@/server/token";
 import { runTool } from "@/server/voice";
@@ -24,18 +23,61 @@ const byId = (id: string) => {
 };
 
 describe("banco de casos", () => {
-	test("hay cuatro casos, todos sin revisar y con sexo para la voz", () => {
+	test("Lucía y Diego, tres problemas cada uno, sin revisar y con sexo para la voz", () => {
 		expect(caseBank.map((c) => c.id)).toEqual([
 			"garganta-01",
-			"hipertension-01",
-			"oido-01",
 			"garganta-02",
+			"garganta-03",
+			"oido-01",
+			"oido-02",
+			"oido-03",
 		]);
+		for (const [group, name] of [
+			["lucia", "Lucía"],
+			["diego", "Diego"],
+		]) {
+			const problems = caseBank.filter((c) => c.group === group);
+			expect(problems).toHaveLength(3);
+			expect(new Set(problems.map((c) => c.patient.name))).toEqual(
+				new Set([name]),
+			);
+			expect(new Set(problems.map((c) => c.truth.diagnosis)).size).toBe(3);
+		}
 		for (const c of caseBank) {
 			expect(c.reviewedBy).toBeNull();
 			expect(c.patient.sex).toMatch(/^[fm]$/);
+			expect(c.relevantExams.length).toBeGreaterThan(0);
 		}
 	});
+
+	test("lo que ve el navegador para elegir no dice el diagnóstico", () => {
+		for (const c of caseBank) {
+			const summary = JSON.stringify(toSummary(c)).toLowerCase();
+			expect(summary).toContain(c.problem?.toLowerCase());
+			for (const word of [c.truth.diagnosis, ...c.truth.acceptable])
+				expect(summary).not.toContain(word.toLowerCase());
+		}
+	});
+
+	test.each(caseBank.map((c) => [c.id] as const))(
+		"%s: se puede examinar la garganta, el oído y la presión",
+		async (caseId) => {
+			const ana = viewer(`gst_cases_todo_${caseId}`);
+			const id = await startSession(ana, caseId, "caso");
+			const exam = (zona: string) =>
+				runTool(ana, id, "examinar", {
+					zona,
+					claridad: "alta",
+					consentimiento: true,
+				});
+			expect((await exam("garganta")).ui.kind).toBe("exam");
+			expect((await exam("oído")).ui.kind).toBe("otoscope");
+			const bp = await runTool(ana, id, "medir_presion", {
+				pasos_cumplidos: [],
+			});
+			expect(bp.ui.kind).toBe("vitals");
+		},
+	);
 
 	test.each(caseBank.map((c) => [c.id, c] as const))(
 		"%s: el paciente no recibe el diagnóstico",
@@ -48,32 +90,6 @@ describe("banco de casos", () => {
 		},
 	);
 
-	test("Rosa: sin reposo ni silencio, la presión da más alta que la real", () => {
-		const rosa = byId("hipertension-01");
-		const arm = armFor(rosa.id);
-		const sinPreparar = measure(rosa.vitals.pa, [], null, arm);
-		const bienPreparada = measure(
-			rosa.vitals.pa,
-			[...BP_STEPS],
-			{ size: "grande", overClothes: false },
-			arm,
-		);
-		// Brazo grande (35 cm): con el manguito grande y bien preparada, el valor real.
-		expect(bienPreparada.shown).toEqual({ pas: 136, pad: 86 });
-		expect(sinPreparar.shown.pas).toBeGreaterThan(150);
-		// Con el manguito común le queda chico: da más alto.
-		const chico = measure(
-			rosa.vitals.pa,
-			[...BP_STEPS],
-			{ size: "adecuado", overClothes: false },
-			arm,
-		);
-		expect(chico.techniqueErrors).toContain("manguito-chico");
-		expect(
-			rosa.expectedChecklist.some((i) => i.id === "presion-arterial"),
-		).toBe(true);
-	});
-
 	test("Diego: oído derecho con secreción, izquierdo normal; se califica la otoscopia", () => {
 		const diego = byId("oido-01");
 		const { appearance } = otoscopyScenario(diego.id, diego.patient.age);
@@ -82,6 +98,20 @@ describe("banco de casos", () => {
 		expect(diego.expectedChecklist.some((i) => i.id === "otoscopia")).toBe(
 			true,
 		);
+	});
+
+	test("Diego, problemas 2 y 3: tímpano abombado; oídos normales", () => {
+		const ear = (id: string) =>
+			otoscopyScenario(id, byId(id).patient.age).appearance;
+		expect(ear("oido-02").derecho).toEqual({
+			canal: "sano",
+			tympanum: "abombado",
+		});
+		expect(ear("oido-02").izquierdo.tympanum).toBe("nacarado");
+		expect(ear("oido-03").derecho).toEqual({
+			canal: "sano",
+			tympanum: "nacarado",
+		});
 	});
 
 	test("Diego por voz: pedir revisar el oído abre el otoscopio", async () => {
@@ -96,9 +126,9 @@ describe("banco de casos", () => {
 		expect(run.output.disponible).toBe(true);
 	});
 
-	test("Jorge: hostil, no abre la boca sin permiso", async () => {
-		const ana = viewer("gst_cases_jorge");
-		const id = await startSession(ana, "garganta-02", "caso");
+	test("con personalidad hostil, no abre la boca sin permiso", async () => {
+		const ana = viewer("gst_cases_hostil");
+		const id = await startSession(ana, "garganta-02", "hostil");
 		const run = await runTool(ana, id, "examinar", {
 			zona: "garganta",
 			claridad: "alta",

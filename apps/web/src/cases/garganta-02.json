@@ -1,45 +1,61 @@
 {
 	"id": "garganta-02",
-	"title": "Garganta y catarro",
+	"title": "Dolor de garganta",
+	"group": "lucia",
+	"problem": "Problema 2",
+	"relevantExams": ["orofaringe"],
 	"origin": "banco",
 	"reviewedBy": null,
 	"patient": {
-		"name": "Jorge",
-		"age": 45,
-		"occupation": "chofer de ómnibus",
-		"sex": "m"
+		"name": "Lucía",
+		"age": 24,
+		"occupation": "estudiante",
+		"sex": "f"
 	},
 	"personality": {
-		"cooperacion": 0.3,
+		"cooperacion": 0.9,
 		"ansiedad": 0.3,
-		"locuacidad": 0.2,
-		"desconfianza": 0.8,
-		"paciencia": 0.3,
+		"locuacidad": 0.6,
+		"desconfianza": 0.1,
+		"paciencia": 0.7,
 		"audicion": "normal",
 		"vocabulario": "simple"
 	},
-	"personalityStyle": "Seco y desconfiado: viniste porque te mandó tu señora y querés irte rápido a trabajar. Respondés corto. No abrís la boca hasta que te expliquen para qué es y te pidan permiso; si te tratan bien, vas aflojando.",
-	"chiefComplaint": "Me duele la garganta y estoy con mocos. Vine porque me insistió mi señora",
 	"profile": {
-		"edad": "45 años",
-		"ocupacion": "manejo un ómnibus, hago turno de mañana",
-		"vive": "con mi señora y mis dos hijos"
+		"edad": "24 años",
+		"ocupacion": "estudio Ciencias de la Comunicación",
+		"vive": "con una compañera de apartamento",
+		"estadoCivil": "soltera"
 	},
+	"chiefComplaint": "Me duele la garganta y estoy con mocos desde hace dos días",
 	"hiddenHistory": {
-		"inicio": "hace tres días",
-		"dolor": "me molesta, pero puedo tragar",
-		"fiebre": "un poco de fiebre ayer, 37 y algo",
-		"tos": "sí, tos seca",
-		"mocos": "mucho moco y estornudo",
-		"contactos": "los gurises están todos resfriados",
-		"alergias": "no",
-		"medicacion": "nada, no me gusta tomar remedios",
-		"antecedentes": "nada, nunca voy al médico",
-		"tabaco": "fumo, unos diez por día",
-		"alcohol": "alguna cerveza el fin de semana",
+		"inicio": "empezó hace dos días, primero con picazón en la garganta",
+		"dolor": "me molesta al tragar pero lo aguanto, como un 4 de 10",
+		"fiebre": "un poco, anoche tuve 37 y medio",
+		"tos": "sí, tengo tos seca",
+		"mocos": "sí, muchos mocos y estornudo todo el tiempo",
+		"voz": "estoy un poco disfónica",
+		"ojos": "tengo los ojos un poco llorosos",
+		"contactos": "mi compañera de apartamento está resfriada",
+		"alergias": "no soy alérgica a nada",
+		"medicacion": "tomé un antigripal ayer",
+		"antecedentes": "nunca tuve nada importante",
+		"alcohol": "tomo los fines de semana, con amigos",
+		"tabaco": "no fumo",
 		"drogas": "no"
 	},
-	"vitals": { "pa": [128, 82], "fc": 84, "fr": 16, "tax": 37.3 },
+	"variations": {
+		"fiebre": [
+			"un poco, anoche tuve 37 y medio",
+			"no me tomé la temperatura, pero me sentía calentita"
+		]
+	},
+	"vitals": {
+		"pa": [110, 70],
+		"fc": 82,
+		"fr": 16,
+		"tax": 37.4
+	},
 	"exam": {
 		"orofaringe": {
 			"variants": {
@@ -70,19 +86,12 @@
 			"item": "empieza con una pregunta abierta",
 			"dimension": "comunicacion",
 			"weight": 2,
-			"keywords": ["qué te trae", "en qué te puedo", "contame", "qué te pasa"]
-		},
-		{
-			"id": "valida-emocion",
-			"item": "valida que vino a disgusto y le da control",
-			"dimension": "comunicacion",
-			"weight": 3,
 			"keywords": [
-				"entiendo",
-				"no te voy a demorar",
-				"rápido",
-				"si querés que pare",
-				"avisame"
+				"qué te trae",
+				"en qué te puedo",
+				"contame",
+				"qué te pasa",
+				"cómo estás"
 			]
 		},
 		{
@@ -98,6 +107,19 @@
 			]
 		},
 		{
+			"id": "caracteristicas-dolor",
+			"item": "caracteriza el dolor",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"al tragar",
+				"cuánto te duele",
+				"del 1 al 10",
+				"intensidad",
+				"cómo es el dolor"
+			]
+		},
+		{
 			"id": "fiebre",
 			"item": "pregunta por fiebre",
 			"dimension": "anamnesis",
@@ -108,7 +130,7 @@
 			"id": "tos-catarro",
 			"item": "pregunta por tos o síntomas respiratorios",
 			"dimension": "anamnesis",
-			"weight": 2,
+			"weight": 3,
 			"keywords": ["tos", "mocos", "nariz", "congest"]
 		},
 		{
@@ -116,7 +138,7 @@
 			"item": "pregunta por contactos enfermos",
 			"dimension": "anamnesis",
 			"weight": 1,
-			"keywords": ["alguien más", "contacto", "cerca tuyo", "en tu casa"]
+			"keywords": ["alguien más", "contacto", "cerca tuyo", "alguien con"]
 		},
 		{
 			"id": "alergias",
@@ -126,11 +148,32 @@
 			"keywords": ["alérgic", "alergia"]
 		},
 		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"tomaste algo",
+				"estás tomando",
+				"remedio",
+				"pastilla"
+			]
+		},
+		{
+			"id": "antecedentes",
+			"item": "antecedentes personales",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["antecedente", "enfermedad", "operad", "internad"]
+		},
+		{
 			"id": "habitos",
 			"item": "hábitos tóxicos",
 			"dimension": "anamnesis",
-			"weight": 2,
-			"keywords": ["fumás", "tabaco", "cigarr", "alcohol"]
+			"weight": 1,
+			"keywords": ["fumás", "tabaco", "alcohol", "tomás alcohol", "drogas"]
 		},
 		{
 			"id": "consentimiento",
@@ -142,7 +185,7 @@
 				"puedo",
 				"permiso",
 				"te parece si",
-				"para ver"
+				"te voy a revisar"
 			]
 		},
 		{
@@ -157,14 +200,27 @@
 			"item": "describe lo que vio",
 			"dimension": "examen",
 			"weight": 2,
-			"keywords": ["roj", "eritema", "sin placas", "sin pus", "amígdalas"]
+			"keywords": [
+				"roj",
+				"eritema",
+				"sin placas",
+				"sin pus",
+				"amígdalas",
+				"inflamad"
+			]
 		},
 		{
 			"id": "resume",
 			"item": "resume y verifica que entendió",
 			"dimension": "comunicacion",
 			"weight": 1,
-			"keywords": ["entonces", "si entendí bien", "resumiendo", "alguna duda"]
+			"keywords": [
+				"entonces",
+				"si entendí bien",
+				"resumiendo",
+				"¿entendiste",
+				"alguna duda"
+			]
 		}
 	],
 	"notApplicable": [
@@ -173,10 +229,7 @@
 		"contacto-ocular",
 		"expresion-facial"
 	],
-	"criticalErrors": [
-		"examen sin consentimiento",
-		"insistir contra la negativa"
-	],
+	"criticalErrors": ["examen sin consentimiento"],
 	"truth": {
 		"diagnosis": "faringitis viral aguda (resfrío común)",
 		"acceptable": [

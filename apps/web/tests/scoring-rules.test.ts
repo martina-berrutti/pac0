@@ -1,15 +1,16 @@
 // Penalizaciones, errores críticos y confianza (plan.md, sección 8).
 import { describe, expect, test } from "vitest";
 
-import { caseBank } from "@/cases";
-import type { ClinicalCase } from "@/cases/schema";
+import type { ClinicalCase, Personality } from "@/cases/schema";
 import type { Turn } from "@/lib/contracts/session";
+import { getArchetype } from "@/lib/patient/personalities";
 import { evaluate } from "@/lib/scoring/evaluate";
 import type { EvaluationInput } from "@/lib/scoring/types";
 
 import { averageStudent, badStudent, goodStudent } from "./helpers";
 
-const jorge = caseBank.find((c) => c.id === "garganta-02") as ClinicalCase;
+// Paciente difícil: el arquetipo hostil (antes era el caso de Jorge).
+const hostile = getArchetype("hostil")?.personality as Personality;
 
 function say(
 	id: string,
@@ -215,22 +216,22 @@ describe("errores críticos", () => {
 });
 
 describe("confianza de un paciente difícil", () => {
-	function withJorge(confianza: number): EvaluationInput {
+	function withHostile(confianza: number): EvaluationInput {
 		const input = goodStudent();
 		return {
 			...input,
 			session: {
 				...input.session,
-				personality: jorge.personality,
+				personality: hostile,
 				state: { ...input.session.state, confianza },
 			},
 		};
 	}
 
 	test("subirla suma a comunicación y aparece entre lo que hiciste bien", () => {
-		// Jorge empieza con 1 - 0,8 = 20% de confianza.
-		const low = evaluate(withJorge(0.25));
-		const high = evaluate(withJorge(0.6));
+		// El hostil empieza con 1 - 0,8 = 20% de confianza.
+		const low = evaluate(withHostile(0.25));
+		const high = evaluate(withHostile(0.6));
 		expect(high.strengths[0]?.text).toContain("de 20% a 60%");
 		expect(high.strengths).toHaveLength(3);
 		expect(high.scores.comunicacion).toBe(
