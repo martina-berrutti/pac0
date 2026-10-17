@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireProfile, requireViewer } from "@/server/auth";
 import { startSession } from "@/server/consultation";
 import { handle, readBody } from "@/server/http";
+import { limitByIp } from "@/server/rate-limit";
 import { store } from "@/server/store";
 
 const bodySchema = z.object({
@@ -15,7 +16,13 @@ export async function POST(req: Request) {
 		const viewer = await requireProfile();
 		const body = await readBody(req, bodySchema);
 		return {
-			sessionId: await startSession(viewer, body.caseId, body.personalityKey),
+			sessionId: await startSession(
+				viewer,
+				body.caseId,
+				body.personalityKey,
+				// El cupo por IP se cuenta solo si la consulta se va a crear.
+				() => limitByIp("sessions"),
+			),
 		};
 	});
 }

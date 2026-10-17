@@ -21,6 +21,7 @@ export const recordKind = v.union(
 	v.literal("report"),
 	v.literal("user"),
 	v.literal("mistakes"),
+	v.literal("rate"),
 );
 
 function checkSecret(secret: string) {
@@ -234,6 +235,47 @@ export const countSessionsSince = query({
 	},
 });
 
+// Límite por IP (apps/web/src/server/rate-limit.ts): cuenta los pedidos de
+// una clave en una ventana fija. Es una mutación, así dos pedidos a la vez no
+// se pisan. Devuelve si el pedido entra. La clave es un hash: la IP nunca se
+// guarda. Se borran con los invitados (guest: true), a las 24 horas.
+export const hitRate = mutation({
+	args: {
+		secret: v.string(),
+		key: v.string(),
+		windowMs: v.number(),
+		max: v.number(),
+	},
+	handler: async (ctx, { secret, key, windowMs, max }) => {
+		checkSecret(secret);
+		const now = Date.now();
+		const doc = await ctx.db
+			.query("records")
+			.withIndex("by_kind_and_appId", (q) =>
+				q.eq("kind", "rate").eq("appId", key),
+			)
+			.unique();
+		const data = doc?.data as { start: number; count: number } | undefined;
+		if (!doc || !data || now - data.start >= windowMs) {
+			const fresh = { start: now, count: 1 };
+			if (doc) await ctx.db.patch(doc._id, { data: fresh });
+			else
+				await ctx.db.insert("records", {
+					kind: "rate",
+					appId: key,
+					guest: true,
+					data: fresh,
+				});
+			return true;
+		}
+		if (data.count >= max) return false;
+		await ctx.db.patch(doc._id, {
+			data: { start: data.start, count: data.count + 1 },
+		});
+		return true;
+	},
+});
+
 const GUEST_TTL_MS = 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PER_RUN = 20;
@@ -272,13 +314,13 @@ async function deleteSession(
 
 // Borra lo de los invitados de más de 24 horas (plan.md, sección 10): sus
 // sesiones con todo lo que cuelga de ellas, sus casos generados y su perfil
-// de errores.
+// de errores; también los contadores del límite por IP.
 export const purgeExpiredGuests = internalMutation({
 	args: {},
 	handler: async (ctx) => {
 		const cutoff = Date.now() - GUEST_TTL_MS;
 		let deleted = 0;
-		for (const kind of ["session", "case", "mistakes"] as const) {
+		for (const kind of ["session", "case", "mistakes", "rate"] as const) {
 			// Por índice: solo invitados, del más viejo al más nuevo.
 			const old = await ctx.db
 				.query("records")

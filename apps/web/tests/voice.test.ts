@@ -791,3 +791,20 @@ describe("revisión independiente", () => {
 		record.mockRestore();
 	});
 });
+
+test("el cupo por IP se cuenta solo si la consulta se va a crear", async () => {
+	const counted = vi.fn(async () => {});
+	await expect(
+		startSession(ana, "caso-que-no-existe", "caso", counted),
+	).rejects.toThrow("Caso no encontrado");
+	expect(counted).not.toHaveBeenCalled();
+	vi.stubEnv("MAX_SESSIONS_PER_USER_PER_DAY", "1");
+	const carla: Viewer & { alias: string } = { ...ana, uid: "usr_carla" };
+	await startSession(carla, lucia.id, "caso", counted);
+	expect(counted).toHaveBeenCalledTimes(1);
+	// Llegó a su tope diario: el pedido falla sin gastar el cupo del salón.
+	await expect(startSession(carla, lucia.id, "caso", counted)).rejects.toThrow(
+		"tope",
+	);
+	expect(counted).toHaveBeenCalledTimes(1);
+});

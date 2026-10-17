@@ -72,9 +72,19 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
     - Doble clic en "Acepto" abría dos conexiones; el reloj mostraba el valor viejo de la voz mientras reconectaba; el reloj del docente quedaba congelado; el 409 del cierre decía "unos segundos" cuando hay que esperar 2 minutos.
     - Palabras clave: "no entiendo" y "¿dormís tranquilo?" contaban como empatía; "¿por qué no?" como sugestiva; "¿podés abrir la ventana?" como examen; faltaba "esta bien si" sin tilde.
   - **Conocido, sin arreglar:** con pedidos realmente simultáneos (dos pestañas o un script), el tope de un `actualizar_estado` por turno, el consentimiento y la nota de ánimo deciden con la sesión leída al principio. La fila del cliente lo evita en uso normal; arreglarlo del todo pide condiciones nuevas en `changeSession` de Convex (y desplegarlo).
+  - Séptima integración con `main` (límite por IP; se descarta la prueba en celular): en `/api/sessions` el cupo por IP se contaba antes de validar el caso y el tope diario del usuario, así que pedidos que iban a fallar gastaban el cupo compartido de todo el salón (100 por hora con la IP de la facultad). Ahora se cuenta justo antes de crear la sesión.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).
+
+## 17/10 · Persona 1 · Límite por IP para invitados y consultas
+
+- **Qué cuida:** sin límite, alguien podía crear invitados sin fin y saltear el tope de 10 consultas por usuario, gastando el tope diario de todos (y los créditos de la voz). Ahora `POST /api/auth/guest` y `POST /api/sessions` pasan por `server/rate-limit.ts`.
+- **Topes:** 50 invitados y 100 consultas por hora desde una misma IP. Son altos porque un salón entero sale por la misma IP de la facultad. Se pueden cambiar con `MAX_GUESTS_PER_IP_PER_HOUR` y `MAX_SESSIONS_PER_IP_PER_HOUR` (hay que declararlas en `apps/web/.env.schema`). Al pasarse, responde 429 con un mensaje en castellano.
+- **Privacidad:** la IP no se guarda; se guarda un hash con `SESSION_SECRET`. Los contadores se borran con los invitados, a las 24 horas.
+- **Convex:** mutación `records.hitRate` (cuenta y decide en una transacción, así dos pedidos a la vez no se pisan). Ya está en producción (`npx convex deploy`). Si la función faltara, deja pasar y siguen los topes por usuario y por día.
+- `/api/health` muestra los topes por IP solo a docentes.
+- Validación: 149 tests en web (4 nuevos) y 20 en backend (1 nuevo); lint y tipos pasan.
 
 ## 17/10 · Persona 1 · Chequeo de la Puerta 2, personaje en los cuatro casos y tests por caso
 

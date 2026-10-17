@@ -257,4 +257,24 @@ describe("changeSession (cambios atómicos)", () => {
 		).toBeNull();
 		await expect(change({}, "otro")).rejects.toThrow("No autorizado");
 	});
+
+	test("hitRate: cuenta por clave, frena en el tope y se reinicia con la ventana", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		vi.useFakeTimers();
+		const t = convexTest(schema, modules);
+		const hit = (key: string, s = secret) =>
+			t.mutation(api.records.hitRate, {
+				secret: s,
+				key,
+				windowMs: 1000,
+				max: 2,
+			});
+		expect(await hit("a")).toBe(true);
+		expect(await hit("a")).toBe(true);
+		expect(await hit("a")).toBe(false);
+		expect(await hit("b")).toBe(true);
+		vi.advanceTimersByTime(1000);
+		expect(await hit("a")).toBe(true);
+		await expect(hit("a", "otro")).rejects.toThrow("No autorizado");
+	});
 });

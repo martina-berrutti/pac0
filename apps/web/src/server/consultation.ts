@@ -160,11 +160,16 @@ export async function startSession(
 	viewer: Viewer & { alias: string },
 	caseId: string,
 	personalityKey: string,
+	// Corre con todo validado, justo antes de crear la sesión (la ruta cuenta
+	// ahí el límite por IP: así un pedido que igual iba a fallar no gasta el
+	// cupo de todo el salón).
+	beforeCreate: () => Promise<void> = async () => {},
 ) {
 	const visible = await store.listCases(viewer.uid);
 	const clinicalCase = visible.find((c) => c.id === caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
 	await checkSessionLimits(viewer);
+	await beforeCreate();
 	const { key, personality } = resolvePersonality(
 		personalityKey,
 		clinicalCase.personality,
