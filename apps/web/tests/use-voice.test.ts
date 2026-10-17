@@ -295,4 +295,36 @@ describe("cliente de voz", () => {
 		const cut = calls.find((c) => c.body.speaker === "paciente");
 		expect(cut?.body).toMatchObject({ text: "Mirá, hace dos", overlap: true });
 	});
+
+	test("un pedido colgado no traba la fila: se corta y siguen los demás", async () => {
+		const { voice, events } = mount();
+		await voice.start();
+		// El timeout real es de 15 s; acá se acorta.
+		const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+		vi.spyOn(AbortSignal, "timeout").mockImplementation(() => realTimeout(20));
+		const base = fakeFetch;
+		let hung = true;
+		vi.stubGlobal(
+			"fetch",
+			(url: string, init: { body?: string; signal?: AbortSignal }) => {
+				if (hung && url.endsWith("/voice-turns")) {
+					hung = false;
+					return new Promise((_, reject) =>
+						init.signal?.addEventListener("abort", () =>
+							reject(new Error("abort")),
+						),
+					);
+				}
+				return base(url, init);
+			},
+		);
+		const on = live.callbacks?.onmessage;
+		on?.(msg({ inputTranscription: { text: "primera" } }));
+		on?.(msg({ turnComplete: true }));
+		on?.(msg({ inputTranscription: { text: "segunda" } }));
+		on?.(msg({ turnComplete: true }));
+		await voice.drain();
+		expect(events.errors[0]).toContain("no respondió");
+		expect(events.turns).toEqual(["estudiante:segunda"]);
+	});
 });

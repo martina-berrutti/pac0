@@ -22,18 +22,31 @@ export class ApiError extends Error {
 	}
 }
 
+// Tope por pedido: sin él, un servidor colgado deja la pantalla cargando para
+// siempre. Es generoso porque el informe con IA puede tardar.
+const REQUEST_TIMEOUT_MS = 60_000;
+
 async function request<T>(
 	path: string,
 	init?: { method?: string; body?: unknown },
 ): Promise<T> {
-	const res = await fetch(path, {
-		method: init?.method ?? "GET",
-		headers:
-			init?.body === undefined
-				? undefined
-				: { "Content-Type": "application/json" },
-		body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-	});
+	let res: Response;
+	try {
+		res = await fetch(path, {
+			method: init?.method ?? "GET",
+			headers:
+				init?.body === undefined
+					? undefined
+					: { "Content-Type": "application/json" },
+			body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+		});
+	} catch {
+		throw new ApiError(
+			0,
+			"No pudimos comunicarnos con el servidor. Revisá la conexión y probá de nuevo.",
+		);
+	}
 	const data = (await res.json().catch(() => ({}))) as { error?: string };
 	if (!res.ok)
 		throw new ApiError(

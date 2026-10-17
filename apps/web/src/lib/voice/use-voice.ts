@@ -34,12 +34,22 @@ type Options = {
 	onError: (message: string) => void;
 };
 
+// Las escrituras van en fila: un pedido colgado trabaría todos los que
+// siguen (turnos, herramientas y el cierre), así que cada uno tiene tope.
+const POST_TIMEOUT_MS = 15_000;
+
 async function post<T>(path: string, body: unknown): Promise<T> {
-	const res = await fetch(path, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(body),
-	});
+	let res: Response;
+	try {
+		res = await fetch(path, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+			signal: AbortSignal.timeout(POST_TIMEOUT_MS),
+		});
+	} catch {
+		throw new Error("El servidor no respondió. Revisá la conexión.");
+	}
 	const data = (await res.json().catch(() => ({}))) as T & { error?: string };
 	if (!res.ok) throw new Error(data.error ?? "Error de la API");
 	return data;
