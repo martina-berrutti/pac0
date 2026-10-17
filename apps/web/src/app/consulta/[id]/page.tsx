@@ -69,6 +69,19 @@ export default function ConsultationPage() {
 		voice.status === "connecting" ||
 		voice.status === "reconnecting";
 
+	// Al cerrar un examen (boca, tensiómetro u otoscopio), se le avisa al
+	// paciente para que la charla siga con naturalidad.
+	const toolWasOpen = useRef(false);
+	const { sendNote } = voice;
+	useEffect(() => {
+		if (toolWasOpen.current && !tool && voice.status === "live") {
+			sendNote(
+				"El estudiante terminó de examinarte. Seguí la consulta normalmente y respondé lo que te pregunte.",
+			);
+		}
+		toolWasOpen.current = tool;
+	}, [tool, voice.status, sendNote]);
+
 	useEffect(() => {
 		api
 			.session(id)
@@ -196,6 +209,23 @@ export default function ConsultationPage() {
 						</li>
 					))}
 					<li ref={bottom} aria-hidden="true" />
+				</ol>
+			)}
+
+			{/* Con un examen abierto, la charla sigue: últimas frases a la vista. */}
+			{tool && view.turns.length > 0 && (
+				<ol
+					className="grid gap-1 border p-2 text-sm"
+					aria-label="Últimas frases"
+				>
+					{view.turns.slice(-3).map((t) => (
+						<li key={t.id} className="text-muted-foreground">
+							<span className="font-medium text-foreground">
+								{t.speaker === "estudiante" ? "Vos" : view.case.patient.name}:
+							</span>{" "}
+							{t.text}
+						</li>
+					))}
 				</ol>
 			)}
 

@@ -581,6 +581,20 @@ export function useVoice({
 		return Math.min(1, Math.sqrt(sum / o.buf.length) * 4);
 	}, []);
 
+	// Contexto para el paciente sin hacerlo hablar (turnComplete false): por
+	// ejemplo, que el estudiante terminó de revisarlo.
+	const sendNote = useCallback((note: string) => {
+		live.current?.sendClientContent({
+			turns: [
+				{
+					role: "user",
+					parts: [{ text: `(Nota interna, no la digas en voz alta: ${note})` }],
+				},
+			],
+			turnComplete: false,
+		});
+	}, []);
+
 	return {
 		status,
 		remainingMs,
@@ -589,5 +603,6 @@ export function useVoice({
 		start,
 		stop,
 		readPatientLevel,
+		sendNote,
 	};
 }
