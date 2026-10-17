@@ -288,3 +288,38 @@ describe("hallazgos de oído por caso", () => {
 		});
 	});
 });
+
+describe("exámenes que el caso no necesitaba", () => {
+	const diego = caseBank.find((c) => c.id === "oido-01") as ClinicalCase;
+
+	test("revisar el oído en un caso de garganta avisa sin restar", () => {
+		const base = evaluate(goodStudent());
+		const input = goodStudent();
+		input.examActions = [
+			...input.examActions,
+			otoscopy({ steps: [], errors: [] }),
+		];
+		const report = evaluate(input);
+		expect(report.notices).toEqual([
+			"Revisaste el oído: no era necesario para este caso. No resta puntos.",
+		]);
+		expect(report.total).toBe(base.total);
+		expect(base.notices).toEqual([]);
+	});
+
+	test("revisar la garganta en un caso de oído también avisa", () => {
+		const input = goodStudent();
+		input.clinicalCase = diego;
+		const report = evaluate(input);
+		expect(report.notices).toContain(
+			"Revisaste la garganta: no era necesario para este caso. No resta puntos.",
+		);
+	});
+
+	test("la otoscopia en el caso de oído no avisa", () => {
+		const input = goodStudent();
+		input.clinicalCase = diego;
+		input.examActions = [otoscopy({ steps: [], errors: [] })];
+		expect(evaluate(input).notices).toEqual([]);
+	});
+});

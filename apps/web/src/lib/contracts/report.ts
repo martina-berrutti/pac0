@@ -59,6 +59,9 @@ export const reportSchema = z.object({
 		differentials: z.array(z.string()),
 	}),
 	notMeasurable: z.array(z.string()),
+	// Avisos que no restan puntos (por ejemplo, un examen que el caso no
+	// necesitaba). Opcional para los informes guardados antes.
+	notices: z.array(z.string()).optional(),
 	judge: z.enum(["reglas", "ia"]),
 	createdAt: z.number(),
 });

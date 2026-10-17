@@ -2,13 +2,13 @@
 // El juez por reglas (evaluate) y el juez con IA (ai-evaluate.ts) comparten
 // assembleReport, así el puntaje siempre lo calcula este código.
 import type { Dimension } from "@/cases/schema";
+import { OTOSCOPY } from "@/lib/contracts/exam";
 import {
 	type ItemResult,
 	type Mistake,
 	type Report,
 	reportSchema,
 } from "@/lib/contracts/report";
-
 import { MARK_TOLERANCE, TECHNIQUE } from "@/lib/exam/blood-pressure";
 import {
 	affectedEar,
@@ -252,6 +252,31 @@ function earPenalties(
 			source: SOURCES.caso,
 		});
 	}
+	return out;
+}
+
+// Exámenes que el caso no necesitaba: no restan, solo se avisan. Revisar el
+// oído ante un dolor de garganta puede ser razonable, por eso no penaliza.
+function unneededExams(
+	{ clinicalCase, examActions }: EvaluationInput,
+	{ otoscopies }: Extracted,
+): string[] {
+	const items = new Set(clinicalCase.expectedChecklist.map((i) => i.id));
+	const out: string[] = [];
+	if (otoscopies.length > 0 && !items.has("otoscopia"))
+		out.push(
+			"Revisaste el oído: no era necesario para este caso. No resta puntos.",
+		);
+	const mouth = examActions.some(
+		(a) =>
+			a.maneuver !== OTOSCOPY &&
+			a.variant !== "negado" &&
+			!clinicalCase.exam[a.zone],
+	);
+	if (mouth)
+		out.push(
+			"Revisaste la garganta: no era necesario para este caso. No resta puntos.",
+		);
 	return out;
 }
 
@@ -575,6 +600,7 @@ export function assembleReport(
 			differentials: clinicalCase.truth.differentials,
 		},
 		notMeasurable: ["Contacto ocular", "Expresión facial y postura"],
+		notices: unneededExams(input, extracted),
 		judge,
 		createdAt: Date.now(),
 	});
