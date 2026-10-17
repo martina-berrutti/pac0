@@ -20,17 +20,30 @@ export async function handle(fn: () => Promise<unknown>): Promise<Response> {
 			);
 		}
 		console.error(error);
-		return Response.json({ error: "Error interno" }, { status: 500 });
+		// El detalle queda en el log; la pantalla muestra algo accionable.
+		return Response.json(
+			{ error: "Algo falló de nuestro lado. Probá de nuevo en unos segundos." },
+			{ status: 500 },
+		);
 	}
 }
+
+const MAX_BODY_BYTES = 64 * 1024;
 
 export async function readBody<T>(
 	req: Request,
 	schema: z.ZodType<T>,
 ): Promise<T> {
+	// Ninguna ruta necesita más: así nada enorme llega a Convex.
+	const declared = Number(req.headers.get("content-length") ?? 0);
+	if (declared > MAX_BODY_BYTES)
+		throw new HttpError(413, "El pedido es demasiado grande");
+	const text = await req.text();
+	if (text.length > MAX_BODY_BYTES)
+		throw new HttpError(413, "El pedido es demasiado grande");
 	let raw: unknown;
 	try {
-		raw = await req.json();
+		raw = JSON.parse(text);
 	} catch {
 		throw new HttpError(400, "El cuerpo tiene que ser JSON");
 	}

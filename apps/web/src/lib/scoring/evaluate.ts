@@ -15,6 +15,10 @@ import {
 	OTOSCOPY_TECHNIQUE,
 	otoscopyScenario,
 } from "@/lib/exam/otoscope";
+import {
+	askedToRepeat,
+	isLeadingQuestion,
+} from "@/lib/patient/turn-classifier";
 
 import {
 	dimensionScore,
@@ -54,9 +58,6 @@ const JUSTIFICATION_WORDS = [
 	"eritema",
 	"mocos",
 ];
-// Palabra suelta al final ("…, ¿no?"): sin el límite, "¿tenés algún
-// hermano?" contaba como sugestiva.
-const LEADING_QUESTION = /(?:^|[\s,¿])(no|verdad|cierto)\s*\?\s*$/i;
 
 // De dónde sale cada "por qué importa" (plan.md, sección 8: dimensiones y
 // fuentes; sección 6: afiches). Solo se nombra la fuente.
@@ -128,7 +129,22 @@ export function reasoningScore(input: EvaluationInput): Reasoning {
 	});
 }
 
-function penalties(extracted: Extracted): Penalty[] {
+function penalties(
+	extracted: Extracted,
+	turns: EvaluationInput["turns"] = [],
+): Penalty[] {
+	// Turnos del estudiante justo después de que el paciente pidió que le
+	// repitan: repetir ahí es lo correcto (misma regla que el clasificador).
+	const afterRepeatRequest = new Set(
+		turns
+			.filter(
+				(t, i) =>
+					t.speaker === "estudiante" &&
+					turns[i - 1]?.speaker === "paciente" &&
+					askedToRepeat(turns[i - 1]?.text ?? ""),
+			)
+			.map((t) => t.id),
+	);
 	const out: Penalty[] = [];
 	// Desde la tercera interrupción, 2 puntos de comunicación por vez.
 	for (const e of extracted.studentInterruptions.slice(2)) {
@@ -141,7 +157,8 @@ function penalties(extracted: Extracted): Penalty[] {
 	}
 	const asked = new Set<string>();
 	for (const t of extracted.studentTurns) {
-		if (LEADING_QUESTION.test(t.text.trim())) {
+		// Misma regla que el clasificador de la voz (lib/patient/turn-classifier).
+		if (isLeadingQuestion(t.text)) {
 			out.push({
 				dimension: "comunicacion",
 				points: 1,
@@ -153,7 +170,7 @@ function penalties(extracted: Extracted): Penalty[] {
 		const key = normalize(t.text)
 			.replace(/[^a-z ]/g, "")
 			.trim();
-		if (key.length > 8 && asked.has(key)) {
+		if (key.length > 8 && asked.has(key) && !afterRepeatRequest.has(t.id)) {
 			out.push({
 				dimension: "anamnesis",
 				points: 1,
@@ -469,7 +486,7 @@ export function assembleReport(
 ): Report {
 	const { clinicalCase } = input;
 	const pens = [
-		...penalties(extracted),
+		...penalties(extracted, input.turns),
 		...earPenalties(input, extracted),
 		...jumpedToDiagnosis(input, items, extracted),
 	];

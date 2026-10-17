@@ -20,6 +20,19 @@ const WORKLET_URL = "/avatar/headworklet.min.mjs";
 const MODEL_URL = "/avatar/model-en-mixed.bin";
 // Cuánto queda la boca abierta por una orden.
 const MOUTH_MS = 4000;
+// Mandíbula por volumen: la voz de Gemini anda en 0,1 de RMS hablando y
+// llega a 0,3 en los picos (medido en la consulta).
+const JAW_FLOOR = 0.015;
+const JAW_GAIN = 3;
+const JAW_MAX = 0.5;
+
+type Lips = { detector: AudioNode; meter: AnalyserNode };
+
+// Valor en tiempo real de una forma de la cara (el canal que usa HeadAudio).
+function setShape(h: TalkingHead, key: string, value: number) {
+	const mt = h.mtAvatar[key];
+	if (mt) Object.assign(mt, { newvalue: value, needsUpdate: true });
+}
 
 export type PatientAvatarHandle = {
 	run: (action: AvatarAction) => void;
@@ -64,12 +77,50 @@ export function PatientAvatar({
 }) {
 	const node = useRef<HTMLDivElement>(null);
 	const head = useRef<TalkingHead | null>(null);
-	const lips = useRef<AudioNode | null>(null);
+	const lips = useRef<Promise<Lips> | null>(null);
 	const speech = useRef<MediaStream | null>(null);
 	const source = useRef<MediaStreamAudioSourceNode | null>(null);
 	const mouthTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [status, setStatus] = useState<Status>("cargando");
 	const [progress, setProgress] = useState(0);
+
+	// Detector de labios y medidor de volumen, una sola vez por avatar.
+	const loadLips = useCallback((h: TalkingHead) => {
+		lips.current ??= (async () => {
+			await h.audioCtx.audioWorklet.addModule(WORKLET_URL);
+			const { HeadAudio } = await import(
+				"@met4citizen/headaudio/dist/headaudio.min.mjs"
+			);
+			const detector = new HeadAudio(h.audioCtx);
+			await detector.loadModel(MODEL_URL);
+			detector.onvalue = (key, value) => setShape(h, key, value);
+			const meter = h.audioCtx.createAnalyser();
+			meter.fftSize = 512;
+			const samples = new Float32Array(meter.fftSize);
+			let jaw = 0;
+			h.opt.update = (dt) => {
+				detector.update(dt);
+				// HeadAudio está entrenado en inglés: con la voz en castellano
+				// las formas de la boca salen sutiles. La mandíbula se abre con el
+				// volumen, que anda en cualquier idioma.
+				let target = 0;
+				if (source.current) {
+					meter.getFloatTimeDomainData(samples);
+					let sum = 0;
+					for (const v of samples) sum += v * v;
+					const rms = Math.sqrt(sum / samples.length);
+					target = Math.min(JAW_MAX, Math.max(0, (rms - JAW_FLOOR) * JAW_GAIN));
+				}
+				const next = jaw + (target - jaw) * (target > jaw ? 0.6 : 0.25);
+				if (Math.abs(next - jaw) > 0.002 || (next === 0 && jaw !== 0)) {
+					jaw = next < 0.005 ? 0 : next;
+					setShape(h, "jawOpen", jaw);
+				}
+			};
+			return { detector, meter };
+		})();
+		return lips.current;
+	}, []);
 
 	// Conecta la voz pendiente al detector de labios, si ya hay avatar.
 	const attachSpeech = useCallback(async () => {
@@ -77,29 +128,15 @@ export function PatientAvatar({
 		const stream = speech.current;
 		if (!h || !stream) return;
 		await h.audioCtx.resume();
-		if (!lips.current) {
-			await h.audioCtx.audioWorklet.addModule(WORKLET_URL);
-			const { HeadAudio } = await import(
-				"@met4citizen/headaudio/dist/headaudio.min.mjs"
-			);
-			const detector = new HeadAudio(h.audioCtx);
-			await detector.loadModel(MODEL_URL);
-			detector.onvalue = (key, value) => {
-				Object.assign(h.mtAvatar[key] ?? {}, {
-					newvalue: value,
-					needsUpdate: true,
-				});
-			};
-			h.opt.update = detector.update.bind(detector);
-			lips.current = detector;
-		}
+		const { detector, meter } = await loadLips(h);
 		// Se cortó o cambió mientras cargaba.
 		if (speech.current !== stream || head.current !== h) return;
 		source.current?.disconnect();
-		// Va solo al detector de labios, no a los parlantes (sin eco).
+		// Va solo al detector y al medidor, no a los parlantes (sin eco).
 		source.current = h.audioCtx.createMediaStreamSource(stream);
-		source.current.connect(lips.current);
-	}, []);
+		source.current.connect(detector);
+		source.current.connect(meter);
+	}, [loadLips]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -116,6 +153,9 @@ export function PatientAvatar({
 					// Arranca en la cara, lo más cerca del tamaño real. Los gestos
 					// con las manos se ven recién en "mid" o "full".
 					cameraView: "head",
+					// En pantallas de alta densidad el 3D se dibuja a 1,5x como
+					// máximo: casi igual de nítido y mucho más liviano.
+					modelPixelRatio: Math.min(1, 1.5 / window.devicePixelRatio),
 					// Sin módulos de lipsync por texto: los labios salen del audio.
 					lipsyncModules: [],
 					avatarIdleEyeContact: 0.4,

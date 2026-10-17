@@ -26,7 +26,7 @@ const TOPICS: { key: string; words: string[] }[] = [
 		words: ["duele", "dolor", "al tragar", "del 1 al 10", "intensidad"],
 	},
 	{ key: "fiebre", words: ["fiebre", "temperatura", "chuchos"] },
-	{ key: "tos", words: ["tos"] },
+	{ key: "tos", words: ["tos", "tosés", "toses", "tosiendo"] },
 	{ key: "mocos", words: ["mocos", "nariz", "congest", "estornud"] },
 	{
 		key: "contactos",
@@ -116,8 +116,14 @@ const DIAGNOSIS_FISHING = [
 	"sos un bot",
 ];
 
+// Las palabras muy cortas ("tos") van como palabra entera: si no, "datos" o
+// "todos" cuentan como tos.
 function has(text: string, words: string[]) {
-	return words.some((w) => text.includes(w));
+	return words.some((w) =>
+		w.length <= 3
+			? new RegExp(`(?<!\\p{L})${w}(?!\\p{L})`, "u").test(text)
+			: text.includes(w),
+	);
 }
 
 export type RuleReply = {
@@ -192,7 +198,8 @@ export function ruleRespond(
 	}
 	if (delta) {
 		return {
-			text: "Gracias... sí, estoy bastante incómoda con esto.",
+			// Sin género: el mismo texto sirve para pacientes generados de cualquier sexo.
+			text: "Gracias... sí, esto me tiene bastante mal.",
 			delta,
 			motivo,
 		};

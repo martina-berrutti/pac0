@@ -166,3 +166,82 @@ describe("cookie de sesión", () => {
 		expect(await verifyViewer(token)).toBeNull();
 	});
 });
+
+test("pregunta sugestiva: solo ', ¿no?', '¿verdad?' o '¿cierto?' como palabra entera", async () => {
+	const { isLeadingQuestion } = await import("@/lib/patient/turn-classifier");
+	for (const t of [
+		"¿Te duele al tragar, no?",
+		"Te duele, ¿no?",
+		"¿Es en la garganta, verdad?",
+		"te duele al tragar, no",
+	])
+		expect(isLeadingQuestion(t), t).toBe(true);
+	for (const t of ["¿Todo bueno?", "¿Fumás o no?", "¿Tenés fiebre?", "eso no"])
+		expect(isLeadingQuestion(t), t).toBe(false);
+});
+
+test("'hola, con permiso' es un saludo, no un permiso para examinar", async () => {
+	const { asksConsent } = await import("@/lib/patient/exam-instruction");
+	for (const t of [
+		"Hola, con permiso",
+		"Permiso, ¿se puede?",
+		"¿Puedo preguntarte la edad?",
+	])
+		expect(asksConsent(t), t).toBe(false);
+	for (const t of [
+		"¿Me das permiso para revisarte?",
+		"¿Te puedo revisar la garganta?",
+		"Con tu permiso te reviso",
+		"Te pido permiso para examinarte",
+	])
+		expect(asksConsent(t), t).toBe(true);
+});
+
+test("frases de entrevista: pedido de examen, permiso y pregunta abierta", async () => {
+	const { asksConsent, isExamRequest } = await import(
+		"@/lib/patient/exam-instruction"
+	);
+	const { classifyStudentTurn } = await import("@/lib/patient/turn-classifier");
+	expect(asksConsent("¿Querés que te revise?")).toBe(true);
+	expect(asksConsent("Me dejás revisarte la garganta")).toBe(true);
+	expect(isExamRequest("¿Abriste la ventana?")).toBe(false);
+	expect(isExamRequest("En abril empezó")).toBe(false);
+	for (const t of [
+		"Abrí la boca",
+		"¿Me abrís la boca?",
+		"Abra grande",
+		"Abrime la boca",
+	])
+		expect(isExamRequest(t), t).toBe(true);
+	expect(
+		classifyStudentTurn("¿Hay algo más que te preocupe?", []).tags,
+	).toContain("pregunta_abierta");
+});
+
+test("revisión: palabras clave sin falsos positivos", async () => {
+	const { asksConsent, isExamRequest } = await import(
+		"@/lib/patient/exam-instruction"
+	);
+	const { classifyStudentTurn, isLeadingQuestion } = await import(
+		"@/lib/patient/turn-classifier"
+	);
+	expect(isExamRequest("¿Podés abrir la ventana?")).toBe(false);
+	for (const t of [
+		"¿Podés abrir?",
+		"¿Podés abrir bien grande?",
+		"¿Podés abrir la boca?",
+		"Podés abrir la boca, por favor",
+	])
+		expect(isExamRequest(t), t).toBe(true);
+	expect(asksConsent("esta bien si te reviso")).toBe(true);
+	expect(isLeadingQuestion("¿Por qué no?")).toBe(false);
+	expect(
+		classifyStudentTurn("No entiendo lo que me decís", []).tags,
+	).not.toContain("empatia");
+	expect(classifyStudentTurn("¿Dormís tranquilo?", []).tags).not.toContain(
+		"empatia",
+	);
+	expect(classifyStudentTurn("Quedate tranquila", []).tags).toContain(
+		"empatia",
+	);
+});

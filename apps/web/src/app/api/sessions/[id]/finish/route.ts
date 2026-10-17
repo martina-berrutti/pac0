@@ -5,8 +5,12 @@ import { finishSession } from "@/server/consultation";
 import { handle, readBody } from "@/server/http";
 
 const bodySchema = z.object({
-	hypothesis: z.string().min(1).max(500),
-	differentials: z.array(z.string().max(100)).max(10).default([]),
+	hypothesis: z.string().trim().min(1, "Escribí tu hipótesis").max(500),
+	differentials: z
+		.array(z.string().trim().max(100))
+		.max(10)
+		.default([])
+		.transform((list) => list.filter(Boolean)),
 });
 
 // Cierra la consulta con hipótesis y diferenciales, y genera el informe.

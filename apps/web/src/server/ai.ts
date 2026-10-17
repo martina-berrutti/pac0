@@ -110,5 +110,10 @@ export async function completeJson<T>(
 	schema: z.ZodType<T>,
 ): Promise<T> {
 	const raw = await call([{ role: "user", content: prompt }], true);
-	return schema.parse(JSON.parse(raw));
+	// A veces el modelo envuelve el JSON en ```json ... ```.
+	const unfenced = raw
+		.trim()
+		.replace(/^```(?:json)?\s*/i, "")
+		.replace(/\s*```$/, "");
+	return schema.parse(JSON.parse(unfenced));
 }

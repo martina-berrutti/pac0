@@ -8,7 +8,11 @@ import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
 // sin tildes.
 const EXAM_PATTERNS = [
 	/\babr(i|a|ime|ame|ila|is)\b/,
-	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir\b/,
+	// "¿Podés abrir?", "¿podés abrir bien?", "¿podés abrir la boca?"; no
+	// "¿podés abrir la ventana?".
+	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir(\s+(bien|grande|mas|un\s+poco))*(\s+la\s+boca)?[\s?!.,]*$/,
+	// "Podés abrir la boca, por favor" (sí); "¿te molesta al abrir la boca?" (no).
+	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir\s+((bien|grande|mas)\s+)*la\s+boca\b/,
 	/\b(deci|diga|decime|digame)\s+a{2,}/,
 	/\ba{3,}\b/,
 	/\bsac(a|ate|que)\s+(la\s+)?lengua\b/,
@@ -32,12 +36,18 @@ const CONSENT_WORDS = [
 	"permiso",
 	"puedo",
 	"te parece",
-	"¿me dejás",
+	"me dejás",
 	"me dejas",
 	"te voy a",
 	"vamos a",
 	"si querés",
+	"si queres",
+	"querés que",
+	"queres que",
+	"estás de acuerdo",
+	"estas de acuerdo",
 	"está bien si",
+	"esta bien si",
 	"te molesta si",
 ];
 
@@ -49,7 +59,8 @@ function includesAny(text: string, words: string[]) {
 // "Te reviso" es un pedido; "te revisó" (alguien, antes) no. Estos se comparan
 // con las tildes puestas.
 const FIRST_PERSON =
-	/(^|[^\p{L}])(te|le|lo|la)\s+(voy\s+a\s+)?(reviso|revisar|examino|examinar|miro|mirar)(?!\p{L})/u;
+	// También el subjuntivo: "¿querés que te revise?".
+	/(^|[^\p{L}])(te|le|lo|la)\s+(voy\s+a\s+)?(reviso|revisar|revise|examino|examinar|examine|miro|mirar|mire)(?!\p{L})/u;
 
 export function isExamRequest(text: string) {
 	const lower = text.toLowerCase();
@@ -57,8 +68,28 @@ export function isExamRequest(text: string) {
 	return FIRST_PERSON.test(lower) || EXAM_PATTERNS.some((p) => p.test(plain));
 }
 
+// Frases que piden o nombran el permiso. "Permiso" a secas no alcanza: "hola,
+// con permiso" es un saludo al entrar, no un permiso para examinar.
+const ASKS_PERMISSION = [
+	"me das permiso",
+	"me dás permiso",
+	"me da permiso",
+	"me darías permiso",
+	"tengo permiso",
+	"tengo tu permiso",
+	"con tu permiso",
+	"con su permiso",
+	"pido permiso",
+	"pedirte permiso",
+	"pedirle permiso",
+	"permiso para",
+];
+
+// Permiso para examinar: pedirlo explícitamente, o pedirlo junto con el
+// examen. "¿Puedo preguntarte la edad?" no autoriza a abrirle la boca.
 export function asksConsent(text: string) {
-	return includesAny(text, CONSENT_WORDS);
+	if (includesAny(text, ASKS_PERMISSION)) return true;
+	return includesAny(text, CONSENT_WORDS) && isExamRequest(text);
 }
 
 export function interpretExamInstruction(

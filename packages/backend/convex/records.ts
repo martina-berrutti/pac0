@@ -94,6 +94,11 @@ export const changeSession = mutation({
 			voiceStarts?: number;
 		};
 		if (change.ifStatus && session.status !== change.ifStatus) return null;
+		// Igual que ifEquals en apps/web/src/lib/contracts/session-change.ts.
+		for (const [k, v] of Object.entries(
+			(change.ifEquals ?? {}) as Record<string, unknown>,
+		))
+			if ((session[k] ?? null) !== (v ?? null)) return null;
 		const next = { ...session, ...(change.set ?? {}) };
 		if (change.stateDelta) {
 			const state = { ...next.state };
@@ -278,23 +283,38 @@ export const hitRate = mutation({
 
 const GUEST_TTL_MS = 24 * 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PER_RUN = 50;
+const PER_RUN = 20;
+// Presupuesto de borrados por corrida. Convex limita cuánto lee y escribe una
+// mutación: si una corrida se pasara, fallaría entera y la siguiente volvería
+// a tomar las mismas sesiones viejas, así que la limpieza quedaría trabada.
+// Con presupuesto, una sesión larga se borra en varias corridas.
+const DELETE_BUDGET = 1000;
 
-// Borra una sesión con todo lo que cuelga de ella.
-async function deleteSession(ctx: MutationCtx, doc: Doc<"records">) {
+// Borra una sesión con todo lo que cuelga de ella, sin pasar de `budget`
+// borrados. Si no entra entera, borra lo que puede, deja la sesión y avisa
+// con done = false (la próxima corrida sigue).
+async function deleteSession(
+	ctx: MutationCtx,
+	doc: Doc<"records">,
+	budget: number,
+): Promise<{ deleted: number; done: boolean }> {
 	let deleted = 0;
 	for (const child of ["turn", "event", "exam", "vitals", "report"] as const) {
+		const room = budget - deleted;
+		if (room <= 0) return { deleted, done: false };
 		const rows = await ctx.db
 			.query("records")
 			.withIndex("by_kind_and_sessionId", (q) =>
 				q.eq("kind", child).eq("sessionId", doc.appId),
 			)
-			.take(2000);
-		for (const row of rows) await ctx.db.delete(row._id);
-		deleted += rows.length;
+			.take(room + 1);
+		for (const row of rows.slice(0, room)) await ctx.db.delete(row._id);
+		deleted += Math.min(rows.length, room);
+		if (rows.length > room) return { deleted, done: false };
 	}
+	if (deleted >= budget) return { deleted, done: false };
 	await ctx.db.delete(doc._id);
-	return deleted + 1;
+	return { deleted: deleted + 1, done: true };
 }
 
 // Borra lo de los invitados de más de 24 horas (plan.md, sección 10): sus
@@ -315,9 +335,11 @@ export const purgeExpiredGuests = internalMutation({
 				.order("asc")
 				.take(PER_RUN);
 			for (const doc of old) {
-				if (doc._creationTime > cutoff) break;
+				if (doc._creationTime > cutoff || deleted >= DELETE_BUDGET) break;
 				if (kind === "session") {
-					deleted += await deleteSession(ctx, doc);
+					const r = await deleteSession(ctx, doc, DELETE_BUDGET - deleted);
+					deleted += r.deleted;
+					if (!r.done) return deleted;
 				} else {
 					await ctx.db.delete(doc._id);
 					deleted += 1;
@@ -347,8 +369,10 @@ export const purgeOldSessions = internalMutation({
 			.take(PER_RUN);
 		let deleted = 0;
 		for (const doc of old) {
-			if (doc._creationTime > cutoff) break;
-			deleted += await deleteSession(ctx, doc);
+			if (doc._creationTime > cutoff || deleted >= DELETE_BUDGET) break;
+			const r = await deleteSession(ctx, doc, DELETE_BUDGET - deleted);
+			deleted += r.deleted;
+			if (!r.done) break;
 		}
 		return deleted;
 	},

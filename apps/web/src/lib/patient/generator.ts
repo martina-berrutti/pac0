@@ -13,6 +13,8 @@ import {
 } from "@/cases/templates";
 import { completeJson } from "@/server/ai";
 
+import { asciiKey } from "./keys";
+
 import {
 	ARCHETYPES,
 	type Archetype,
@@ -64,8 +66,15 @@ function pick<T>(items: T[], rand: () => number): T {
 	return items[Math.floor(rand() * items.length)] as T;
 }
 
+// Palabras muy cortas ("tos") como palabra entera: "todos" o "datos" no son tos.
+function hasWord(text: string, w: string) {
+	return w.length <= 3
+		? new RegExp(`(?<!\\p{L})${w}(?!\\p{L})`, "u").test(text)
+		: text.includes(w);
+}
+
 function includesAny(text: string, words: string[]) {
-	return words.some((w) => text.includes(w));
+	return words.some((w) => hasWord(text, w));
 }
 
 export function chooseTemplate(
@@ -83,11 +92,11 @@ export function chooseTemplate(
 	}
 	// Si pide catarro o tos, prioriza la plantilla que mejor coincide.
 	const best = Math.max(
-		...matches.map((m) => m.keywords.filter((k) => t.includes(k)).length),
+		...matches.map((m) => m.keywords.filter((k) => hasWord(t, k)).length),
 	);
 	return pick(
 		matches.filter(
-			(m) => m.keywords.filter((k) => t.includes(k)).length === best,
+			(m) => m.keywords.filter((k) => hasWord(t, k)).length === best,
 		),
 		rand,
 	);
@@ -109,7 +118,8 @@ function parseAge(
 	rand: () => number,
 	minAge = 16,
 ) {
-	const match = text.match(/(\d{1,2})\s*años/);
+	// "100 años" no tiene que leerse como "00 años".
+	const match = text.match(/(?<!\d)(\d{1,3})\s*años/);
 	// La plantilla puede pedir una edad mínima (la historia tiene que cerrar).
 	if (match) return Math.max(minAge, Math.min(95, Number(match[1])));
 	if (archetype.key === "mayor") return 68 + Math.floor(rand() * 15);
@@ -119,16 +129,32 @@ function parseAge(
 
 function parseSex(text: string, rand: () => number): "f" | "m" {
 	const t = text.toLowerCase();
-	if (/\b(mujer|señora|chica|paciente femenina|ella)\b/.test(t)) return "f";
-	if (/\b(hombre|señor|chico|varón|varon|él)\b/.test(t)) return "m";
+	// Bordes de palabra con letras acentuadas: \b no sirve para "él" ni "varón".
+	const word = (alts: string) =>
+		new RegExp(`(?<![\\p{L}])(${alts})(?![\\p{L}])`, "u");
+	if (word("mujer|señora|chica|paciente femenina|ella").test(t)) return "f";
+	if (word("hombre|señor|chico|varón|varon|él").test(t)) return "m";
 	return rand() < 0.5 ? "f" : "m";
 }
 
-const personaSchema = z.object({
+export const personaSchema = z.object({
 	name: z.string().min(2).max(30),
 	occupation: z.string().min(2).max(40),
 	chiefComplaint: z.string().min(5).max(120),
-	profile: z.record(z.string(), z.string()),
+	// Va a las instrucciones del paciente: pocos datos y cortos, para que una
+	// respuesta rara de la IA no infle el prompt ni le meta instrucciones.
+	// La historia clínica de la plantilla igual gana (brief.ts la mezcla después).
+	profile: z
+		.record(z.string().max(30), z.string().max(120))
+		// Claves en ASCII ("con quién vive" → "con_quien_vive"): Convex no acepta
+		// otras como nombre de campo.
+		.transform((p) =>
+			Object.fromEntries(
+				Object.entries(p)
+					.slice(0, 6)
+					.map(([k, v]) => [asciiKey(k), v]),
+			),
+		),
 });
 
 // Sin IA (o si falla): persona al azar, con datos inventados.
@@ -188,11 +214,14 @@ export async function generateCase(
 		archetype.personality,
 	);
 
-	const id = `gen-${tpl.id}-${Date.now().toString(36)}${Math.floor(rand() * 1e4).toString(36)}`;
+	// El id llega al navegador: no puede llevar el nombre de la plantilla (es
+	// el diagnóstico). La plantilla queda en templateId, solo en el servidor.
+	const id = `gen-${Date.now().toString(36)}${Math.floor(rand() * 1e6).toString(36)}`;
 	const clinicalCase = caseSchema.parse({
 		id,
 		title: tpl.title,
 		origin: "generado",
+		templateId: tpl.id,
 		reviewedBy: null,
 		patient: { name: persona.name, age, occupation: persona.occupation, sex },
 		personality,

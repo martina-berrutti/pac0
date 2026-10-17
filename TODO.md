@@ -46,7 +46,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Rutas protegidas (`proxy.ts`) y cada ruta de la API valida al usuario
 - [x] Una sesión y su informe solo los ve su dueño
 - [x] Cerrar sesión
-- [ ] Probar el login desde un celular en la URL pública
+- [-] ~~Probar el login desde un celular en la URL pública~~ (descartado 17/10: no se va a probar en celular)
 - [x] Login con Google por OAuth propio (`/api/auth/google`): solo `openid`, id con hash, perfil guardado en Convex
 - [ ] Crear las credenciales OAuth en Google Cloud y cargarlas en Vercel (`/api/health` en producción dice `google: false`)
 - [ ] Probar el login con Google en la URL pública
@@ -73,6 +73,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 
 ### Voz (plan.md, secciones 4 y 5) · Gemini Live de Google AI Studio
 - [x] Decisión del 17/10: la voz usa Gemini Live (Google AI Studio) en vez de OpenAI Realtime
+- [ ] **Para más adelante (pedido el 17/10, no ahora):** volver a pasar la voz a OpenAI (GPT Realtime) en vez de Gemini Live
 - [x] Token efímero de Gemini con las instrucciones fijadas: `POST /api/voice/session` (la clave real no sale del servidor)
 - [x] Sesión de voz por WebSocket en `/consulta`: micrófono a 16 kHz y audio del paciente a 24 kHz (`lib/voice/use-voice.ts`)
 - [x] Aviso antes de la voz: se guarda la transcripción, no el audio; no decir datos personales
@@ -88,7 +89,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Plan B si falla la voz o el wifi: si la voz no arranca o se cae, aparece «Seguir por texto» y la consulta sigue escribiendo, con el mismo paciente; pedir examinar abre el examen igual. Probado en Chrome a 390 px
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
 - [x] Probar con micrófono en la computadora (URL pública, 17/10)
-- [ ] Probar con micrófono en el celular
+- [-] ~~Probar con micrófono en el celular~~ (descartado 17/10)
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
 - [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
@@ -159,6 +160,7 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Veredicto: 85% sin errores críticos, 70% a 84% "casi", menos de 70% "a repasar"
 - [x] Penalizaciones: interrumpir desde la tercera vez, pregunta sugestiva, pregunta repetida
 - [x] Error crítico: examinar sin consentimiento
+- [x] Ese error crítico mira el orden (extractor: `atMs` del evento `consentimiento` contra cada examen); test de punta a punta con la voz en `tests/voice.test.ts`
 - [x] Razonamiento: hipótesis 40%, diferenciales 25%, justificación 20%, estudios 15%
 - [x] Penalizaciones: jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico
 - [x] Errores críticos: insistir contra la negativa, pasar por alto una alarma (ítem del caso con "alarma"), trato irrespetuoso
