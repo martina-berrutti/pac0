@@ -9,7 +9,8 @@ const bodySchema = z.object({
 	durationMs: z.number().int().min(0).max(600_000).optional(),
 });
 
-// Interrupciones y silencios que detecta el navegador durante la voz.
+// Interrupciones y silencios que detecta el navegador durante la voz. Si el
+// paciente tiene que enterarse (una interrupción), devuelve la nota para él.
 export async function POST(
 	req: Request,
 	ctx: RouteContext<"/api/sessions/[id]/events">,
@@ -18,6 +19,6 @@ export async function POST(
 		const viewer = await requireViewer();
 		const { id } = await ctx.params;
 		const body = await readBody(req, bodySchema);
-		await recordVoiceEvent(viewer, id, body.type, body.durationMs);
+		return recordVoiceEvent(viewer, id, body.type, body.durationMs);
 	});
 }

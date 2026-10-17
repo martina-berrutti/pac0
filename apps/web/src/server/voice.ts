@@ -195,6 +195,7 @@ export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
 	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
+	| { kind: "otoscope" }
 	| { kind: "end" }
 	// Ánimo nuevo del paciente, para la cara del avatar (Persona 3).
 	| { kind: "state"; state: PatientState }
@@ -238,6 +239,27 @@ export async function runTool(
 	switch (name) {
 		case "examinar": {
 			const args = toolArgs.examinar.parse(rawArgs);
+			// El oído se examina con el otoscopio de la pantalla (Persona 2): la
+			// herramienta lo abre y el paciente se queda quieto.
+			if (/o[ií]do|oreja/i.test(args.zona)) {
+				if (args.consentimiento && !session.consentGiven) {
+					await store.addEvent({
+						id: newId("evt"),
+						sessionId,
+						type: "consentimiento",
+						atMs: elapsed,
+					});
+					await store.updateSession(sessionId, { consentGiven: true });
+				}
+				return {
+					output: {
+						disponible: true,
+						que_pasa:
+							"Te van a revisar el oído con el otoscopio. Decí algo breve para que se note que entendiste (por ejemplo: dale, revisame, pero con cuidado que me duele) y quedate quieto. Si te tiran de la oreja que te duele, quejate. Seguí respondiendo si te hablan.",
+					},
+					ui: { kind: "otoscope" },
+				};
+			}
 			// Sin zona clara, se examina la zona principal del caso.
 			const zone = args.zona.trim()
 				? zoneFor(args.zona, Object.keys(clinicalCase.exam))
@@ -423,7 +445,21 @@ export async function recordVoiceEvent(
 		...(durationMs === undefined ? {} : { durationMs }),
 	});
 	// Interrumpir o quedarse callado le cae mal al paciente.
-	await nudgeState(session, type, elapsed);
+	const next = await nudgeState(session, type, elapsed);
+	if (type !== "interrupcion_estudiante") return { nota: null };
+	const count = (await store.listEvents(sessionId)).filter(
+		(e) => e.type === "interrupcion_estudiante",
+	).length;
+	return { nota: interruptionNote(count, next.state.paciencia) };
+}
+
+// Lo que se le avisa al paciente de voz cuando el estudiante lo interrumpe:
+// sus instrucciones están fijadas en el token, así que el cambio de ánimo le
+// llega como contexto, sin pedirle que hable (plan.md, sección 5).
+export function interruptionNote(count: number, paciencia: number) {
+	if (count < 2 && paciencia >= 0.5)
+		return "(Nota para vos, no la leas en voz alta: el estudiante te interrumpió. Dejalo hablar; si quedó algo importante sin decir, retomalo después.)";
+	return `(Nota para vos, no la leas en voz alta: el estudiante te interrumpió otra vez, ya van ${count}. Tu paciencia ahora es ${paciencia.toFixed(2)} de 1. Mostrá un poco de fastidio según tu personalidad, por ejemplo "pará, dejame terminar", y contestá más corto.)`;
 }
 
 type UsageInput = Omit<VoiceUsage, "responses">;

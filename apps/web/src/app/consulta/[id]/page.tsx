@@ -44,6 +44,11 @@ export default function ConsultationPage() {
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
+	// Plan B si falla la voz o el wifi (plan.md, sección 14): la consulta sigue
+	// por texto con el mismo paciente.
+	const [textMode, setTextMode] = useState(false);
+	const [draft, setDraft] = useState("");
+	const [typing, setTyping] = useState(false);
 	const bottom = useRef<HTMLLIElement>(null);
 	const avatar = useRef<PatientAvatarHandle>(null);
 	const [mood, setMood] = useState<Mood>("neutral");
@@ -60,6 +65,7 @@ export default function ConsultationPage() {
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
 			if (ui.kind === "exam") setExam(ui.exam);
+			if (ui.kind === "otoscope") setOtoscopy(true);
 			if (ui.kind === "vitals")
 				setBp({
 					start: { measurementId: ui.measurementId, armCm: ui.armCm },
@@ -81,6 +87,19 @@ export default function ConsultationPage() {
 		voice.status === "live" ||
 		voice.status === "connecting" ||
 		voice.status === "reconnecting";
+
+	// Al cerrar un examen (boca, tensiómetro u otoscopio), se le avisa al
+	// paciente para que la charla siga con naturalidad.
+	const toolWasOpen = useRef(false);
+	const { sendNote } = voice;
+	useEffect(() => {
+		if (toolWasOpen.current && !tool && voice.status === "live") {
+			sendNote(
+				"El estudiante terminó de examinarte. Seguí la consulta normalmente y respondé lo que te pregunte.",
+			);
+		}
+		toolWasOpen.current = tool;
+	}, [tool, voice.status, sendNote]);
 
 	useEffect(() => {
 		api
@@ -118,6 +137,29 @@ export default function ConsultationPage() {
 				.catch(() => toast.error("No se guardó el tiempo del examen."));
 		}
 		setExam(null);
+	}
+
+	async function sendText(event: React.FormEvent) {
+		event.preventDefault();
+		const text = draft.trim();
+		if (!text) return;
+		setTyping(true);
+		try {
+			const r = await api.sendTurn(id, text);
+			setDraft("");
+			setView((v) =>
+				v ? { ...v, turns: [...v.turns, r.studentTurn, r.patientTurn] } : v,
+			);
+			if (r.exam) setExam(r.exam);
+		} catch (e) {
+			toast.error(
+				e instanceof ApiError
+					? e.message
+					: "No se pudo enviar. Probá de nuevo.",
+			);
+		} finally {
+			setTyping(false);
+		}
 	}
 
 	async function finish(event: React.FormEvent) {
@@ -195,8 +237,15 @@ export default function ConsultationPage() {
 										voice.start();
 									}}
 								>
-									Acepto: hablar por voz
+									{voice.status === "error"
+										? "Probar la voz de nuevo"
+										: "Acepto: hablar por voz"}
 								</Button>
+								{voice.status === "error" && !textMode && (
+									<Button variant="outline" onClick={() => setTextMode(true)}>
+										Seguir por texto
+									</Button>
+								)}
 							</>
 						)}
 					</section>
@@ -235,6 +284,40 @@ export default function ConsultationPage() {
 						))}
 						<li ref={bottom} aria-hidden="true" />
 					</ol>
+				)}
+
+				{/* Con un examen abierto, la charla sigue: últimas frases a la vista. */}
+				{tool && view.turns.length > 0 && (
+					<ol
+						className="grid gap-1 border p-2 text-sm"
+						aria-label="Últimas frases"
+					>
+						{view.turns.slice(-3).map((t) => (
+							<li key={t.id} className="text-muted-foreground">
+								<span className="font-medium text-foreground">
+									{t.speaker === "estudiante" ? "Vos" : view.case.patient.name}:
+								</span>{" "}
+								{t.text}
+							</li>
+						))}
+					</ol>
+				)}
+
+				{textMode && !voiceLive && !tool && !closing && (
+					<form onSubmit={sendText} className="flex gap-2">
+						<Input
+							aria-label={`Escribile a ${view.case.patient.name}`}
+							placeholder="Escribí lo que le dirías…"
+							value={draft}
+							onChange={(e) => setDraft(e.target.value)}
+							maxLength={1000}
+							disabled={typing}
+							autoFocus
+						/>
+						<Button type="submit" disabled={typing || !draft.trim()}>
+							{typing ? "…" : "Enviar"}
+						</Button>
+					</form>
 				)}
 
 				{!tool && !closing && (

@@ -3,11 +3,14 @@
 // sale SOLO de acá, escrito por el equipo y a validar por un médico, y cada
 // variante usa una imagen del banco con licencia (CREDITS.md).
 // BORRADOR: valores inventados, nadie los revisó todavía.
+
+import hipertension01 from "./hipertension-01.json";
+import oido01 from "./oido-01.json";
 import type { CaseInput, ChecklistItem } from "./schema";
 
 export type ClinicalTemplate = {
 	id: string;
-	zone: "orofaringe";
+	zone: "orofaringe" | "oido" | "presion";
 	// Palabras con las que se pide ("algo de garganta", "anginas").
 	keywords: string[];
 	title: string;
@@ -17,7 +20,35 @@ export type ClinicalTemplate = {
 	exam: CaseInput["exam"];
 	truth: CaseInput["truth"];
 	criticalErrors: string[];
+	// Sin lista propia, la de garganta.
+	checklist?: ChecklistItem[];
+	notApplicable?: string[];
+	// Edad mínima del paciente inventado, para que la historia cierre.
+	minAge?: number;
 };
+
+// Plantillas que reutilizan lo clínico de un caso del banco: así se valida
+// una sola vez (con el caso) y no hay dos versiones que se desfasen.
+function fromBankCase(
+	c: typeof oido01 | typeof hipertension01,
+	extra: Pick<
+		ClinicalTemplate,
+		"id" | "zone" | "keywords" | "chiefComplaints"
+	> &
+		Partial<Pick<ClinicalTemplate, "minAge">>,
+): ClinicalTemplate {
+	return {
+		...extra,
+		title: c.title,
+		hiddenHistory: c.hiddenHistory,
+		vitals: c.vitals as CaseInput["vitals"],
+		exam: c.exam,
+		truth: c.truth,
+		criticalErrors: c.criticalErrors,
+		checklist: c.expectedChecklist as ChecklistItem[],
+		notApplicable: c.notApplicable,
+	};
+}
 
 const OROFARINGE_HOTSPOTS = [
 	"amigdala-izq",
@@ -130,6 +161,33 @@ export const OROFARINGE_CHECKLIST: ChecklistItem[] = [
 ];
 
 export const CLINICAL_TEMPLATES: ClinicalTemplate[] = [
+	fromBankCase(oido01, {
+		id: "otitis-externa",
+		zone: "oido",
+		keywords: ["oído", "oido", "oreja", "otitis", "otoscop"],
+		chiefComplaints: [
+			"Me duele mucho el oído desde hace unos días",
+			"Tengo el oído tapado y me duele cuando me toco la oreja",
+		],
+	}),
+	fromBankCase(hipertension01, {
+		id: "hipertension",
+		minAge: 45,
+		zone: "presion",
+		keywords: [
+			"presión",
+			"presion",
+			"hipertens",
+			"tensión",
+			"tension",
+			"tensiómetro",
+			"tensiometro",
+		],
+		chiefComplaints: [
+			"Vengo al control de la presión",
+			"Me mandaron a controlar la presión porque la tengo alta",
+		],
+	}),
 	{
 		id: "faringoamigdalitis-exudativa",
 		zone: "orofaringe",
