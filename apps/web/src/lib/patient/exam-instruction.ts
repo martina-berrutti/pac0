@@ -8,7 +8,11 @@ import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
 // sin tildes.
 const EXAM_PATTERNS = [
 	/\babr(i|a|ime|ame|ila|is)\b/,
-	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir\b/,
+	// "¿Podés abrir?", "¿podés abrir bien?", "¿podés abrir la boca?"; no
+	// "¿podés abrir la ventana?".
+	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir(\s+(bien|grande|mas|un\s+poco))*(\s+la\s+boca)?[\s?!.,]*$/,
+	// "Podés abrir la boca, por favor" (sí); "¿te molesta al abrir la boca?" (no).
+	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir\s+((bien|grande|mas)\s+)*la\s+boca\b/,
 	/\b(deci|diga|decime|digame)\s+a{2,}/,
 	/\ba{3,}\b/,
 	/\bsac(a|ate|que)\s+(la\s+)?lengua\b/,
@@ -43,6 +47,7 @@ const CONSENT_WORDS = [
 	"estás de acuerdo",
 	"estas de acuerdo",
 	"está bien si",
+	"esta bien si",
 	"te molesta si",
 ];
 

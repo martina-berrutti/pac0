@@ -66,6 +66,12 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
     - Pedido de examen: patrones de `main` ("nombrar la garganta no abre el examen") más el subjuntivo ("¿querés que te revise?").
     - Token de voz: se mantiene el mínimo de 60 s (con el de `main`, cerca del final podía vencer antes que el plazo para abrir la sesión).
     - Cliente de voz: sobre los arreglos de `main` (guardar al cortar, sin silencio en el examen, avatar) se mantienen la fila, la cancelación por intento, las herramientas canceladas y los envíos protegidos.
+  - Segunda revisión independiente, sobre el código integrado. Arreglado:
+    - Si la estudiante cortaba la voz mientras se reconectaba, se volvía a conectar sola: gastaba un token y el paciente quedaba "en vivo" sin micrófono (y a los 20 s hablaba solo).
+    - Errores del informe contados dos veces (dos cierres o reintentos a la vez) o nunca (si fallaba el último paso, la sesión quedaba "finalizada"). Ahora el paso finalizada → evaluada es atómico y solo quien lo gana suma los errores; leer el informe completa un cierre pendiente.
+    - Doble clic en "Acepto" abría dos conexiones; el reloj mostraba el valor viejo de la voz mientras reconectaba; el reloj del docente quedaba congelado; el 409 del cierre decía "unos segundos" cuando hay que esperar 2 minutos.
+    - Palabras clave: "no entiendo" y "¿dormís tranquilo?" contaban como empatía; "¿por qué no?" como sugestiva; "¿podés abrir la ventana?" como examen; faltaba "esta bien si" sin tilde.
+  - **Conocido, sin arreglar:** con pedidos realmente simultáneos (dos pestañas o un script), el tope de un `actualizar_estado` por turno, el consentimiento y la nota de ánimo deciden con la sesión leída al principio. La fila del cliente lo evita en uso normal; arreglarlo del todo pide condiciones nuevas en `changeSession` de Convex (y desplegarlo).
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).

@@ -148,7 +148,8 @@ export default function ConsultationPage() {
 		? Math.max(0, view.remainingMs - (now - loadedAt.current))
 		: 0;
 	useEffect(() => {
-		if (!view || closing || view.readOnly) return;
+		// También para el docente: solo mueve el reloj, no muestra controles.
+		if (!view || closing) return;
 		const timer = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(timer);
 	}, [view, closing]);

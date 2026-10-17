@@ -62,6 +62,8 @@ const CLOSED_STARTS = [
 export function isLeadingQuestion(text: string) {
 	const t = text.trim().toLowerCase();
 	if (/(?:^|[\s¿])o\s+no\s*\?*\s*$/u.test(t)) return false;
+	// "¿Por qué no?" es una pregunta abierta, no sugestiva.
+	if (/por\s+qu[eé]\s+no\s*\?*\s*$/u.test(t)) return false;
 	// Con signo de pregunta, o con coma antes si la voz no transcribió el signo
 	// ("te duele, no"). Una frase como "eso no" no es una pregunta.
 	return (
@@ -93,7 +95,6 @@ const JARGON = [
 const EXPLAINS = ["o sea", "es decir", "quiere decir", "que significa", "osea"];
 const EMPATHY = [
 	"entiendo",
-	"tranqui",
 	"no te preocupes",
 	"debe ser",
 	"lamento",
@@ -122,6 +123,15 @@ const REPEAT_REQUESTS = [
 export function askedToRepeat(patientText: string) {
 	const t = normalize(patientText);
 	return t === "como" || REPEAT_REQUESTS.some((w) => t.includes(w));
+}
+
+// Empatía, con el texto normalizado. "No entiendo" no lo es, y "tranqui"
+// cuenta suelto o en "quedate tranquila", no en "¿dormís tranquilo?".
+function isEmpathy(t: string) {
+	if (/(^| )no entiendo( |$)/.test(t)) return false;
+	if (/(^| )tranqui( |$)/.test(t)) return true;
+	if (/(quedate|estate|esta) tranquil[ao]/.test(t)) return true;
+	return EMPATHY.some((w) => t.includes(w));
 }
 
 export type Classification = {
@@ -170,7 +180,7 @@ export function classifyStudentTurn(
 	if (isLeadingQuestion(text)) tags.push("sugestiva");
 	if (JARGON.some((w) => t.includes(w)) && !EXPLAINS.some((w) => t.includes(w)))
 		tags.push("jerga");
-	if (EMPATHY.some((w) => t.includes(w))) tags.push("empatia");
+	if (isEmpathy(t)) tags.push("empatia");
 	if (
 		isQuestion &&
 		t.length > 8 &&

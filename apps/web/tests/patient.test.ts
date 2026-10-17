@@ -217,3 +217,31 @@ test("frases de entrevista: pedido de examen, permiso y pregunta abierta", async
 		classifyStudentTurn("¿Hay algo más que te preocupe?", []).tags,
 	).toContain("pregunta_abierta");
 });
+
+test("revisión: palabras clave sin falsos positivos", async () => {
+	const { asksConsent, isExamRequest } = await import(
+		"@/lib/patient/exam-instruction"
+	);
+	const { classifyStudentTurn, isLeadingQuestion } = await import(
+		"@/lib/patient/turn-classifier"
+	);
+	expect(isExamRequest("¿Podés abrir la ventana?")).toBe(false);
+	for (const t of [
+		"¿Podés abrir?",
+		"¿Podés abrir bien grande?",
+		"¿Podés abrir la boca?",
+		"Podés abrir la boca, por favor",
+	])
+		expect(isExamRequest(t), t).toBe(true);
+	expect(asksConsent("esta bien si te reviso")).toBe(true);
+	expect(isLeadingQuestion("¿Por qué no?")).toBe(false);
+	expect(
+		classifyStudentTurn("No entiendo lo que me decís", []).tags,
+	).not.toContain("empatia");
+	expect(classifyStudentTurn("¿Dormís tranquilo?", []).tags).not.toContain(
+		"empatia",
+	);
+	expect(classifyStudentTurn("Quedate tranquila", []).tags).toContain(
+		"empatia",
+	);
+});

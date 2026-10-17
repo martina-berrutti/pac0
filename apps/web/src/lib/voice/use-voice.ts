@@ -547,6 +547,9 @@ export function useVoice({
 			return;
 		}
 		reconnects.current += 1;
+		// Si mientras tanto se corta la voz (botón, cambio de pantalla), no se
+		// vuelve a conectar.
+		const mine = attempt.current;
 		const old = live.current;
 		live.current = null;
 		conn.current += 1;
@@ -555,8 +558,10 @@ export function useVoice({
 		setStatus("reconnecting");
 		// Lo que quedó a medias se guarda antes, así el paciente lo recibe.
 		await Promise.all([flushStudent(), flushPatient(true)]);
+		if (attempt.current !== mine) return;
 		try {
 			await connect();
+			if (attempt.current !== mine) return;
 			s.lastActivity = Date.now();
 			setStatus("live");
 		} catch (e) {
@@ -580,7 +585,12 @@ export function useVoice({
 	};
 
 	const start = useCallback(async () => {
+		// Doble clic en "Acepto": el segundo no arranca otra conexión (pisaría
+		// el audio del primero sin cerrarlo).
+		if (inCtx.current || live.current) return;
 		setStatus("connecting");
+		// El reloj de una voz anterior no vale mientras conecta.
+		setRemainingMs(null);
 		reconnects.current = 0;
 		const mine = ++attempt.current;
 		const cancelled = () => attempt.current !== mine;

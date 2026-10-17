@@ -530,14 +530,9 @@ export async function finishSession(
 	const existing = await store.getReport(sessionId);
 	if (existing) {
 		// Un cierre anterior se cortó después de guardar el informe: se
-		// completa lo que faltó (los errores, una sola vez, y el estado).
-		if (session.status !== "evaluada") {
-			if (!session.mistakesRecorded)
-				await recordMistakes(session.userId, existing);
-			await store.changeSession(sessionId, {
-				set: { status: "evaluada", mistakesRecorded: true },
-			});
-		}
+		// completa lo que faltó (el estado y los errores, una sola vez).
+		if (session.status === "finalizada")
+			await completeClosing(sessionId, session.userId, existing);
 		return existing;
 	}
 	const closing = {
@@ -568,7 +563,7 @@ export async function finishSession(
 			if (report) return report;
 			throw new HttpError(
 				409,
-				"La consulta ya se está cerrando. Esperá unos segundos.",
+				"La consulta ya se está cerrando. Si no termina, probá de nuevo en un par de minutos.",
 			);
 		}
 	}
@@ -595,10 +590,7 @@ export async function finishSession(
 		// El informe va antes que el estado: si se corta en el medio, el
 		// próximo intento encuentra el informe y completa el resto.
 		await store.saveReport(report);
-		await recordMistakes(session.userId, report);
-		await store.changeSession(sessionId, {
-			set: { status: "evaluada", mistakesRecorded: true },
-		});
+		await completeClosing(sessionId, session.userId, report);
 		return report;
 	} catch (error) {
 		// Si no se llegó a guardar el informe, la consulta vuelve a estar
@@ -614,12 +606,39 @@ export async function finishSession(
 	}
 }
 
+// Termina un cierre con el informe ya guardado. El paso finalizada → evaluada
+// es atómico y solo quien lo gana suma los errores al perfil: con dos cierres
+// o reintentos a la vez, se suman como mucho una vez, y la sesión no queda
+// trabada en "finalizada". Si sumar los errores falla, se pierde ese conteo
+// (queda en el log) pero el informe y el cierre siguen bien.
+async function completeClosing(
+	sessionId: string,
+	userId: string,
+	report: Report,
+) {
+	const won = await store.changeSession(sessionId, {
+		ifStatus: "finalizada",
+		set: { status: "evaluada", mistakesRecorded: true },
+	});
+	if (!won) return;
+	await recordMistakes(userId, report).catch((error) =>
+		console.error("No se pudo sumar los errores al perfil", error),
+	);
+}
+
 // Pasado este tiempo, un cierre que no terminó se puede retomar.
 const STALE_CLOSING_MS = 2 * 60 * 1000;
 
 export async function getReport(viewer: Viewer, sessionId: string) {
-	await readableSession(viewer, sessionId);
+	const { session } = await readableSession(viewer, sessionId);
 	const report = await store.getReport(sessionId);
 	if (!report) throw new HttpError(404, "Todavía no hay informe");
+	// Un cierre que se cortó después de guardar el informe se completa acá:
+	// al recargar, la pantalla va directo al informe y nadie vuelve a cerrar.
+	// Solo la dueña (un docente puede leer, no cerrar).
+	if (session.status === "finalizada" && session.userId === viewer.uid)
+		await completeClosing(sessionId, session.userId, report).catch((error) =>
+			console.error("No se pudo completar el cierre", error),
+		);
 	return report;
 }

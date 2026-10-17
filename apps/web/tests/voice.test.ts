@@ -747,20 +747,45 @@ describe("revisión independiente", () => {
 		expect(Object.keys(persona.profile)).toEqual(["situacion_laboral"]);
 	});
 
-	test("si se corta después de guardar el informe, el reintento suma los errores una vez", async () => {
+	test("si el cierre se corta después de guardar el informe, leer el informe lo completa", async () => {
 		const mistakes = await import("@/server/mistakes");
-		const { finishSession } = await import("@/server/consultation");
+		const { finishSession, getReport } = await import("@/server/consultation");
 		const id = await startSession(ana, lucia.id, "caso");
+		const original = store.changeSession.bind(store);
 		const spy = vi
-			.spyOn(mistakes, "recordMistakes")
-			.mockRejectedValueOnce(new Error("Convex caído"));
+			.spyOn(store, "changeSession")
+			.mockImplementation(async (sid, change) => {
+				if (
+					change.ifStatus === "finalizada" &&
+					change.set?.status === "evaluada"
+				)
+					throw new Error("Convex caído");
+				return original(sid, change);
+			});
 		await expect(finishSession(ana, id, "faringitis", [])).rejects.toThrow(
 			"Convex caído",
 		);
+		expect((await store.getSession(id))?.status).toBe("finalizada");
 		spy.mockRestore();
 		const record = vi.spyOn(mistakes, "recordMistakes");
+		await getReport(ana, id);
+		await getReport(ana, id);
 		await finishSession(ana, id, "faringitis", []);
-		await finishSession(ana, id, "faringitis", []);
+		expect(record).toHaveBeenCalledTimes(1);
+		expect((await store.getSession(id))?.status).toBe("evaluada");
+		record.mockRestore();
+	});
+
+	test("dos cierres a la vez suman los errores una sola vez", async () => {
+		const mistakes = await import("@/server/mistakes");
+		const { finishSession } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "caso");
+		const record = vi.spyOn(mistakes, "recordMistakes");
+		const results = await Promise.allSettled([
+			finishSession(ana, id, "faringitis", []),
+			finishSession(ana, id, "faringitis", []),
+		]);
+		expect(results.some((r) => r.status === "fulfilled")).toBe(true);
 		expect(record).toHaveBeenCalledTimes(1);
 		expect((await store.getSession(id))?.status).toBe("evaluada");
 		record.mockRestore();

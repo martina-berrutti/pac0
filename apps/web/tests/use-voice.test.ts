@@ -512,4 +512,25 @@ describe("cliente de voz", () => {
 			AbortSignal.timeout = original;
 		}
 	});
+
+	test("si se corta la voz mientras reconecta, no se vuelve a conectar", async () => {
+		const { voice } = mount();
+		await voice.start();
+		delays["/voice-turns:estudiante"] = 30;
+		live.callbacks?.onmessage(
+			msg({ inputTranscription: { text: "y la fiebre" } }),
+		);
+		live.callbacks?.onclose();
+		// La estudiante toca "Cortar la voz" mientras se guarda lo pendiente.
+		voice.stop();
+		await voice.drain();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(live.connects).toBe(1);
+	});
+
+	test("doble clic en 'Acepto' abre una sola conexión", async () => {
+		const { voice } = mount();
+		await Promise.all([voice.start(), voice.start()]);
+		expect(live.connects).toBe(1);
+	});
 });
