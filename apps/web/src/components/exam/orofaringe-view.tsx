@@ -27,13 +27,22 @@ const CAN_CALIBRATE = process.env.NODE_ENV !== "production";
 export function OrofaringeView({
 	exam,
 	onClose,
+	endRequest = 0,
 }: {
 	exam: ExamResult;
 	onClose: (hotspotTimesMs: Record<string, number>) => void;
+	// Sube cuando el estudiante termina el examen hablando ("cerrá la boca"):
+	// se cierra igual que con el botón, con los tiempos medidos.
+	endRequest?: number;
 }) {
 	const box = useRef<HTMLDivElement>(null);
 	const [light, setLight] = useState<{ x: number; y: number } | null>(null);
 	const times = useRef<Record<string, number>>({});
+	const close = useRef(onClose);
+	close.current = onClose;
+	useEffect(() => {
+		if (endRequest > 0) close.current({ ...times.current });
+	}, [endRequest]);
 	const [, force] = useState(0);
 	// Abatelenguas: solo con la boca bien abierta (plan.md, sección 6).
 	const canDepress = exam.action.variant === "completa";

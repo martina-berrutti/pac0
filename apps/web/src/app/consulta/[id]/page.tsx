@@ -28,6 +28,7 @@ import type { Mood } from "@/lib/avatar/commands";
 import { moodFor } from "@/lib/avatar/mood";
 import type { ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
+import { asksToEndExam } from "@/lib/exam/end-intent";
 import { useVoice } from "@/lib/voice/use-voice";
 import type { SessionView } from "@/server/consultation";
 import type { BpStart } from "@/server/vitals";
@@ -64,11 +65,21 @@ export default function ConsultationPage() {
 		(state: PatientState) => setMood(moodFor(state)),
 		[],
 	);
+	// "Cerrá la boca", "ya está": la garganta o el oído abiertos se cierran
+	// solos (el tensiómetro no, tiene sus pasos).
+	const [endRequest, setEndRequest] = useState(0);
+	const examOpen = exam !== null || otoscopy;
+	function checkEnd(turn: Turn) {
+		if (examOpen && turn.speaker === "estudiante" && asksToEndExam(turn.text))
+			setEndRequest((n) => n + 1);
+	}
 
 	const voice = useVoice({
 		sessionId: id,
-		onTurn: (turn: Turn) =>
-			setView((v) => (v ? { ...v, turns: [...v.turns, turn] } : v)),
+		onTurn: (turn: Turn) => {
+			setView((v) => (v ? { ...v, turns: [...v.turns, turn] } : v));
+			checkEnd(turn);
+		},
 		onState: showState,
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
@@ -120,6 +131,8 @@ export default function ConsultationPage() {
 		const a = avatar.current;
 		if (!tool) {
 			setRevealed(false);
+			// El próximo examen arranca sin pedido de cierre pendiente.
+			setEndRequest(0);
 			a?.run({ kind: "mouth", tongue: false, ms: 0 });
 			a?.focus(null);
 			return;
@@ -226,6 +239,7 @@ export default function ConsultationPage() {
 			setView((v) =>
 				v ? { ...v, turns: [...v.turns, r.studentTurn, r.patientTurn] } : v,
 			);
+			checkEnd(r.studentTurn);
 			if (r.exam) setExam(r.exam);
 		} catch (e) {
 			toast.error(
@@ -299,9 +313,10 @@ export default function ConsultationPage() {
 				</Button>
 			)}
 
-			{/* Abajo: empezar la voz, cómo va, o el plan B por texto. */}
-			{!closing && !tool && (
-				<div className="absolute inset-x-0 bottom-5 flex justify-center px-4">
+			{/* Abajo: empezar la voz, cómo va, o el plan B por texto (que sigue
+			    a la vista durante el examen, para poder decir "cerrá la boca"). */}
+			{!closing && (!tool || (textMode && !voiceLive)) && (
+				<div className="absolute inset-x-0 bottom-5 z-20 flex justify-center px-4">
 					{voiceLive ? (
 						<p
 							className="rounded-full bg-background/80 px-4 py-2 text-sm shadow backdrop-blur"
@@ -319,7 +334,7 @@ export default function ConsultationPage() {
 						</p>
 					) : textMode ? (
 						<div className="grid w-full max-w-xl gap-2">
-							{lastPatient && (
+							{lastPatient && !tool && (
 								<p className="rounded-lg bg-background/85 px-4 py-2 text-sm shadow backdrop-blur">
 									<span className="font-medium">{name}:</span>{" "}
 									{lastPatient.text}
@@ -341,7 +356,9 @@ export default function ConsultationPage() {
 								</Button>
 							</form>
 							{/* Por texto solo se abre la garganta: el resto, con botones. */}
-							<div className="flex justify-center gap-2">
+							<div
+								className={`flex justify-center gap-2 ${tool ? "hidden" : ""}`}
+							>
 								<Button
 									size="sm"
 									variant="secondary"
@@ -388,11 +405,17 @@ export default function ConsultationPage() {
 
 			{/* El examen aparece encima del avatar, desde el primer plano. */}
 			{tool && revealed && (
-				<div className="absolute inset-0 grid place-items-center overflow-y-auto bg-black/30 p-4 pt-16">
+				<div
+					className={`absolute inset-0 grid place-items-center overflow-y-auto bg-black/30 p-4 pt-16 ${textMode ? "pb-20" : ""}`}
+				>
 					{/* La foto es 4:3: el ancho se limita para que entre a lo alto. */}
 					<div className="fade-in zoom-in-50 w-full max-w-[min(42rem,calc((100svh-18rem)*4/3))] animate-in rounded-lg bg-background p-3 shadow-2xl duration-500">
 						{exam ? (
-							<OrofaringeView exam={exam} onClose={closeExam} />
+							<OrofaringeView
+								exam={exam}
+								onClose={closeExam}
+								endRequest={endRequest}
+							/>
 						) : bp ? (
 							<TensiometroView
 								sessionId={id}
@@ -403,6 +426,7 @@ export default function ConsultationPage() {
 							<OtoscopioView
 								sessionId={id}
 								onClose={() => setOtoscopy(false)}
+								endRequest={endRequest}
 							/>
 						)}
 					</div>
