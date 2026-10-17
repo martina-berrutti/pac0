@@ -171,6 +171,18 @@ export async function startSession(
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
 	await checkSessionLimits(viewer);
 	await beforeCreate();
+	// El chequeo de arriba lee y después se crea: con muchos pedidos a la vez
+	// pasaban todos. El contador atómico es la última palabra (si Convex no lo
+	// tiene desplegado, queda el chequeo de arriba).
+	const { perUser } = sessionLimits();
+	const allowed = await store
+		.hitRate(`user-sessions:${viewer.uid}`, DAY_MS, perUser)
+		.catch(() => true);
+	if (!allowed)
+		throw new HttpError(
+			429,
+			`Llegaste al tope de ${perUser} consultas por día. Probá de nuevo mañana.`,
+		);
 	const { key, personality } = resolvePersonality(
 		personalityKey,
 		clinicalCase.personality,

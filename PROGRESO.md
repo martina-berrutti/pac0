@@ -100,8 +100,9 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
     - Paciente simulado: "¿qué?", "¿eh?", "¿perdón?" cuentan como pedido de repetir; negaciones en el generador ("poco colaborador", "que no hable mucho"); "una abuela ansiosa" sale mayor y ansiosa; "hace cuánto que tenés fiebre" ya no es pedir el diagnóstico; "¿algún médico llegó a revisarte?" no abre el examen; "permiso para faltar" y "con tu permiso" al saludar no dan consentimiento, "me permitís" y "le parece si" sí; empatía solo fuera de preguntas; "¿de verdad?" no es sugestiva; preguntas sin "?" (voz) cuentan como preguntas; "humedad" no responde la edad y "¿tomás mate?" no es alcohol.
     - Convex: Convex Auth quedaba abierto (cualquiera podía crear usuarios anónimos sin límite): sin proveedores; los registros anteriores al campo `guest` se completan solos y se borran a tiempo; una ventana nueva del límite por IP es un documento nuevo (la limpieza la cortaba a mitad de hora).
 
+    **Pedidos simultáneos de un mismo usuario (arreglado después):** el manguito se coloca una sola vez y la otoscopia se termina una sola vez (`patchIf`, atómico); el perfil de errores se guarda solo si nadie lo cambió en el medio y se reintenta (`replaceIf`), así dos consultas cerradas a la vez suman los errores de las dos; el tope diario de consultas usa el contador atómico `hitRate`. Si Convex no tiene `patchIf`/`replaceIf` desplegados, la app vuelve al camino anterior sin romperse.
+
     **No arreglado, a propósito:**
-    - Con pedidos simultáneos de un mismo usuario, el tope diario de consultas, el perfil de errores entre dos consultas distintas y los cambios de manguito u otoscopia leen antes de escribir. El límite por IP (atómico) y la fila del cliente lo acotan; arreglarlo del todo pide mutaciones nuevas en Convex.
     - La otoscopia muestra sus errores de técnica antes del informe: es una decisión de la Persona 2.
     - El procesador del micrófono en Safari y si `expireTime` corta una voz ya abierta solo se pueden confirmar en un dispositivo o con Google.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.

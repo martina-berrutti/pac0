@@ -90,7 +90,13 @@ export async function placeCuff(
 		cuff,
 		armFor(clinicalCase.id),
 	);
-	await store.updateVitals(measurementId, { ...reading, cuff });
+	// Atómico: con dos pedidos a la vez, uno solo coloca el manguito.
+	const placed = await store.patchVitalsIf(
+		measurementId,
+		{ ...reading, cuff },
+		{ cuff: null },
+	);
+	if (!placed) throw new HttpError(409, "El manguito ya está colocado");
 	return { gauge: reading.shown, pulse: clinicalCase.vitals.fc };
 }
 

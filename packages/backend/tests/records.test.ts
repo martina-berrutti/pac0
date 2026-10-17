@@ -366,4 +366,40 @@ describe("changeSession (cambios atómicos)", () => {
 		const left = await t.run((ctx) => ctx.db.query("records").collect());
 		expect(left.map((r) => [r.appId, r.guest])).toEqual([["cuenta", false]]);
 	});
+
+	test("patchIf y replaceIf aplican solo si el registro sigue igual", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		const t = convexTest(schema, modules);
+		await t.mutation(api.records.put, {
+			secret,
+			kind: "vitals",
+			appId: "v1",
+			sessionId: "s1",
+			data: { id: "v1", sessionId: "s1", cuff: null },
+		} as never);
+		const patch = (size: string) =>
+			t.mutation(api.records.patchIf, {
+				secret,
+				kind: "vitals",
+				appId: "v1",
+				patch: { cuff: { size } },
+				ifEquals: { cuff: null },
+			} as never);
+		expect(await patch("adecuado")).not.toBeNull();
+		expect(await patch("grande")).toBeNull();
+		const replace = (expected: unknown, data: unknown) =>
+			t.mutation(api.records.replaceIf, {
+				secret,
+				kind: "mistakes",
+				appId: "gst_u",
+				ownerId: "gst_u",
+				expected,
+				data,
+			} as never);
+		expect(await replace([], [{ tag: "a", count: 1 }])).toBe(true);
+		expect(await replace([], [{ tag: "b", count: 1 }])).toBe(false);
+		expect(
+			await replace([{ count: 1, tag: "a" }], [{ tag: "a", count: 2 }]),
+		).toBe(true);
+	});
 });

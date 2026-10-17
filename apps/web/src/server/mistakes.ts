@@ -37,9 +37,16 @@ export function sortMistakes(entries: MistakeEntry[]) {
 	);
 }
 
+// Leer, combinar y guardar solo si nadie lo cambió en el medio (dos consultas
+// del mismo usuario cerrándose a la vez se pisaban). Se reintenta un par de
+// veces.
 export async function recordMistakes(uid: string, report: Report) {
-	const current = await store.getMistakes(uid);
-	await store.saveMistakes(uid, mergeMistakes(current, report));
+	for (let attempt = 0; attempt < 5; attempt++) {
+		const stored = await store.getMistakes(uid);
+		const next = mergeMistakes(stored, report);
+		if (await store.replaceMistakesIf(uid, stored, next)) return;
+	}
+	throw new Error("No se pudo actualizar el perfil de errores");
 }
 
 export async function getMistakes(uid: string) {

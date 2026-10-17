@@ -915,3 +915,61 @@ describe("revisión exhaustiva", () => {
 		);
 	});
 });
+
+describe("pedidos simultáneos del mismo usuario", () => {
+	test("el manguito se coloca una sola vez", async () => {
+		const { placeCuff, startMeasurement } = await import("@/server/vitals");
+		const id = await startSession(ana, lucia.id, "caso");
+		const { measurementId } = await startMeasurement(ana, id);
+		const results = await Promise.allSettled([
+			placeCuff(ana, id, measurementId, "adecuado", false),
+			placeCuff(ana, id, measurementId, "grande", false),
+		]);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+	});
+
+	test("la otoscopia se termina una sola vez", async () => {
+		const { finishOtoscopy, startOtoscopy } = await import("@/server/otoscopy");
+		const id = await startSession(ana, lucia.id, "caso");
+		const { actionId } = await startOtoscopy(ana, id, "derecho");
+		const record = {
+			hand: "derecha" as const,
+			prep: [],
+			speculum: "adulto" as const,
+			traction: "arriba-atras" as const,
+			roughInsertions: 0,
+			maxDepth: 10,
+			canalMs: 1000,
+			tympanumMs: 1000,
+		};
+		const results = await Promise.allSettled([
+			finishOtoscopy(ana, id, actionId, record),
+			finishOtoscopy(ana, id, actionId, record),
+		]);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+	});
+
+	test("dos consultas cerradas a la vez suman los errores de las dos", async () => {
+		const { recordMistakes, getMistakes } = await import("@/server/mistakes");
+		const report = (tag: string) =>
+			({ mistakes: [{ tag, what: tag, critical: false }] }) as never;
+		const uid = "usr_dos_pestanas";
+		await Promise.all([
+			recordMistakes(uid, report("a")),
+			recordMistakes(uid, report("b")),
+			recordMistakes(uid, report("a")),
+		]);
+		const entries = await getMistakes(uid);
+		expect(entries.find((e) => e.tag === "a")?.count).toBe(2);
+		expect(entries.find((e) => e.tag === "b")?.count).toBe(1);
+	});
+
+	test("el tope diario de consultas no se saltea con pedidos en paralelo", async () => {
+		vi.stubEnv("MAX_SESSIONS_PER_USER_PER_DAY", "2");
+		const dora: Viewer & { alias: string } = { ...ana, uid: "usr_dora" };
+		const results = await Promise.allSettled(
+			Array.from({ length: 5 }, () => startSession(dora, lucia.id, "caso")),
+		);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(2);
+	});
+});

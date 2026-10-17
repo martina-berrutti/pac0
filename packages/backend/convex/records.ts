@@ -147,6 +147,85 @@ export const changeSession = mutation({
 	},
 });
 
+// Compara dos valores sin depender del orden de las claves.
+function stable(value: unknown): string {
+	if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+	if (value && typeof value === "object")
+		return `{${Object.keys(value as Record<string, unknown>)
+			.sort()
+			.map(
+				(k) =>
+					`${JSON.stringify(k)}:${stable((value as Record<string, unknown>)[k])}`,
+			)
+			.join(",")}}`;
+	return JSON.stringify(value ?? null);
+}
+
+// Actualiza campos de un registro (examen, presión) solo si los de ifEquals
+// siguen valiendo eso (un campo que falta cuenta como null). Atómico: con dos
+// pedidos a la vez, uno solo coloca el manguito o termina la otoscopia.
+export const patchIf = mutation({
+	args: {
+		secret: v.string(),
+		kind: recordKind,
+		appId: v.string(),
+		patch: v.any(),
+		ifEquals: v.any(),
+	},
+	handler: async (ctx, { secret, kind, appId, patch, ifEquals }) => {
+		checkSecret(secret);
+		const doc = await ctx.db
+			.query("records")
+			.withIndex("by_kind_and_appId", (q) =>
+				q.eq("kind", kind).eq("appId", appId),
+			)
+			.unique();
+		if (!doc) return null;
+		const data = doc.data as Record<string, unknown>;
+		for (const [k, want] of Object.entries(
+			(ifEquals ?? {}) as Record<string, unknown>,
+		))
+			if (stable(data[k]) !== stable(want)) return null;
+		const next = { ...data, ...(patch as Record<string, unknown>) };
+		await ctx.db.patch(doc._id, { data: next });
+		return next;
+	},
+});
+
+// Reemplaza un registro solo si sigue igual a `expected` (un registro que
+// no existe cuenta como vacío: []). Para leer, combinar y escribir sin pisar a otro pedido (perfil de
+// errores con dos consultas cerrándose a la vez).
+export const replaceIf = mutation({
+	args: {
+		secret: v.string(),
+		kind: recordKind,
+		appId: v.string(),
+		ownerId: v.optional(v.string()),
+		expected: v.any(),
+		data: v.any(),
+	},
+	handler: async (ctx, { secret, kind, appId, ownerId, expected, data }) => {
+		checkSecret(secret);
+		const doc = await ctx.db
+			.query("records")
+			.withIndex("by_kind_and_appId", (q) =>
+				q.eq("kind", kind).eq("appId", appId),
+			)
+			.unique();
+		if (stable(doc?.data ?? []) !== stable(expected ?? [])) return false;
+		if (doc) await ctx.db.patch(doc._id, { data });
+		else
+			await ctx.db.insert("records", {
+				kind,
+				appId,
+				ownerId,
+				guest: ownerId?.startsWith("gst_") ?? undefined,
+				data,
+			});
+		return true;
+	},
+});
+
 export const get = query({
 	args: { secret: v.string(), kind: recordKind, appId: v.string() },
 	handler: async (ctx, { secret, kind, appId }) => {

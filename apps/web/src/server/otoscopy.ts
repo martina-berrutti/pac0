@@ -81,10 +81,16 @@ export async function finishOtoscopy(
 			clinicalCase.patient.age,
 		),
 	);
-	await store.updateExamAction(actionId, {
-		hotspotTimesMs: { conducto: record.canalMs, timpano: record.tympanumMs },
-		endMs: elapsed,
-		technique,
-	});
+	// Atómico: con dos pedidos a la vez, la otoscopia se termina una vez.
+	const finished = await store.patchExamActionIf(
+		actionId,
+		{
+			hotspotTimesMs: { conducto: record.canalMs, timpano: record.tympanumMs },
+			endMs: elapsed,
+			technique,
+		},
+		{ endMs: null },
+	);
+	if (!finished) throw new HttpError(409, "Esta otoscopia ya terminó");
 	return { ok: true };
 }
