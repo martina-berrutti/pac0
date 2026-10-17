@@ -30,6 +30,44 @@ function fieldsMatch(value: object, want: object) {
 	);
 }
 
+// Convex solo acepta nombres de campo ASCII que no empiecen con "$". Los
+// datos de los casos tienen claves con tilde ("tapón de cerumen" en las
+// pistas del diagnóstico): se guardan codificadas y se decodifican al leer.
+// Las claves comunes no cambian, así que los datos viejos se leen igual.
+const ENCODED_KEY = "~k~";
+
+function needsEncoding(key: string) {
+	return (
+		key.startsWith("$") ||
+		key.startsWith(ENCODED_KEY) ||
+		/[^\x20-\x7e]/.test(key)
+	);
+}
+
+export function encodeKeys(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(encodeKeys);
+	if (value === null || typeof value !== "object") return value;
+	return Object.fromEntries(
+		Object.entries(value).map(([k, v]) => [
+			needsEncoding(k) ? `${ENCODED_KEY}${encodeURIComponent(k)}` : k,
+			encodeKeys(v),
+		]),
+	);
+}
+
+export function decodeKeys(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(decodeKeys);
+	if (value === null || typeof value !== "object") return value;
+	return Object.fromEntries(
+		Object.entries(value).map(([k, v]) => [
+			k.startsWith(ENCODED_KEY)
+				? decodeURIComponent(k.slice(ENCODED_KEY.length))
+				: k,
+			decodeKeys(v),
+		]),
+	);
+}
+
 // Una función de Convex que todavía no está desplegada.
 function missingFunction(error: unknown) {
 	return /Could not find (public )?function/i.test(String(error));
@@ -306,13 +344,28 @@ class ConvexStore implements Store {
 				}),
 		});
 	}
+	// Toda llamada a Convex pasa por acá: codifica las claves que Convex no
+	// acepta al mandar y las decodifica al recibir.
+	private async call<R>(
+		type: "query" | "mutation",
+		// biome-ignore lint/suspicious/noExplicitAny: referencias de anyApi.
+		fn: any,
+		args: Record<string, unknown>,
+	): Promise<R> {
+		const encoded = encodeKeys(args) as Record<string, unknown>;
+		const result =
+			type === "query"
+				? await this.client.query(fn, encoded)
+				: await this.client.mutation(fn, encoded);
+		return decodeKeys(result) as R;
+	}
 	private put(
 		kind: Kind,
 		appId: string,
 		data: unknown,
 		keys: { sessionId?: string; ownerId?: string } = {},
 	) {
-		return this.client.mutation(anyApi.records.put, {
+		return this.call("mutation", anyApi.records.put, {
 			secret: this.secret,
 			kind,
 			appId,
@@ -324,7 +377,7 @@ class ConvexStore implements Store {
 	}
 	private async get<T>(kind: Kind, appId: string): Promise<T | undefined> {
 		return (
-			((await this.client.query(anyApi.records.get, {
+			((await this.call("query", anyApi.records.get, {
 				secret: this.secret,
 				kind,
 				appId,
@@ -332,14 +385,14 @@ class ConvexStore implements Store {
 		);
 	}
 	private bySession<T>(kind: Kind, sessionId: string): Promise<T[]> {
-		return this.client.query(anyApi.records.listBySession, {
+		return this.call("query", anyApi.records.listBySession, {
 			secret: this.secret,
 			kind,
 			sessionId,
 		});
 	}
 	private byOwner<T>(kind: Kind, ownerId: string): Promise<T[]> {
-		return this.client.query(anyApi.records.listByOwner, {
+		return this.call("query", anyApi.records.listByOwner, {
 			secret: this.secret,
 			kind,
 			ownerId,
@@ -364,7 +417,7 @@ class ConvexStore implements Store {
 		next: MistakeEntry[],
 	) {
 		try {
-			return (await this.client.mutation(anyApi.records.replaceIf, {
+			return (await this.call("mutation", anyApi.records.replaceIf, {
 				secret: this.secret,
 				kind: "mistakes",
 				appId: uid,
@@ -404,7 +457,7 @@ class ConvexStore implements Store {
 			Object.entries(ifEquals).map(([k, v]) => [k, v ?? null]),
 		);
 		try {
-			return (await this.client.mutation(anyApi.records.patchIf, {
+			return (await this.call("mutation", anyApi.records.patchIf, {
 				secret: this.secret,
 				kind,
 				appId: id,
@@ -449,7 +502,7 @@ class ConvexStore implements Store {
 	}
 	// Mutación de Convex: lee y escribe en una transacción.
 	async changeSession(id: string, change: SessionChange) {
-		return (await this.client.mutation(anyApi.records.changeSession, {
+		return (await this.call("mutation", anyApi.records.changeSession, {
 			secret: this.secret,
 			appId: id,
 			change,
@@ -459,13 +512,13 @@ class ConvexStore implements Store {
 		return this.byOwner<Session>("session", userId);
 	}
 	listRecentSessions(limit: number): Promise<Session[]> {
-		return this.client.query(anyApi.records.listRecentSessions, {
+		return this.call("query", anyApi.records.listRecentSessions, {
 			secret: this.secret,
 			limit,
 		});
 	}
 	countSessionsSince(since: number, max: number): Promise<number> {
-		return this.client.query(anyApi.records.countSessionsSince, {
+		return this.call("query", anyApi.records.countSessionsSince, {
 			secret: this.secret,
 			since,
 			max,
@@ -473,7 +526,7 @@ class ConvexStore implements Store {
 	}
 	// Mutación de Convex: cuenta y decide en una transacción.
 	hitRate(key: string, windowMs: number, max: number): Promise<boolean> {
-		return this.client.mutation(anyApi.records.hitRate, {
+		return this.call("mutation", anyApi.records.hitRate, {
 			secret: this.secret,
 			key,
 			windowMs,

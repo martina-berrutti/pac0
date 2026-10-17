@@ -122,7 +122,8 @@ function parseAge(
 	minAge = 16,
 ) {
 	// "100 años" no tiene que leerse como "00 años".
-	const match = text.match(/(?<!\d)(\d{1,3})\s*años/);
+	// "Tos hace 2 años" es un dato de la historia, no la edad.
+	const match = text.match(/(?<!hace\s+)(?<!\d)(\d{1,3})\s*años/);
 	// La plantilla puede pedir una edad mínima (la historia tiene que cerrar).
 	if (match) return Math.max(minAge, Math.min(95, Number(match[1])));
 	if (archetype.key === "mayor") return 68 + Math.floor(rand() * 15);
@@ -169,7 +170,12 @@ function randomPersona(
 ) {
 	return {
 		name: pick(sex === "f" ? FEMALE_NAMES : MALE_NAMES, rand),
-		occupation: age >= 66 ? "jubilado" : pick(OCCUPATIONS, rand),
+		occupation:
+			age >= 66
+				? sex === "f"
+					? "jubilada"
+					: "jubilado"
+				: pick(OCCUPATIONS, rand),
 		chiefComplaint: pick(tpl.chiefComplaints, rand),
 		profile: {
 			edad: `${age} años`,

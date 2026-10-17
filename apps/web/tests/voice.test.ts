@@ -996,3 +996,22 @@ test("la vista de la consulta no muestra la técnica de la otoscopia antes del i
 	const view = await getSessionView(ana, id);
 	expect(JSON.stringify(view.examActions)).not.toContain("technique");
 });
+
+test("Convex: un paciente de oído generado se puede guardar (claves con tilde)", async () => {
+	const { convexToJson } = await import("convex/values");
+	const { decodeKeys, encodeKeys } = await import("@/server/store");
+	const { generateCase } = await import("@/lib/patient/generator");
+	const { clinicalCase } = await generateCase({
+		text: "un paciente con dolor de oído",
+	});
+	// Tal cual, Convex lo rechaza: así fallaba en producción.
+	expect(() => convexToJson(clinicalCase as never)).toThrow("ASCII");
+	const encoded = encodeKeys(clinicalCase);
+	expect(() => convexToJson(encoded as never)).not.toThrow();
+	expect(decodeKeys(encoded)).toEqual(clinicalCase);
+	// Las claves comunes no cambian: los datos viejos se leen igual.
+	expect(encodeKeys({ fiebre: "sí", $x: 1 })).toEqual({
+		fiebre: "sí",
+		"~k~%24x": 1,
+	});
+});

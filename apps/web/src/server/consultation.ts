@@ -390,6 +390,20 @@ export async function noteConsent(
 	return giveConsent(session, atMs);
 }
 
+// Tope de exámenes y mediciones por consulta: sin él, un script con la
+// cookie de la propia consulta podía crear miles de registros en Convex (y
+// el evaluador lee hasta 2000).
+const MAX_EXAM_RECORDS = 80;
+
+export async function limitExamRecords(sessionId: string) {
+	const [exams, vitals] = await Promise.all([
+		store.listExamActions(sessionId),
+		store.listVitals(sessionId),
+	]);
+	if (exams.length + vitals.length >= MAX_EXAM_RECORDS)
+		throw new HttpError(429, "Demasiados exámenes en esta consulta.");
+}
+
 export function defaultZone(clinicalCase: ClinicalCase) {
 	return clinicalCase.exam.orofaringe
 		? "orofaringe"
@@ -405,6 +419,7 @@ export async function recordExam(
 	decision: { clarity: InstructionClarity; variant: ExamVariant },
 	atMs: number,
 ): Promise<ExamResult> {
+	await limitExamRecords(sessionId);
 	const action: ExamAction = {
 		id: newId("exam"),
 		sessionId,
@@ -586,8 +601,12 @@ export async function finishSession(
 		// completa lo que faltó (el estado y los errores, una sola vez).
 		// También "activa": un cierre retomado puede haber guardado el informe
 		// después de que otro devolviera la sesión a activa.
+		// Si completar falla (Convex lento), el informe igual se devuelve: el
+		// próximo pedido o la lectura del informe lo terminan.
 		if (session.status !== "evaluada")
-			await completeClosing(sessionId, session.userId, existing);
+			await completeClosing(sessionId, session.userId, existing).catch(
+				(error) => console.error("No se pudo completar el cierre", error),
+			);
 		return existing;
 	}
 	const closing = {
@@ -608,9 +627,11 @@ export async function finishSession(
 		const stale =
 			current?.status === "finalizada" &&
 			Date.now() - (current.endedAt ?? 0) > STALE_CLOSING_MS;
+		// Con el endedAt leído: si dos pedidos retoman a la vez, uno solo gana.
 		if (stale)
 			claimed = await store.changeSession(sessionId, {
 				ifStatus: "finalizada",
+				ifEquals: { endedAt: current.endedAt ?? null },
 				set: { endedAt: Date.now(), closing },
 			});
 		if (!claimed) {

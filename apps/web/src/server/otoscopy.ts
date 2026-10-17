@@ -13,7 +13,11 @@ import {
 import { assessOtoscopy, otoscopyScenario } from "@/lib/exam/otoscope";
 
 import { HttpError } from "./auth";
-import { activeSession, FINISH_EXAM_GRACE_MS } from "./consultation";
+import {
+	activeSession,
+	FINISH_EXAM_GRACE_MS,
+	limitExamRecords,
+} from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -31,6 +35,7 @@ export async function startOtoscopy(
 		sessionId,
 		FINISH_EXAM_GRACE_MS,
 	);
+	await limitExamRecords(sessionId);
 	const action: ExamAction = {
 		id: newId("exam"),
 		sessionId,

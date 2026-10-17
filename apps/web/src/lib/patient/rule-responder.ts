@@ -59,16 +59,7 @@ const TOPICS: { key: string; words: string[] }[] = [
 	{
 		key: "alcohol",
 		// "Tomás" solo no alcanza: "¿tomás mate?" no es una pregunta de alcohol.
-		words: [
-			"alcohol",
-			"tomás alcohol",
-			"tomas alcohol",
-			"bebés",
-			"bebes",
-			"bebida",
-			"cerveza",
-			"vino",
-		],
+		words: ["alcohol", "tomás alcohol", "tomas alcohol", "bebida", "cerveza"],
 	},
 	{ key: "tabaco", words: ["fumás", "fumas", "tabaco", "cigarr"] },
 	{
@@ -113,11 +104,11 @@ const OPEN_QUESTION = [
 	"que te pasa",
 ];
 const DIAGNOSIS_FISHING = [
-	"qué enfermedad",
-	"que enfermedad",
 	"ignorá",
 	"ignora tus",
-	"instrucciones",
+	"tus instrucciones",
+	"las instrucciones que te",
+	"tu prompt",
 	"sos una ia",
 	"sos un bot",
 ];
@@ -138,6 +129,9 @@ function has(text: string, words: string[]) {
 // preguntas de la entrevista, no pedirle el diagnóstico.
 function asksDiagnosis(text: string) {
 	if (has(text, DIAGNOSIS_FISHING)) return true;
+	// "¿Qué enfermedad tenés?" sí; "¿qué enfermedades tuviste?" (antecedentes) no.
+	if (/qu[eé] enfermedad\s+(ten[eé]s|tengo|es|ser[aá])/u.test(text))
+		return true;
 	if (/(^|[\s¿])qu[eé]\s+ten[eé]s(\s+vos)?\s*\?*\s*$/u.test(text)) return true;
 	return (
 		/diagn[oó]stico/u.test(text) &&

@@ -2,6 +2,28 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Revisión final sobre main
+
+Tres revisores independientes leyeron enteros los 71 archivos de la Persona 1 en `main` (después del #7) y cerraron con una conclusión explícita.
+
+| Parte | Archivos | Sin problemas | Con hallazgos |
+|---|---|---|---|
+| `server/` y `app/api/` | 38 | 32 | 6 |
+| Cliente de voz, consulta y paciente | 16 | 10 | 6 |
+| `convex/` y contratos | 17 | 15 | 2 |
+
+Arreglado:
+- **Producción:** generar un paciente de oído daba 500 en Convex, porque el caso trae claves con tilde ("tapón de cerumen" en las pistas del diagnóstico). `ConvexStore` codifica al guardar las claves que Convex no acepta y las decodifica al leer, para cualquier dato. Probado con el validador real de Convex (`convexToJson`).
+- "Vamos a ver qué te pasa" y "¿puedo ver tus análisis?" contaban como pedido de examen y permiso: el paciente hostil abría la boca y el evaluador no marcaba el error crítico (o lo inventaba por texto). Ahora el verbo tiene que apuntar al paciente o a una parte del cuerpo.
+- El paciente de hipertensión generado tenía el brazo de 26 cm en vez de 35 (nunca enseñaba el manguito grande).
+- Dos retomas del mismo cierre ganaban las dos; la devolución de la reserva de voz no era atómica; no había tope de exámenes y mediciones por consulta (80); un error pasajero al completar un cierre daba 500 con el informe ya guardado; la ruta de cierre tiene `maxDuration` 60.
+- Voz: aviso de error falso si se cortaba durante la reconexión; una nota podía cortar al paciente mientras esperaba una herramienta.
+- Clasificador y paciente por reglas: "no te entiendo" y "debe ser viral" contaban como empatía; "¿qué te trajo?" no era abierta; "¿qué enfermedades tuviste?" era pedir el diagnóstico y "¿con quién vino?" una pregunta de alcohol. Generador: "tos hace 2 años" no es la edad; "jubilada" para mujeres.
+
+Queda, fuera del código: el micrófono en Safari (mitigado, se confirma en un dispositivo) y si Google corta una voz ya abierta al vencer el token (la app corta a los 8 minutos y el servidor rechaza lo que llegue después).
+
+Validación: 290 tests en web y 25 en backend; lint, tipos y build pasan. Estos cambios son solo de la app web: no hace falta volver a desplegar Convex.
+
 ## 17/10 · Persona 1 · Evaluación del diagnóstico, informe para el estudiante y dos problemas por paciente
 
 - **Problemas:** se sacaron el Problema 1 de garganta (faringoamigdalitis) y el Problema 3 de oído (dolor que viene de la mandíbula). Quedan Lucía con faringitis viral (Problema 1) y mononucleosis (Problema 2), y Diego con otitis externa (Problema 1) y otitis media aguda (Problema 2).
