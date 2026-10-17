@@ -2,9 +2,10 @@
 
 // Otoscopio virtual (plan.md, sección 6, afiche HC-02). Se prepara (higiene,
 // oído externo, luz), se elige mano y espéculo, se arrastra el pabellón para
-// traccionarlo y se introduce con la rueda del mouse o los botones. Sin
-// imágenes con licencia todavía: la vista circular es un esquema, no una foto
-// clínica. Qué se ve lo decide el servidor; los errores los calcula el código.
+// traccionarlo y se introduce con la rueda del mouse o los botones. Si el
+// hallazgo tiene foto registrada (EAR_PHOTOS en lib/exam/otoscope.ts), la
+// muestra; si no, la vista circular es un esquema, no una foto clínica. Qué se
+// ve lo decide el servidor; los errores los calcula el código.
 import { Button } from "@pac0/ui/components/button";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -19,6 +20,7 @@ import type {
 import {
 	BLOCKED_DEPTH,
 	CANAL_DEPTH,
+	earPhoto,
 	TOO_DEEP,
 	TYMPANUM_DEPTH,
 } from "@/lib/exam/otoscope";
@@ -72,6 +74,8 @@ export function OtoscopioView({
 	const blocked = depth >= BLOCKED_DEPTH && !tractionOk;
 	const seesTympanum = depth >= TYMPANUM_DEPTH && tractionOk;
 	const seesCanal = depth >= CANAL_DEPTH && !blocked && !seesTympanum;
+	const canalPhoto = appearance && earPhoto("conducto", appearance.canal);
+	const tympanumPhoto = appearance && earPhoto("timpano", appearance.tympanum);
 	const hurts = blocked || depth > TOO_DEEP;
 
 	async function chooseEar(chosen: Ear) {
@@ -289,14 +293,32 @@ export function OtoscopioView({
 					{depth < CANAL_DEPTH && (
 						<div className="size-1/2 rounded-full bg-orange-200/60" />
 					)}
-					{seesCanal && (
-						<div
-							className="size-3/4 rounded-full border-[18px]"
-							style={{ borderColor: CANAL_COLOR[appearance.canal] }}
+					{seesCanal &&
+						(canalPhoto ? (
+							// biome-ignore lint/performance/noImgElement: foto local fija, sin optimizar
+							<img
+								src={canalPhoto.src}
+								alt={canalPhoto.alt}
+								draggable={false}
+								className="absolute inset-0 size-full object-cover"
+							/>
+						) : (
+							<div
+								className="size-3/4 rounded-full border-[18px]"
+								style={{ borderColor: CANAL_COLOR[appearance.canal] }}
+							/>
+						))}
+					{blocked && <div className="size-full bg-rose-300/80" />}
+					{seesTympanum && tympanumPhoto && (
+						// biome-ignore lint/performance/noImgElement: foto local fija, sin optimizar
+						<img
+							src={tympanumPhoto.src}
+							alt={tympanumPhoto.alt}
+							draggable={false}
+							className="absolute inset-0 size-full object-cover"
 						/>
 					)}
-					{blocked && <div className="size-full bg-rose-300/80" />}
-					{seesTympanum && (
+					{seesTympanum && !tympanumPhoto && (
 						<div
 							className="relative size-2/3 rounded-full"
 							style={{
@@ -312,7 +334,8 @@ export function OtoscopioView({
 						</div>
 					)}
 					<p className="absolute bottom-3 text-[10px] text-neutral-400">
-						Esquema, no es una foto
+						{(seesTympanum ? tympanumPhoto : seesCanal ? canalPhoto : null)
+							?.credit ?? "Esquema, no es una foto"}
 					</p>
 				</div>
 			</div>

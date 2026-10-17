@@ -16,6 +16,13 @@ export const DIMENSION_WEIGHTS: Record<Dimension, number> = {
 export const PASS_THRESHOLD = 85;
 export const ALMOST_THRESHOLD = 70;
 export const PENALTY_CAP = 15;
+// Saltar al diagnóstico: hipótesis con menos de este porcentaje de la
+// anamnesis cubierto, o sin examinar.
+export const MIN_ANAMNESIS_FOR_DIAGNOSIS = 40;
+// Subir la confianza de un paciente difícil al menos esto (de 0 a 1) suma
+// puntos de comunicación.
+export const TRUST_GAIN = 0.15;
+export const TRUST_BONUS = 5;
 
 const CREDIT = { si: 1, parcial: 0.5, no: 0 } as const;
 

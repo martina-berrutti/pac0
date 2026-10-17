@@ -230,3 +230,26 @@ describe("extractor", () => {
 		).toBe(true);
 	});
 });
+
+describe("evaluador con IA: fuente y descripción", () => {
+	test("el redactor recibe la fuente de cada error", async () => {
+		const input = averageStudent();
+		const { llm, calls } = fakeLlm(honest(input));
+		await evaluateWithAi(input, llm);
+		expect(calls.redactor[0]).toContain("Fuente: Lista de cotejo");
+	});
+
+	test("ver sin describir da parcial aunque el modelo diga no", async () => {
+		const base = goodStudent();
+		const input = {
+			...base,
+			turns: base.turns.filter((t) => !t.text.startsWith("Veo")),
+		};
+		const { llm } = fakeLlm(honest(input));
+		const report = await evaluateWithAi(input, llm);
+		expect(report.judge).toBe("ia");
+		expect(
+			report.items.find((i) => i.itemId === "describe-hallazgo")?.status,
+		).toBe("parcial");
+	});
+});
