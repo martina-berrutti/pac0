@@ -37,6 +37,10 @@ const OPEN_STARTS = [
 	"que sentis",
 	"que te preocupa",
 	"que te preocupe",
+	"que te trajo",
+	"que te anda pasando",
+	"que te esta pasando",
+	"que te sucede",
 	"hay algo mas",
 	"en que te puedo",
 	"que mas",
@@ -103,7 +107,6 @@ const EXPLAINS = ["o sea", "es decir", "quiere decir", "que significa", "osea"];
 const EMPATHY = [
 	"entiendo",
 	"no te preocupes",
-	"debe ser",
 	"lamento",
 	"que feo",
 	"te acompano",
@@ -144,7 +147,14 @@ export function askedToRepeat(patientText: string) {
 // Empatía, con el texto normalizado. "No entiendo" no lo es, y "tranqui"
 // cuenta suelto o en "quedate tranquila", no en "¿dormís tranquilo?".
 function isEmpathy(t: string, question: boolean) {
-	if (/(^| )no entiendo( |$)/.test(t)) return false;
+	if (/(^| )no (te |le |lo |la )?entiendo( |$)/.test(t)) return false;
+	// "Debe ser difícil" sí; "debe ser viral" no.
+	if (
+		/debe ser (muy |re |bastante |tan )?(dificil|feo|molesto|horrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso)/.test(
+			t,
+		)
+	)
+		return !question;
 	// En una pregunta no son empatía: "¿es normal que tengas fiebre?".
 	if (question && /(es normal que|imagino que|debe ser)/.test(t)) return false;
 	if (/(^| )tranqui( |$)/.test(t)) return true;

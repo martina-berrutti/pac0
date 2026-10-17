@@ -18,7 +18,12 @@ const EXAM_PATTERNS = [
 	/\bsac(a|ate|que)\s+(la\s+)?lengua\b/,
 	// Con un verbo que lo pide: "¿puedo revisarte?", "me dejás ver la
 	// garganta". "¿Algún médico llegó a revisarte?" es anamnesis, no examen.
-	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)(te|le|lo|la)?\b/,
+	// El verbo tiene que apuntar al paciente o a una parte del cuerpo: "vamos a
+	// ver qué te pasa" o "¿puedo ver tus análisis?" no son examen.
+	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)(te|le|lo|la)\b/,
+	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)\s+((la|el|los|las|tu|su)\s+)?(garganta|boca|oido|oidos|oreja|amigdalas|lengua)\b/,
+	// "¿Puedo revisar?" a secas, como frase entera.
+	/\b(puedo|podemos|dejas|deja|dejame|permitis|permite)\s+(revisar|examinar)[\s?!.,]*$/,
 	/\blinterna\b/,
 ];
 const FULL_OPEN_WORDS = [

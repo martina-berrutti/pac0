@@ -190,6 +190,9 @@ export function useVoice({
 	const cancelledCalls = useRef(new Set<string>());
 	// Notas para el paciente que llegaron mientras generaba su respuesta.
 	const pendingNotes = useRef<string[]>([]);
+	// Herramientas pedidas por el modelo que todavía no se respondieron: una
+	// nota en ese momento cortaría la respuesta en curso.
+	const toolsPending = useRef(0);
 	// Guardado diferido del turno del estudiante (ver onMessage).
 	const studentFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -197,7 +200,7 @@ export function useVoice({
 	// paciente está generando su respuesta, mandarlo la cortaría (y contaría
 	// como una interrupción del estudiante): espera a que termine su turno.
 	const deliverNote = useCallback((text: string) => {
-		if (st.current.patientTurnStarted) {
+		if (st.current.patientTurnStarted || toolsPending.current > 0) {
 			pendingNotes.current.push(text);
 			return;
 		}
@@ -365,7 +368,7 @@ export function useVoice({
 		};
 	}, []);
 
-	const runTools = useCallback(
+	const answerTools = useCallback(
 		async (
 			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
 		) => {
@@ -414,6 +417,20 @@ export function useVoice({
 				safeSend(() => target.sendToolResponse({ functionResponses }));
 		},
 		[sessionId, enqueue],
+	);
+
+	const runTools = useCallback(
+		async (
+			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
+		) => {
+			toolsPending.current += 1;
+			try {
+				await answerTools(calls);
+			} finally {
+				toolsPending.current -= 1;
+			}
+		},
+		[answerTools],
 	);
 
 	const onMessage = useCallback(
@@ -588,6 +605,8 @@ export function useVoice({
 			s.lastActivity = Date.now();
 			setStatus("live");
 		} catch (e) {
+			// Si la estudiante cortó mientras reconectaba, no es un error.
+			if (attempt.current !== mine) return;
 			if (e instanceof Error && e.message === "Conexión de voz descartada")
 				return;
 			stop("error");

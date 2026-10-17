@@ -23,7 +23,12 @@ export type SessionChange = {
 	// cuenta como null). Para decidir con el valor actual y no con uno leído
 	// antes: el consentimiento se da una vez, un cambio de ánimo por turno.
 	// Un Convex sin desplegar lo ignora (el cambio llega como v.any()).
-	ifEquals?: { consentGiven?: boolean; stateToolTurn?: number | null };
+	ifEquals?: {
+		consentGiven?: boolean;
+		stateToolTurn?: number | null;
+		endedAt?: number | null;
+		voiceStarts?: number | null;
+	};
 };
 
 export const MAX_INVENTED_FACTS = 40;

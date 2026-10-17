@@ -224,9 +224,12 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 	}
 	// Google no dio el token: se devuelve la reserva, para que una caída de
 	// Google no agote las conexiones de una consulta en la que no se habló.
+	// Atómico: solo si nadie reservó otra en el medio (si no, no se devuelve).
+	const mine = reserved.voiceStarts ?? 1;
 	await store
 		.changeSession(sessionId, {
-			set: { voiceStarts: Math.max(0, (reserved.voiceStarts ?? 1) - 1) },
+			ifEquals: { voiceStarts: mine },
+			set: { voiceStarts: Math.max(0, mine - 1) },
 		})
 		.catch(() => {});
 	throw new HttpError(
