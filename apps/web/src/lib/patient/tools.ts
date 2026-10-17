@@ -13,42 +13,80 @@ export const BP_STEPS = [
 	"manguito_sobre_piel",
 ] as const;
 
+// Cambio de ánimo: chico y acotado a ±0.5 aunque el modelo pida más.
+const smallDelta = z
+	.number()
+	.optional()
+	.catch(undefined)
+	.transform((d) =>
+		d === undefined || !Number.isFinite(d)
+			? undefined
+			: Math.max(-0.5, Math.min(0.5, d)),
+	);
+
 export const toolArgs = {
+	// El modelo a veces manda valores fuera del esquema ("Alta", un paso
+	// inventado, 0.8): se corrigen en vez de rechazar la llamada entera.
 	examinar: z.object({
-		zona: z.string(),
-		maniobra: z.string().default("inspeccion"),
+		zona: z.string().catch(""),
+		maniobra: z.string().catch("inspeccion"),
 		// alta: pidió abrir bien, sacar la lengua o decir aaa; media: solo
 		// "abrí la boca"; baja: confusa.
-		claridad: z.enum(["baja", "media", "alta"]),
-		// El estudiante explicó qué va a hacer o pidió permiso.
-		consentimiento: z.boolean(),
+		claridad: z.preprocess(
+			(v) => (typeof v === "string" ? v.toLowerCase().trim() : v),
+			z.enum(["baja", "media", "alta"]).catch("media"),
+		),
+		// El estudiante explicó qué va a hacer o pidió permiso. Ante la duda, no.
+		consentimiento: z.boolean().catch(false),
 	}),
 	medir_presion: z.object({
-		pasos_cumplidos: z.array(z.enum(BP_STEPS)).default([]),
+		pasos_cumplidos: z
+			.array(z.string())
+			.catch([])
+			.transform((steps) => BP_STEPS.filter((s) => steps.includes(s))),
 	}),
 	mostrar_region: z.object({ region: z.string() }),
 	actualizar_estado: z.object({
 		delta: z
 			.object({
-				confianza: z.number().min(-0.5).max(0.5).optional(),
-				ansiedad: z.number().min(-0.5).max(0.5).optional(),
-				dolor: z.number().min(-0.5).max(0.5).optional(),
-				paciencia: z.number().min(-0.5).max(0.5).optional(),
+				confianza: smallDelta,
+				ansiedad: smallDelta,
+				dolor: smallDelta,
+				paciencia: smallDelta,
 			})
-			.default({}),
-		motivo: z.string().max(200),
+			.catch({
+				confianza: undefined,
+				ansiedad: undefined,
+				dolor: undefined,
+				paciencia: undefined,
+			}),
+		motivo: z
+			.string()
+			.catch("")
+			.transform((m) => m.slice(0, 200)),
 	}),
-	terminar_consulta: z.object({ motivo: z.string().max(200).optional() }),
+	terminar_consulta: z.object({
+		motivo: z.string().optional().catch(undefined),
+	}),
 	anotar_dato: z.object({
-		clave: z.string().min(1).max(40),
-		valor: z.string().min(1).max(200),
+		clave: z
+			.string()
+			.trim()
+			.min(1)
+			.transform((k) => k.slice(0, 40)),
+		valor: z
+			.string()
+			.trim()
+			.min(1)
+			.transform((v) => v.slice(0, 200)),
 	}),
 } as const;
 
 export type ToolName = keyof typeof toolArgs;
 
 export function isToolName(name: string): name is ToolName {
-	return name in toolArgs;
+	// hasOwn: "toString" o "constructor" no son herramientas.
+	return Object.hasOwn(toolArgs, name);
 }
 
 // Definiciones de las herramientas. Para Gemini Live se pasan como

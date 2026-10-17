@@ -3,7 +3,7 @@
 // cookie; cada función exige STORE_SECRET, que el navegador nunca ve.
 import { ConvexError, v } from "convex/values";
 
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 
 export const recordKind = v.union(
 	v.literal("case"),
@@ -90,5 +90,28 @@ export const listByOwner = query({
 			.order("desc")
 			.take(200);
 		return docs.map((d) => d.data);
+	},
+});
+
+// Hoy todos los usuarios de la app web son invitados con cookie de 24 horas:
+// pasado ese plazo su uid se pierde y lo guardado queda huérfano. Se borra a
+// las 48 horas (plan.md, sección 10: borrar invitados). Cuando haya cuentas
+// con Google, esto tiene que mirar solo a los invitados.
+export const RECORD_TTL_MS = 48 * 60 * 60 * 1000;
+const RECORDS_PER_RUN = 500;
+
+export const purgeExpired = internalMutation({
+	args: {},
+	handler: async (ctx) => {
+		const old = await ctx.db
+			.query("records")
+			.withIndex("by_creation_time", (q) =>
+				q.lt("_creationTime", Date.now() - RECORD_TTL_MS),
+			)
+			.take(RECORDS_PER_RUN);
+		for (const doc of old) {
+			await ctx.db.delete(doc._id);
+		}
+		return old.length;
 	},
 });

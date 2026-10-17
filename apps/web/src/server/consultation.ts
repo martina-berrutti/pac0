@@ -35,8 +35,24 @@ import { HttpError } from "./auth";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
+// Lo que la pantalla puede ver de la sesión. Lista blanca: historyOverrides
+// e inventedFacts son historia del paciente (respuestas que el estudiante
+// tiene que sacar preguntando) y el estado y la personalidad numérica
+// tampoco le corresponden.
+type PublicSession = Pick<
+	Session,
+	| "id"
+	| "caseId"
+	| "alias"
+	| "personalityKey"
+	| "status"
+	| "startedAt"
+	| "endedAt"
+	| "closing"
+>;
+
 export type SessionView = {
-	session: Omit<Session, "userId">;
+	session: PublicSession;
 	case: CaseSummary;
 	turns: Turn[];
 	examActions: ExamAction[];
@@ -89,6 +105,7 @@ export async function startSession(
 		historyOverrides: pickVariations(clinicalCase),
 		inventedFacts: {},
 		voiceUsage: null,
+		voiceConnections: 0,
 	};
 	await store.createSession(session);
 	return session.id;
@@ -113,7 +130,16 @@ export async function getSessionView(
 	sessionId: string,
 ): Promise<SessionView> {
 	const { session, clinicalCase } = await ownSession(viewer, sessionId);
-	const { userId: _userId, ...publicSession } = session;
+	const publicSession: PublicSession = {
+		id: session.id,
+		caseId: session.caseId,
+		alias: session.alias,
+		personalityKey: session.personalityKey,
+		status: session.status,
+		startedAt: session.startedAt,
+		endedAt: session.endedAt,
+		closing: session.closing,
+	};
 	const [turns, examActions, report] = await Promise.all([
 		store.listTurns(sessionId),
 		store.listExamActions(sessionId),
@@ -298,6 +324,13 @@ export async function sendTurn(
 		const r = await patientReply(current, clinicalCase, clean);
 		reply = r.text;
 		if (r.delta) {
+			// El paciente por reglas devuelve el valor nuevo; el evento guarda el
+			// cambio, igual que actualizar_estado en la voz.
+			const change = Object.fromEntries(
+				(Object.entries(r.delta) as [keyof PatientState, number][]).map(
+					([k, v]) => [k, v - current.state[k]],
+				),
+			) as Partial<PatientState>;
 			await store.updateSession(sessionId, {
 				state: { ...current.state, ...r.delta },
 			});
@@ -306,7 +339,7 @@ export async function sendTurn(
 				sessionId,
 				type: "cambio_animo",
 				atMs: elapsed,
-				delta: r.delta,
+				delta: change,
 				motivo: r.motivo,
 			});
 		}
@@ -332,13 +365,15 @@ export async function saveExamTimes(
 	actionId: string,
 	hotspotTimesMs: Record<string, number>,
 ) {
-	const { session } = await ownSession(viewer, sessionId);
+	const { session, clinicalCase } = await ownSession(viewer, sessionId);
 	const actions = await store.listExamActions(sessionId);
-	if (!actions.some((a) => a.id === actionId))
-		throw new HttpError(404, "Acción de examen no encontrada");
+	const action = actions.find((a) => a.id === actionId);
+	if (!action) throw new HttpError(404, "Acción de examen no encontrada");
+	// Solo las zonas que existen en el caso: nada inventado llega al evaluador.
+	const known = new Set(clinicalCase.exam[action.zone]?.hotspots ?? []);
 	const clean = Object.fromEntries(
 		Object.entries(hotspotTimesMs)
-			.filter(([, v]) => Number.isFinite(v) && v >= 0)
+			.filter(([k, v]) => known.has(k) && Number.isFinite(v) && v >= 0)
 			.map(([k, v]) => [k, Math.min(v, MAX_SESSION_MS)]),
 	);
 	return store.updateExamAction(actionId, {
@@ -347,36 +382,66 @@ export async function saveExamTimes(
 	});
 }
 
+// Margen para marcar la presión medida justo antes de los 8 minutos.
+const VITALS_GRACE_MS = 60_000;
+
+// Lo que el estudiante marcó en el tensiómetro (Persona 2). El valor que se
+// mostró lo calculó medir_presion; acá solo se guarda la lectura del alumno.
+export async function saveMarkedVitals(
+	viewer: Viewer,
+	sessionId: string,
+	vitalsId: string,
+	marked: { pas: number; pad: number },
+) {
+	await activeSession(viewer, sessionId, VITALS_GRACE_MS);
+	const list = await store.listVitals(sessionId);
+	if (!list.some((v) => v.id === vitalsId))
+		throw new HttpError(404, "Medición no encontrada");
+	if (marked.pad >= marked.pas)
+		throw new HttpError(400, "La máxima tiene que ser mayor que la mínima");
+	return store.updateVitals(vitalsId, { marked });
+}
+
 export async function finishSession(
 	viewer: Viewer,
 	sessionId: string,
 	hypothesis: string,
 	differentials: string[],
 ): Promise<Report> {
-	const { clinicalCase } = await ownSession(viewer, sessionId);
+	const { session, clinicalCase } = await ownSession(viewer, sessionId);
 	const existing = await store.getReport(sessionId);
-	if (existing) return existing;
-	const closed = await store.updateSession(sessionId, {
-		status: "evaluada",
+	if (existing) {
+		// Un cierre anterior se cortó después de guardar el informe.
+		if (session.status !== "evaluada")
+			await store.updateSession(sessionId, { status: "evaluada" });
+		return existing;
+	}
+	const patch = {
+		status: "evaluada" as const,
 		endedAt: Date.now(),
 		closing: {
 			hypothesis: hypothesis.slice(0, 500),
 			differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
 		},
-	});
+	};
 	const [turns, events, examActions] = await Promise.all([
 		store.listTurns(sessionId),
 		store.listEvents(sessionId),
 		store.listExamActions(sessionId),
 	]);
+	// Primero se evalúa y después se guarda: si el evaluador falla, la sesión
+	// no queda "evaluada" sin informe y se puede volver a intentar.
 	const report = evaluate({
 		clinicalCase,
-		session: closed,
+		session: { ...session, ...patch },
 		turns,
 		events,
 		examActions,
 	});
+	// El informe va antes que el estado: si se corta en el medio, el próximo
+	// intento encuentra el informe y lo devuelve.
 	await store.saveReport(report);
+	await store.updateSession(sessionId, patch);
 	return report;
 }
 

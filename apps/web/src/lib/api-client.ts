@@ -1,7 +1,7 @@
 // Cliente de la API para las pantallas. Tira ApiError con el mensaje del
 // servidor, listo para mostrar en un toast.
 import type { CaseSummary } from "@/cases/schema";
-import type { ExamAction } from "@/lib/contracts/exam";
+import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import type { SessionView, TurnResult } from "@/server/consultation";
 
@@ -84,6 +84,16 @@ export const api = {
 			method: "PATCH",
 			body: { hotspotTimesMs },
 		}),
+	// Tensiómetro (Persona 2): la PAS y la PAD que marcó el estudiante.
+	saveMarkedVitals: (
+		id: string,
+		vitalsId: string,
+		marked: { pas: number; pad: number },
+	) =>
+		request<{ vitals: VitalsMeasurement }>(
+			`/api/sessions/${id}/vitals/${vitalsId}`,
+			{ method: "PATCH", body: { marked } },
+		),
 	finish: (id: string, hypothesis: string, differentials: string[]) =>
 		request<{ report: Report }>(`/api/sessions/${id}/finish`, {
 			method: "POST",

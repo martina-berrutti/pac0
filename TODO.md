@@ -74,7 +74,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
 - [ ] Probar con micrófono en el navegador (computadora y celular)
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
-- [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno)
+- [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno). Ya se guardan las sumas y el pico (`voiceUsage.peak`): con una consulta real se ve cuál vale
 - [ ] Probar 3 voces de Gemini y elegir la más rioplatense; cargarla en `LIVE_VOICE`
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
 - [ ] Medir el costo por sesión de 8 minutos con una consulta real (tokens × precio vigente)
@@ -85,7 +85,8 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] `medir_presion(pasos_cumplidos)`: el valor lo calcula el código (`lib/patient/blood-pressure.ts`)
 - [x] `mostrar_region(region)`: avisa si la región no está disponible
 - [x] `actualizar_estado(delta, motivo)`: guarda `cambio_animo`
-- [ ] Conectar `medir_presion` con el tensiómetro de la Persona 2 (valores marcados por el estudiante)
+- [x] Lado de la Persona 1 para el tensiómetro: `PATCH /api/sessions/[id]/vitals/[vitalsId]` y `api.saveMarkedVitals` guardan lo marcado
+- [ ] Conectar `medir_presion` con el tensiómetro de la Persona 2 (falta que la vista del tensiómetro llame a `api.saveMarkedVitals`)
 
 ### Seguridad del personaje
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
@@ -128,6 +129,7 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Veredicto: 85% sin errores críticos, 70% a 84% "casi", menos de 70% "a repasar"
 - [x] Penalizaciones: interrumpir desde la tercera vez, pregunta sugestiva, pregunta repetida
 - [x] Error crítico: examinar sin consentimiento
+- [ ] Ese error crítico tiene que mirar el orden: hoy un permiso pedido después del examen lo evita (comparar `atMs` del evento `consentimiento` con el primer examen)
 - [x] Razonamiento: hipótesis 40%, diferenciales 25%, justificación 20%, estudios 15%
 - [ ] Penalizaciones que faltan: jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico
 - [ ] Errores críticos que faltan: insistir contra la negativa, pasar por alto una alarma, trato irrespetuoso
@@ -208,6 +210,8 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 - [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel
 - [ ] Usuarios, Google y modo invitado con Convex Auth (ya escritos en `packages/backend/convex/auth.ts`)
 - [ ] Borrado de invitados a las 24 horas (`crons.ts`, ya escrito)
+- [x] Borrar lo guardado en `records` a las 48 horas (`records.purgeExpired` en `crons.ts`)
+- [ ] Desplegar Convex para que corra el cron de `records` (`npx convex deploy`)
 - [ ] `mistakeProfile`: perfil de errores entre sesiones
 - [ ] Imágenes en Convex storage y tabla `assets`
 - [ ] Credenciales de Google en Convex dev y prod

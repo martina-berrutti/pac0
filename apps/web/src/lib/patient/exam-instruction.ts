@@ -4,7 +4,6 @@ import type { Personality } from "@/cases/schema";
 import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
 
 const EXAM_WORDS = [
-	"abr",
 	"boca",
 	"garganta",
 	"decí a",
@@ -47,11 +46,15 @@ function includesAny(text: string, words: string[]) {
 }
 
 export function isExamRequest(text: string) {
-	return includesAny(text, EXAM_WORDS);
+	// "abr" solo al empezar una palabra: "palabra" o "cabra" no son examen.
+	return /(^|[^\p{L}])abr/iu.test(text) || includesAny(text, EXAM_WORDS);
 }
 
+// Permiso para examinar: pedir permiso a secas, o pedirlo junto con el
+// examen. "¿Puedo preguntarte la edad?" no autoriza a abrirle la boca.
 export function asksConsent(text: string) {
-	return includesAny(text, CONSENT_WORDS);
+	if (includesAny(text, ["permiso"])) return true;
+	return includesAny(text, CONSENT_WORDS) && isExamRequest(text);
 }
 
 export function interpretExamInstruction(

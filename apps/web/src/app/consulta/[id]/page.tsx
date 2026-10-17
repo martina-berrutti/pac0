@@ -59,6 +59,10 @@ export default function ConsultationPage() {
 			.session(id)
 			.then((v) => {
 				if (v.hasReport) router.replace(`/informe/${id}`);
+				// Al volver a una consulta vencida o cerrada no se ofrece la voz
+				// (el servidor la rechazaría): se pasa directo a la hipótesis.
+				if (v.remainingMs === 0 || v.session.status !== "activa")
+					setClosing(true);
 				setView(v);
 			})
 			.catch((e) =>
@@ -88,8 +92,13 @@ export default function ConsultationPage() {
 		try {
 			const list = differentials
 				.split(",")
-				.map((d) => d.trim())
-				.filter(Boolean);
+				.map((d) => d.trim().slice(0, 100))
+				.filter(Boolean)
+				// El servidor acepta hasta 10; más darían "Datos inválidos".
+				.slice(0, 10);
+			// Primero se terminan de guardar los últimos turnos de la voz: si no,
+			// el informe sale sin ellos y el servidor los rechaza por consulta cerrada.
+			await voice.drain();
 			await api.finish(id, hypothesis, list);
 			router.push(`/informe/${id}`);
 		} catch (e) {
@@ -203,6 +212,7 @@ export default function ConsultationPage() {
 							id="hipotesis"
 							value={hypothesis}
 							onChange={(e) => setHypothesis(e.target.value)}
+							maxLength={500}
 							required
 						/>
 						<label htmlFor="diferenciales" className="font-medium">

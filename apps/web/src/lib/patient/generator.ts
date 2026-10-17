@@ -64,8 +64,15 @@ function pick<T>(items: T[], rand: () => number): T {
 	return items[Math.floor(rand() * items.length)] as T;
 }
 
+// Palabras muy cortas ("tos") como palabra entera: "todos" o "datos" no son tos.
+function hasWord(text: string, w: string) {
+	return w.length <= 3
+		? new RegExp(`(?<!\\p{L})${w}(?!\\p{L})`, "u").test(text)
+		: text.includes(w);
+}
+
 function includesAny(text: string, words: string[]) {
-	return words.some((w) => text.includes(w));
+	return words.some((w) => hasWord(text, w));
 }
 
 export function chooseTemplate(
@@ -83,11 +90,11 @@ export function chooseTemplate(
 	}
 	// Si pide catarro o tos, prioriza la plantilla que mejor coincide.
 	const best = Math.max(
-		...matches.map((m) => m.keywords.filter((k) => t.includes(k)).length),
+		...matches.map((m) => m.keywords.filter((k) => hasWord(t, k)).length),
 	);
 	return pick(
 		matches.filter(
-			(m) => m.keywords.filter((k) => t.includes(k)).length === best,
+			(m) => m.keywords.filter((k) => hasWord(t, k)).length === best,
 		),
 		rand,
 	);
@@ -104,7 +111,8 @@ export function chooseArchetype(text: string, explicitKey?: string): Archetype {
 }
 
 function parseAge(text: string, archetype: Archetype, rand: () => number) {
-	const match = text.match(/(\d{1,2})\s*años/);
+	// "100 años" no tiene que leerse como "00 años".
+	const match = text.match(/(?<!\d)(\d{1,3})\s*años/);
 	if (match) return Math.max(16, Math.min(95, Number(match[1])));
 	if (archetype.key === "mayor") return 68 + Math.floor(rand() * 15);
 	return 18 + Math.floor(rand() * 40);
@@ -112,8 +120,11 @@ function parseAge(text: string, archetype: Archetype, rand: () => number) {
 
 function parseSex(text: string, rand: () => number): "f" | "m" {
 	const t = text.toLowerCase();
-	if (/\b(mujer|señora|chica|paciente femenina|ella)\b/.test(t)) return "f";
-	if (/\b(hombre|señor|chico|varón|varon|él)\b/.test(t)) return "m";
+	// Bordes de palabra con letras acentuadas: \b no sirve para "él" ni "varón".
+	const word = (alts: string) =>
+		new RegExp(`(?<![\\p{L}])(${alts})(?![\\p{L}])`, "u");
+	if (word("mujer|señora|chica|paciente femenina|ella").test(t)) return "f";
+	if (word("hombre|señor|chico|varón|varon|él").test(t)) return "m";
 	return rand() < 0.5 ? "f" : "m";
 }
 

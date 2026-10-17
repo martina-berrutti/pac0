@@ -33,6 +33,10 @@ export interface Store {
 	listExamActions(sessionId: string): Promise<ExamAction[]>;
 	addVitals(v: VitalsMeasurement): Promise<void>;
 	listVitals(sessionId: string): Promise<VitalsMeasurement[]>;
+	updateVitals(
+		id: string,
+		patch: Partial<VitalsMeasurement>,
+	): Promise<VitalsMeasurement | undefined>;
 	saveReport(r: Report): Promise<void>;
 	getReport(sessionId: string): Promise<Report | undefined>;
 }
@@ -106,6 +110,19 @@ class MemoryStore implements Store {
 	}
 	async listVitals(sessionId: string) {
 		return this.vitals.get(sessionId) ?? [];
+	}
+	async updateVitals(id: string, patch: Partial<VitalsMeasurement>) {
+		for (const [sessionId, list] of this.vitals) {
+			const i = list.findIndex((v) => v.id === id);
+			if (i === -1) continue;
+			const next = { ...(list[i] as VitalsMeasurement), ...patch };
+			this.vitals.set(
+				sessionId,
+				list.map((v, j) => (j === i ? next : v)),
+			);
+			return next;
+		}
+		return undefined;
 	}
 	async saveReport(r: Report) {
 		this.reports.set(r.sessionId, r);
@@ -232,6 +249,13 @@ class ConvexStore implements Store {
 	}
 	listVitals(sessionId: string) {
 		return this.bySession<VitalsMeasurement>("vitals", sessionId);
+	}
+	async updateVitals(id: string, patch: Partial<VitalsMeasurement>) {
+		const current = await this.get<VitalsMeasurement>("vitals", id);
+		if (!current) return undefined;
+		const next = { ...current, ...patch };
+		await this.put("vitals", id, next, { sessionId: next.sessionId });
+		return next;
 	}
 	async saveReport(r: Report) {
 		await this.put("report", r.sessionId, r, { sessionId: r.sessionId });

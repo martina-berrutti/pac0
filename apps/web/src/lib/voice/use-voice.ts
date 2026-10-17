@@ -6,6 +6,7 @@
 // herramientas, interrupciones y silencios. Las instrucciones del paciente
 // van fijadas en el token efímero: el navegador no las ve ni las cambia.
 import {
+	type FunctionResponse,
 	GoogleGenAI,
 	type LiveServerMessage,
 	type Session as LiveSession,
@@ -14,6 +15,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Turn } from "@/lib/contracts/session";
+import { createWriteQueue } from "@/lib/voice/queue";
 import type { ToolRun, ToolUi } from "@/server/voice";
 
 export type VoiceStatus = "idle" | "connecting" | "live" | "ended" | "error";
@@ -71,6 +73,25 @@ function floatToPcm16(samples: Float32Array) {
 	return new Uint8Array(out.buffer);
 }
 
+// Algunos navegadores no aceptan elegir la frecuencia: se usa la propia y el
+// audio se convierte (la salida la remuestrea el navegador; la entrada avisa
+// su frecuencia en el mimeType).
+function newAudioContext(sampleRate: number) {
+	try {
+		return new AudioContext({ sampleRate });
+	} catch {
+		return new AudioContext();
+	}
+}
+
+// Mandar por un socket que Gemini ya cerró tira una excepción: se ignora para
+// no llenar la consola (el cierre ya lo maneja onclose).
+function safeSend(send: () => void) {
+	try {
+		send();
+	} catch {}
+}
+
 // Procesador que copia el audio del micrófono al hilo principal.
 const CAPTURE_WORKLET = `
 class P0Capture extends AudioWorkletProcessor {
@@ -117,6 +138,12 @@ export function useVoice({
 	const callbacks = useRef({ onTurn, onTool, onEnd, onError });
 	callbacks.current = { onTurn, onTool, onEnd, onError };
 
+	// Todo lo que se manda al servidor va en fila (lib/voice/queue.ts).
+	const [queue] = useState(createWriteQueue);
+	const enqueue = queue.enqueue;
+	// Espera a que se guarde todo lo pendiente (antes de cerrar la consulta).
+	const drain = queue.drain;
+
 	const stopPlayback = useCallback(() => {
 		const o = out.current;
 		if (!o) return;
@@ -130,24 +157,6 @@ export function useVoice({
 		setPatientSpeaking(false);
 	}, []);
 
-	const stop = useCallback(
-		(reason: "ended" | "error" = "ended") => {
-			stopPlayback();
-			const session = live.current;
-			live.current = null;
-			session?.close();
-			for (const track of mic.current?.getTracks() ?? []) track.stop();
-			mic.current = null;
-			inCtx.current?.close().catch(() => {});
-			inCtx.current = null;
-			out.current?.ctx.close().catch(() => {});
-			out.current = null;
-			setStudentSpeaking(false);
-			setStatus((s) => (s === "idle" ? s : reason));
-		},
-		[stopPlayback],
-	);
-
 	const event = useCallback(
 		(
 			type:
@@ -156,28 +165,30 @@ export function useVoice({
 				| "silencio_largo",
 			durationMs?: number,
 		) =>
-			post(`/api/sessions/${sessionId}/events`, { type, durationMs }).catch(
-				() => {},
-			),
-		[sessionId],
+			enqueue(() =>
+				post(`/api/sessions/${sessionId}/events`, { type, durationMs }),
+			).catch(() => {}),
+		[sessionId, enqueue],
 	);
 
 	const saveTurn = useCallback(
-		async (speaker: Turn["speaker"], text: string, overlap: boolean) => {
+		(speaker: Turn["speaker"], text: string, overlap: boolean) => {
 			if (!text.trim()) return;
-			try {
-				const { turn } = await post<{ turn: Turn }>(
-					`/api/sessions/${sessionId}/voice-turns`,
-					{ speaker, text, overlap },
-				);
-				callbacks.current.onTurn(turn);
-			} catch (e) {
-				callbacks.current.onError(
-					e instanceof Error ? e.message : "No se guardó un turno",
-				);
-			}
+			enqueue(async () => {
+				try {
+					const { turn } = await post<{ turn: Turn }>(
+						`/api/sessions/${sessionId}/voice-turns`,
+						{ speaker, text, overlap },
+					);
+					callbacks.current.onTurn(turn);
+				} catch (e) {
+					callbacks.current.onError(
+						e instanceof Error ? e.message : "No se guardó un turno",
+					);
+				}
+			});
 		},
-		[sessionId],
+		[sessionId, enqueue],
 	);
 
 	const flushStudent = useCallback(() => {
@@ -194,6 +205,34 @@ export function useVoice({
 			s.patientTurnStarted = false;
 		},
 		[saveTurn],
+	);
+
+	// Cada start es un intento; stop lo invalida. Si se corta mientras conecta
+	// (cambio de pantalla, botón), lo que llegue después se cierra solo.
+	const attempt = useRef(0);
+
+	const stop = useCallback(
+		(reason: "ended" | "error" = "ended") => {
+			attempt.current++;
+			// Lo que se estaba diciendo al cortar también queda en la transcripción.
+			if (live.current) {
+				flushStudent();
+				flushPatient(false);
+			}
+			stopPlayback();
+			const session = live.current;
+			live.current = null;
+			session?.close();
+			for (const track of mic.current?.getTracks() ?? []) track.stop();
+			mic.current = null;
+			inCtx.current?.close().catch(() => {});
+			inCtx.current = null;
+			out.current?.ctx.close().catch(() => {});
+			out.current = null;
+			setStudentSpeaking(false);
+			setStatus((s) => (s === "idle" ? s : reason));
+		},
+		[flushPatient, flushStudent, stopPlayback],
 	);
 
 	const playChunk = useCallback((base64: string) => {
@@ -223,13 +262,22 @@ export function useVoice({
 		async (
 			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
 		) => {
-			const functionResponses = [];
+			// La respuesta va a la sesión que pidió la herramienta, no a una
+			// reconexión posterior (otra sesión de Gemini, con otros ids).
+			const target = live.current;
+			const myAttempt = attempt.current;
+			const functionResponses: FunctionResponse[] = [];
 			for (const call of calls) {
 				let output: Record<string, unknown>;
 				try {
-					const run = await post<ToolRun>(`/api/sessions/${sessionId}/tools`, {
-						name: call.name,
-						arguments: call.args ?? {},
+					const run = await enqueue(() => {
+						// Si la voz se cortó mientras esperaba en la fila, no se ejecuta.
+						if (attempt.current !== myAttempt)
+							return Promise.reject(new Error("La voz se cortó"));
+						return post<ToolRun>(`/api/sessions/${sessionId}/tools`, {
+							name: call.name,
+							arguments: call.args ?? {},
+						});
 					});
 					output = run.output;
 					callbacks.current.onTool(run.ui);
@@ -244,9 +292,10 @@ export function useVoice({
 					response: output,
 				});
 			}
-			live.current?.sendToolResponse({ functionResponses });
+			if (target && live.current === target)
+				safeSend(() => target.sendToolResponse({ functionResponses }));
 		},
-		[sessionId],
+		[sessionId, enqueue],
 	);
 
 	const onMessage = useCallback(
@@ -263,10 +312,13 @@ export function useVoice({
 				setStudentSpeaking(true);
 			}
 			if (content?.interrupted) {
-				// El estudiante habló encima del paciente: se corta el audio.
+				// El estudiante habló encima del paciente: se corta el audio. Solo
+				// cuenta como interrupción (y penaliza) si el paciente ya se
+				// escuchaba; si el audio no había empezado, no interrumpió a nadie.
+				const wasPlaying = (out.current?.sources.size ?? 0) > 0;
 				stopPlayback();
-				event("interrupcion_estudiante");
-				flushPatient(true);
+				if (wasPlaying) event("interrupcion_estudiante");
+				flushPatient(wasPlaying);
 			}
 			for (const part of content?.modelTurn?.parts ?? []) {
 				const data = part.inlineData?.data;
@@ -296,16 +348,20 @@ export function useVoice({
 					(list ?? [])
 						.filter((d) => d.modality === "AUDIO")
 						.reduce((n, d) => n + (d.tokenCount ?? 0), 0);
-				post(`/api/sessions/${sessionId}/usage`, {
+				const usage = {
 					inputTokens: u.promptTokenCount ?? 0,
 					outputTokens: u.responseTokenCount ?? 0,
 					inputAudioTokens: audio(u.promptTokensDetails),
 					outputAudioTokens: audio(u.responseTokensDetails),
 					cachedTokens: u.cachedContentTokenCount ?? 0,
-				}).catch(() => {});
+				};
+				enqueue(() => post(`/api/sessions/${sessionId}/usage`, usage)).catch(
+					() => {},
+				);
 			}
 		},
 		[
+			enqueue,
 			event,
 			flushPatient,
 			flushStudent,
@@ -318,16 +374,19 @@ export function useVoice({
 
 	const start = useCallback(async () => {
 		setStatus("connecting");
+		const mine = ++attempt.current;
+		const cancelled = () => attempt.current !== mine;
 		try {
-			const token = await post<{
-				token: string;
-				apiVersion: string;
-				model: string;
-				remainingMs: number;
-			}>("/api/voice/session", { sessionId });
+			// Los AudioContext se crean ya, dentro del toque del botón: si se
+			// crean después de un await, Safari y Chrome en el celular los dejan
+			// suspendidos y no se escucha al paciente.
+			const outCtx = newAudioContext(OUTPUT_RATE);
+			let ctx = newAudioContext(INPUT_RATE);
+			inCtx.current = ctx;
+			outCtx.resume().catch(() => {});
+			ctx.resume().catch(() => {});
 
 			// Salida: 24 kHz, con un AnalyserNode para el avatar.
-			const outCtx = new AudioContext({ sampleRate: OUTPUT_RATE });
 			const analyser = outCtx.createAnalyser();
 			analyser.fftSize = 512;
 			analyser.connect(outCtx.destination);
@@ -339,53 +398,31 @@ export function useVoice({
 				playHead: 0,
 			};
 
-			const ai = new GoogleGenAI({
-				apiKey: token.token,
-				httpOptions: { apiVersion: token.apiVersion },
-			});
-			live.current = await ai.live.connect({
-				model: token.model,
-				// La configuración real va fijada en el token.
-				config: { responseModalities: [Modality.AUDIO] },
-				callbacks: {
-					onmessage: onMessage,
-					onerror: () =>
-						callbacks.current.onError("Se cortó la conexión de voz."),
-					onclose: () => {
-						if (live.current) stop();
-					},
-				},
-			});
-
-			// Entrada: micrófono a 16 kHz (si el navegador usa otra frecuencia, Gemini la convierte).
-			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: { echoCancellation: true, noiseSuppression: true },
-			});
+			// El micrófono antes que el token: si el permiso se niega, no se gasta
+			// el token de un solo uso.
+			let stream: MediaStream;
+			try {
+				stream = await navigator.mediaDevices.getUserMedia({
+					audio: { echoCancellation: true, noiseSuppression: true },
+				});
+			} catch {
+				throw new Error(
+					"No pudimos usar el micrófono. Revisá el permiso del navegador y probá de nuevo.",
+				);
+			}
+			if (cancelled()) {
+				for (const track of stream.getTracks()) track.stop();
+				return;
+			}
 			mic.current = stream;
-			const ctx = new AudioContext({ sampleRate: INPUT_RATE });
-			inCtx.current = ctx;
-			const url = URL.createObjectURL(
-				new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
-			);
-			await ctx.audioWorklet.addModule(url);
-			URL.revokeObjectURL(url);
-			const node = new AudioWorkletNode(ctx, "p0-capture");
-			ctx.createMediaStreamSource(stream).connect(node);
-			const rate = ctx.sampleRate;
-			const chunk: number[] = [];
-			node.port.onmessage = (e: MessageEvent<Float32Array>) => {
-				for (const v of e.data) chunk.push(v);
-				// Envía de a ~100 ms.
-				if (chunk.length >= rate / 10) {
-					const samples = Float32Array.from(chunk.splice(0, chunk.length));
-					live.current?.sendRealtimeInput({
-						audio: {
-							data: toBase64(floatToPcm16(samples)),
-							mimeType: `audio/pcm;rate=${rate}`,
-						},
-					});
-				}
-			};
+
+			const token = await post<{
+				token: string;
+				apiVersion: string;
+				model: string;
+				remainingMs: number;
+			}>("/api/voice/session", { sessionId });
+			if (cancelled()) return;
 
 			st.current = {
 				studentText: "",
@@ -396,9 +433,88 @@ export function useVoice({
 				silenceReported: false,
 				deadline: Date.now() + token.remainingMs,
 			};
+
+			const ai = new GoogleGenAI({
+				apiKey: token.token,
+				httpOptions: { apiVersion: token.apiVersion },
+			});
+			const session = await ai.live.connect({
+				model: token.model,
+				// La configuración real va fijada en el token.
+				config: { responseModalities: [Modality.AUDIO] },
+				callbacks: {
+					// Después de close() pueden llegar mensajes que ya venían en
+					// camino: se ignoran, o una herramienta (examinar) correría en
+					// el servidor con la consulta ya cortada.
+					onmessage: (m) => {
+						if (!cancelled()) onMessage(m);
+					},
+					onerror: () =>
+						callbacks.current.onError("Se cortó la conexión de voz."),
+					onclose: () => {
+						// Cierre que no pedimos (red, Google): se avisa y se puede
+						// volver a conectar; el paciente recibe lo ya hablado.
+						if (live.current && !cancelled()) {
+							stop();
+							callbacks.current.onError(
+								"Se cortó la voz. Podés volver a conectarte y seguir la consulta.",
+							);
+						}
+					},
+				},
+			});
+
+			if (cancelled()) {
+				session.close();
+				return;
+			}
+			live.current = session;
+
+			// Entrada: micrófono a 16 kHz (si el navegador usa otra frecuencia, Gemini la convierte).
+			let source: MediaStreamAudioSourceNode;
+			try {
+				source = ctx.createMediaStreamSource(stream);
+			} catch {
+				// Firefox no conecta un micrófono a 48 kHz con un contexto a 16 kHz:
+				// se usa la frecuencia del navegador y se avisa en el mimeType.
+				ctx.close().catch(() => {});
+				ctx = new AudioContext();
+				inCtx.current = ctx;
+				ctx.resume().catch(() => {});
+				source = ctx.createMediaStreamSource(stream);
+			}
+			const url = URL.createObjectURL(
+				new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
+			);
+			await ctx.audioWorklet.addModule(url);
+			URL.revokeObjectURL(url);
+			const node = new AudioWorkletNode(ctx, "p0-capture");
+			source.connect(node);
+			const rate = ctx.sampleRate;
+			const chunk: number[] = [];
+			node.port.onmessage = (e: MessageEvent<Float32Array>) => {
+				for (const v of e.data) chunk.push(v);
+				// Envía de a ~100 ms.
+				if (chunk.length >= rate / 10) {
+					const samples = Float32Array.from(chunk.splice(0, chunk.length));
+					const target = live.current;
+					if (!target) return;
+					safeSend(() =>
+						target.sendRealtimeInput({
+							audio: {
+								data: toBase64(floatToPcm16(samples)),
+								mimeType: `audio/pcm;rate=${rate}`,
+							},
+						}),
+					);
+				}
+			};
+
+			if (cancelled()) return;
 			setRemainingMs(token.remainingMs);
 			setStatus("live");
 		} catch (e) {
+			if (cancelled()) return;
 			stop("error");
 			callbacks.current.onError(
 				e instanceof Error ? e.message : "No se pudo iniciar la voz",
@@ -433,19 +549,23 @@ export function useVoice({
 				s.silenceReported = true;
 				event("silencio_largo", quietFor);
 				// El paciente vuelve a hablar tras el silencio, según su personalidad.
-				live.current?.sendClientContent({
-					turns: [
-						{
-							role: "user",
-							parts: [
+				const target = live.current;
+				if (target)
+					safeSend(() =>
+						target.sendClientContent({
+							turns: [
 								{
-									text: "(El estudiante lleva un rato en silencio. Reaccioná según tu personalidad: preguntá si pasa algo, mostrate impaciente o esperá con un comentario breve.)",
+									role: "user",
+									parts: [
+										{
+											text: "(El estudiante lleva un rato en silencio. Reaccioná según tu personalidad: preguntá si pasa algo, mostrate impaciente o esperá con un comentario breve.)",
+										},
+									],
 								},
 							],
-						},
-					],
-					turnComplete: true,
-				});
+							turnComplete: true,
+						}),
+					);
 			}
 		}, 500);
 		return () => clearInterval(id);
@@ -472,6 +592,7 @@ export function useVoice({
 		patientSpeaking,
 		start,
 		stop,
+		drain,
 		readPatientLevel,
 	};
 }

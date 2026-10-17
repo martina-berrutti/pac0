@@ -6,7 +6,8 @@ import { recordVoiceTurn } from "@/server/voice";
 
 const bodySchema = z.object({
 	speaker: z.enum(["estudiante", "paciente"]),
-	text: z.string().min(1).max(2000),
+	// Un monólogo largo no se rechaza: el servidor lo recorta.
+	text: z.string().min(1).max(20_000),
 	overlap: z.boolean().default(false),
 });
 
