@@ -1,15 +1,20 @@
 "use client";
 
-// Consulta solo por voz; la transcripción se muestra para leer. Versión
-// mínima de la Persona 1; la Persona 3 la diseña.
+// Consulta a pantalla completa (Persona 3): solo el paciente, como en un
+// consultorio. Se habla por voz; la transcripción se guarda pero no se
+// muestra. Al examinar, la cámara se acerca a la boca o al oído y el examen
+// aparece encima del avatar. La cruz de arriba a la derecha termina la
+// consulta. La lógica de la voz y del cierre es de la Persona 1.
 import { Button } from "@pac0/ui/components/button";
 import { Input } from "@pac0/ui/components/input";
 import { Textarea } from "@pac0/ui/components/textarea";
+import { X } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
+	type FocusPart,
 	PatientAvatar,
 	type PatientAvatarHandle,
 } from "@/components/avatar/patient-avatar";
@@ -35,12 +40,13 @@ export default function ConsultationPage() {
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [sending, setSending] = useState(false);
 	const [exam, setExam] = useState<ExamResult | null>(null);
-	// Tensiómetro abierto: con la medición de medir_presion (voz) o sin ella
-	// (botón).
+	// Tensiómetro abierto, con la medición de medir_presion (voz).
 	const [bp, setBp] = useState<{ start: BpStart | null } | null>(null);
 	const closeBp = useCallback(() => setBp(null), []);
 	const [otoscopy, setOtoscopy] = useState(false);
 	const tool = exam !== null || bp !== null || otoscopy;
+	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
+	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
@@ -49,7 +55,6 @@ export default function ConsultationPage() {
 	const [textMode, setTextMode] = useState(false);
 	const [draft, setDraft] = useState("");
 	const [typing, setTyping] = useState(false);
-	const bottom = useRef<HTMLLIElement>(null);
 	// Reloj local sin voz (plan B por texto): parte de lo que quedaba al cargar.
 	const loadedAt = useRef(Date.now());
 	const [now, setNow] = useState(() => Date.now());
@@ -108,6 +113,43 @@ export default function ConsultationPage() {
 		toolWasOpen.current = tool;
 	}, [tool, voice.status, sendNote]);
 
+	// Animación del examen: la cámara va a la boca (abierta) o al oído y
+	// después aparece el examen; al cerrarlo, vuelve a la cara.
+	const examVariant = exam?.action.variant ?? null;
+	useEffect(() => {
+		const a = avatar.current;
+		if (!tool) {
+			setRevealed(false);
+			a?.run({ kind: "mouth", tongue: false, ms: 0 });
+			a?.focus(null);
+			return;
+		}
+		let cancelled = false;
+		let part: FocusPart | null = null;
+		if (examVariant === "negado") {
+			// No abre la boca: niega con la cabeza y el examen avisa por qué.
+			a?.run({ kind: "face", face: "no" });
+		} else if (examVariant) {
+			part = "mouth";
+			// Abierta mientras dure el examen (se cierra al volver).
+			a?.run({
+				kind: "mouth",
+				tongue: examVariant === "completa",
+				ms: 10 * 60_000,
+			});
+		} else if (otoscopy) {
+			part = "ear";
+		}
+		(part ? (a?.focus(part) ?? Promise.resolve()) : Promise.resolve()).then(
+			() => {
+				if (!cancelled) setRevealed(true);
+			},
+		);
+		return () => {
+			cancelled = true;
+		};
+	}, [tool, examVariant, otoscopy]);
+
 	useEffect(() => {
 		api
 			.session(id)
@@ -137,11 +179,6 @@ export default function ConsultationPage() {
 		else if (voiceStatus !== "reconnecting") avatar.current?.disconnectSpeech();
 	}, [voiceStatus, patientStream]);
 
-	useEffect(() => {
-		if (view?.turns.length)
-			bottom.current?.scrollIntoView({ behavior: "smooth" });
-	}, [view?.turns.length]);
-
 	// Sin voz, el reloj de la pantalla lo lleva esta página (la voz tiene el
 	// suyo). Al llegar a cero en modo texto se pasa a la hipótesis.
 	const localRemainingMs = view
@@ -167,6 +204,15 @@ export default function ConsultationPage() {
 				.catch(() => toast.error("No se guardó el tiempo del examen."));
 		}
 		setExam(null);
+	}
+
+	// La cruz: corta la voz, cierra lo que esté abierto y pasa a la hipótesis.
+	function endConsultation() {
+		voice.stop();
+		setExam(null);
+		setBp(null);
+		setOtoscopy(false);
+		setClosing(true);
 	}
 
 	async function sendText(event: React.FormEvent) {
@@ -219,64 +265,106 @@ export default function ConsultationPage() {
 
 	if (loadError) return <LoadError message={loadError} />;
 	if (!view) return <Loader />;
+	// El docente no consulta: lee la transcripción.
+	if (view.readOnly) return <ReadOnlyConsultation view={view} />;
+
+	const name = view.case.patient.name;
+	// El reloj de la voz queda congelado al cortarse: solo vale en vivo.
+	const minutes = Math.ceil(
+		((voiceLive ? voice.remainingMs : null) ?? localRemainingMs) / 60000,
+	);
+	const lastPatient = [...view.turns]
+		.reverse()
+		.find((t) => t.speaker === "paciente");
 
 	return (
-		<div className="container mx-auto grid max-w-6xl content-start gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_minmax(0,32rem)]">
-			{/* El avatar no se desmonta durante el examen: se esconde, así no
-			    vuelve a cargar. En la vista de examen la escena corta a la
-			    herramienta (plan.md, sección 9). */}
-			<PatientAvatar
-				ref={avatar}
-				mood={mood}
-				className={`h-[42svh] w-full border bg-muted md:sticky md:top-4 md:h-[calc(100svh-6rem)] ${tool ? "max-md:hidden" : ""}`}
-			/>
+		<div className="fixed inset-0 z-50 overflow-hidden bg-neutral-200 dark:bg-neutral-800">
+			<PatientAvatar ref={avatar} mood={mood} className="absolute inset-0" />
 
-			<div className="grid content-start gap-4">
-				<div>
-					<h1 className="font-semibold text-xl">
-						{view.case.patient.name}, {view.case.patient.age} años
-					</h1>
-					<p className="text-muted-foreground text-sm">
-						{view.case.title} · quedan{" "}
-						{/* El reloj de la voz queda congelado al cortarse: solo vale en vivo. */}
-						{Math.ceil(
-							((voiceLive ? voice.remainingMs : null) ?? localRemainingMs) /
-								60000,
-						)}{" "}
-						min · herramienta educativa, caso ficticio
-					</p>
-					{view.readOnly && (
-						<p className="mt-2 border p-2 text-muted-foreground text-sm">
-							Vista de docente: solo lectura.
+			{/* Arriba: quién es y cuánto queda (izquierda), terminar (derecha). */}
+			<p className="absolute top-3 left-3 z-20 rounded-full bg-background/70 px-3 py-1 text-sm backdrop-blur">
+				{name}, {view.case.patient.age} años · {minutes} min
+			</p>
+			{!closing && (
+				<Button
+					size="icon-lg"
+					variant="secondary"
+					aria-label="Terminar la consulta"
+					title="Terminar la consulta"
+					onClick={endConsultation}
+					// Encima del examen abierto: siempre se puede terminar.
+					className="absolute top-3 right-3 z-20 rounded-full shadow"
+				>
+					<X />
+				</Button>
+			)}
+
+			{/* Abajo: empezar la voz, cómo va, o el plan B por texto. */}
+			{!closing && !tool && (
+				<div className="absolute inset-x-0 bottom-5 flex justify-center px-4">
+					{voiceLive ? (
+						<p
+							className="rounded-full bg-background/80 px-4 py-2 text-sm shadow backdrop-blur"
+							aria-live="polite"
+						>
+							{voice.status === "connecting"
+								? "Conectando con el paciente…"
+								: voice.status === "reconnecting"
+									? "Se cortó la voz. Reconectando…"
+									: voice.patientSpeaking
+										? `${name} está hablando…`
+										: voice.studentSpeaking
+											? "Te escucha…"
+											: "Hablá cuando quieras."}
 						</p>
-					)}
-				</div>
-
-				{!closing && !view.readOnly && (
-					<section className="grid gap-2 border p-3">
-						{voiceLive ? (
-							<div className="flex flex-wrap items-center justify-between gap-2">
-								<p className="text-sm" aria-live="polite">
-									{voice.status === "connecting"
-										? "Conectando con el paciente…"
-										: voice.status === "reconnecting"
-											? "Se cortó la voz. Reconectando…"
-											: voice.patientSpeaking
-												? `${view.case.patient.name} está hablando…`
-												: voice.studentSpeaking
-													? "Te escucha…"
-													: "En línea. Hablá cuando quieras."}
+					) : textMode ? (
+						<div className="grid w-full max-w-xl gap-2">
+							{lastPatient && (
+								<p className="rounded-lg bg-background/85 px-4 py-2 text-sm shadow backdrop-blur">
+									<span className="font-medium">{name}:</span>{" "}
+									{lastPatient.text}
 								</p>
-								<Button variant="outline" onClick={() => voice.stop()}>
-									Cortar la voz
+							)}
+							<form onSubmit={sendText} className="flex gap-2">
+								<Input
+									aria-label={`Escribile a ${name}`}
+									placeholder="Escribí lo que le dirías…"
+									value={draft}
+									onChange={(e) => setDraft(e.target.value)}
+									maxLength={1000}
+									disabled={typing}
+									autoFocus
+									className="bg-background"
+								/>
+								<Button type="submit" disabled={typing || !draft.trim()}>
+									{typing ? "…" : "Enviar"}
+								</Button>
+							</form>
+							{/* Por texto solo se abre la garganta: el resto, con botones. */}
+							<div className="flex justify-center gap-2">
+								<Button
+									size="sm"
+									variant="secondary"
+									onClick={() => setBp({ start: null })}
+								>
+									Tomar la presión
+								</Button>
+								<Button
+									size="sm"
+									variant="secondary"
+									onClick={() => setOtoscopy(true)}
+								>
+									Examinar el oído
 								</Button>
 							</div>
-						) : (
-							<>
-								<p className="text-muted-foreground text-xs">
-									Se guarda la transcripción, no el audio. No digas datos
-									personales reales.
-								</p>
+						</div>
+					) : (
+						<div className="grid max-w-sm justify-items-center gap-2 rounded-lg bg-background/85 p-3 text-center shadow backdrop-blur">
+							<p className="text-muted-foreground text-xs">
+								Se guarda la transcripción, no el audio. No digas datos
+								personales reales. Herramienta educativa, caso ficticio.
+							</p>
+							<div className="flex flex-wrap justify-center gap-2">
 								<Button
 									onClick={() => {
 										avatar.current?.unlockAudio();
@@ -287,133 +375,113 @@ export default function ConsultationPage() {
 										? "Probar la voz de nuevo"
 										: "Acepto: hablar por voz"}
 								</Button>
-								{voice.status === "error" && !textMode && (
+								{voice.status === "error" && (
 									<Button variant="outline" onClick={() => setTextMode(true)}>
 										Seguir por texto
 									</Button>
 								)}
-							</>
-						)}
-					</section>
-				)}
+							</div>
+						</div>
+					)}
+				</div>
+			)}
 
-				{exam ? (
-					<OrofaringeView exam={exam} onClose={closeExam} />
-				) : bp ? (
-					<TensiometroView sessionId={id} start={bp.start} onClose={closeBp} />
-				) : otoscopy ? (
-					<OtoscopioView sessionId={id} onClose={() => setOtoscopy(false)} />
-				) : (
-					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
-						{view.turns.length === 0 && (
-							<li className="text-muted-foreground text-sm">
-								Tocá “Acepto: hablar por voz”, presentate y empezá la
-								entrevista. Para examinar, pedile que abra la boca (por ejemplo:
-								“¿puedo revisarte? abrí la boca y decí aaa”). Acá vas a ver lo
-								que se dice.
-							</li>
+			{/* El examen aparece encima del avatar, desde el primer plano. */}
+			{tool && revealed && (
+				<div className="absolute inset-0 grid place-items-center overflow-y-auto bg-black/30 p-4 pt-16">
+					{/* La foto es 4:3: el ancho se limita para que entre a lo alto. */}
+					<div className="fade-in zoom-in-50 w-full max-w-[min(42rem,calc((100svh-18rem)*4/3))] animate-in rounded-lg bg-background p-3 shadow-2xl duration-500">
+						{exam ? (
+							<OrofaringeView exam={exam} onClose={closeExam} />
+						) : bp ? (
+							<TensiometroView
+								sessionId={id}
+								start={bp.start}
+								onClose={closeBp}
+							/>
+						) : (
+							<OtoscopioView
+								sessionId={id}
+								onClose={() => setOtoscopy(false)}
+							/>
 						)}
-						{view.turns.map((t) => (
-							<li
-								key={t.id}
-								className={
-									t.speaker === "estudiante"
-										? "justify-self-end bg-primary/10 px-3 py-2"
-										: "justify-self-start bg-muted px-3 py-2"
-								}
-							>
-								<span className="block text-muted-foreground text-xs">
-									{t.speaker === "estudiante" ? "Vos" : view.case.patient.name}
-								</span>
-								{t.text}
-							</li>
-						))}
-						<li ref={bottom} aria-hidden="true" />
-					</ol>
-				)}
+					</div>
+				</div>
+			)}
 
-				{/* Con un examen abierto, la charla sigue: últimas frases a la vista. */}
-				{tool && view.turns.length > 0 && (
-					<ol
-						className="grid gap-1 border p-2 text-sm"
-						aria-label="Últimas frases"
+			{/* La cruz o el fin del tiempo: hipótesis y diferenciales. */}
+			{closing && (
+				<div className="absolute inset-0 grid place-items-center bg-black/40 p-4">
+					<form
+						onSubmit={finish}
+						className="fade-in zoom-in-95 grid w-full max-w-md animate-in gap-2 rounded-lg bg-background p-4 shadow-2xl"
 					>
-						{view.turns.slice(-3).map((t) => (
-							<li key={t.id} className="text-muted-foreground">
-								<span className="font-medium text-foreground">
-									{t.speaker === "estudiante" ? "Vos" : view.case.patient.name}:
-								</span>{" "}
-								{t.text}
-							</li>
-						))}
-					</ol>
-				)}
-
-				{textMode && !voiceLive && !tool && !closing && !view.readOnly && (
-					<form onSubmit={sendText} className="flex gap-2">
-						<Input
-							aria-label={`Escribile a ${view.case.patient.name}`}
-							placeholder="Escribí lo que le dirías…"
-							value={draft}
-							onChange={(e) => setDraft(e.target.value)}
-							maxLength={1000}
-							disabled={typing}
-							autoFocus
+						<h2 className="font-semibold text-lg">Terminaste la consulta</h2>
+						<label htmlFor="hipotesis" className="font-medium">
+							Tu hipótesis (y por qué)
+						</label>
+						<Textarea
+							id="hipotesis"
+							value={hypothesis}
+							onChange={(e) => setHypothesis(e.target.value)}
+							maxLength={500}
+							required
 						/>
-						<Button type="submit" disabled={typing || !draft.trim()}>
-							{typing ? "…" : "Enviar"}
+						<label htmlFor="diferenciales" className="font-medium">
+							Diferenciales, separados por coma
+						</label>
+						<Input
+							id="diferenciales"
+							value={differentials}
+							onChange={(e) => setDifferentials(e.target.value)}
+						/>
+						<Button type="submit" disabled={sending || !hypothesis.trim()}>
+							Ver mi informe
 						</Button>
 					</form>
-				)}
+				</div>
+			)}
+		</div>
+	);
+}
 
-				{!tool && !closing && !view.readOnly && (
-					<div className="flex flex-wrap gap-2">
-						<Button variant="outline" onClick={() => setBp({ start: null })}>
-							Tomar la presión
-						</Button>
-						<Button variant="outline" onClick={() => setOtoscopy(true)}>
-							Examinar el oído
-						</Button>
-					</div>
-				)}
-
-				{!tool &&
-					!view.readOnly &&
-					(closing ? (
-						<form onSubmit={finish} className="grid gap-2 border p-3">
-							<label htmlFor="hipotesis" className="font-medium">
-								Tu hipótesis (y por qué)
-							</label>
-							<Textarea
-								id="hipotesis"
-								value={hypothesis}
-								onChange={(e) => setHypothesis(e.target.value)}
-								required
-							/>
-							<label htmlFor="diferenciales" className="font-medium">
-								Diferenciales, separados por coma
-							</label>
-							<Input
-								id="diferenciales"
-								value={differentials}
-								onChange={(e) => setDifferentials(e.target.value)}
-							/>
-							<Button type="submit" disabled={sending || !hypothesis.trim()}>
-								Ver mi informe
-							</Button>
-						</form>
-					) : (
-						<Button
-							variant="outline"
-							onClick={() => {
-								voice.stop();
-								setClosing(true);
-							}}
-						>
-							Terminar la consulta
-						</Button>
-					))}
+// Vista del docente: solo la transcripción, sin voz ni cierre.
+function ReadOnlyConsultation({ view }: { view: SessionView }) {
+	return (
+		<div className="container mx-auto grid max-w-2xl content-start gap-4 px-4 py-4">
+			<div>
+				<h1 className="font-semibold text-xl">
+					{view.case.patient.name}, {view.case.patient.age} años
+				</h1>
+				<p className="text-muted-foreground text-sm">{view.case.title}</p>
+				<p className="mt-2 border p-2 text-muted-foreground text-sm">
+					Vista de docente: solo lectura.
+				</p>
 			</div>
+			<ol className="grid gap-2 border p-3">
+				{view.turns.length === 0 && (
+					<li className="text-muted-foreground text-sm">
+						Todavía no se habló.
+					</li>
+				)}
+				{view.turns.map((t) => (
+					<li
+						key={t.id}
+						className={
+							t.speaker === "estudiante"
+								? "justify-self-end bg-primary/10 px-3 py-2"
+								: "justify-self-start bg-muted px-3 py-2"
+						}
+					>
+						<span className="block text-muted-foreground text-xs">
+							{t.speaker === "estudiante"
+								? "Estudiante"
+								: view.case.patient.name}
+						</span>
+						{t.text}
+					</li>
+				))}
+			</ol>
 		</div>
 	);
 }

@@ -2,9 +2,39 @@
 // usa components/avatar.
 
 declare module "@met4citizen/talkinghead" {
+	// Vector3 de three, solo lo que se usa.
+	export interface Vec3 {
+		x: number;
+		y: number;
+		z: number;
+		clone(): Vec3;
+		add(v: Vec3): Vec3;
+		set(x: number, y: number, z: number): Vec3;
+		multiplyScalar(s: number): Vec3;
+		normalize(): Vec3;
+		copy(v: Vec3): Vec3;
+		sub(v: Vec3): Vec3;
+	}
+
 	export class TalkingHead {
 		constructor(node: HTMLElement, opt?: Record<string, unknown>);
 		opt: Record<string, unknown> & { update: ((dt: number) => void) | null };
+		armature: {
+			getObjectByName(name: string):
+				| {
+						getWorldPosition(target: Vec3): Vec3;
+						localToWorld(v: Vec3): Vec3;
+				  }
+				| undefined;
+		} | null;
+		camera: { position: Vec3; fov: number; updateProjectionMatrix(): void };
+		controls: { target: Vec3; update(): void };
+		// Recorrido de cámara de setView (1 s): se puede apuntar a cualquier lado.
+		cameraClock: number | null;
+		cameraStart: Vec3;
+		cameraEnd: Vec3;
+		controlsStart: Vec3;
+		controlsEnd: Vec3;
 		audioCtx: AudioContext;
 		audioSpeechGainNode: GainNode;
 		audioReverbNode: AudioNode;
