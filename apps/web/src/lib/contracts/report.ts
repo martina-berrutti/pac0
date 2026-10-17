@@ -24,6 +24,10 @@ export const mistakeSchema = z.object({
 	what: z.string(),
 	why: z.string(),
 	nextTime: z.string(),
+	// De dónde sale el "por qué importa": la lista de cotejo o el afiche. Solo
+	// se nombra; no se copia el texto (AGENTS.md). Opcional para los informes
+	// guardados antes.
+	source: z.string().optional(),
 	critical: z.boolean(),
 	evidence: z.array(evidenceSchema),
 });
@@ -55,6 +59,9 @@ export const reportSchema = z.object({
 		differentials: z.array(z.string()),
 	}),
 	notMeasurable: z.array(z.string()),
+	// Avisos que no restan puntos (por ejemplo, un examen que el caso no
+	// necesitaba). Opcional para los informes guardados antes.
+	notices: z.array(z.string()).optional(),
 	judge: z.enum(["reglas", "ia"]),
 	createdAt: z.number(),
 });

@@ -2,6 +2,17 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 2 · Evaluador completo, abatelenguas y listo para las fotos
+
+- **Puntaje:** penalizaciones nuevas (jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico), errores críticos nuevos (insistir contra la negativa, omitir una señal de alarma, trato irrespetuoso) y +5 de comunicación por ganar la confianza de un paciente difícil. Todo lo calcula el código, también con el juez con IA.
+- **Informe:** cada error nombra su fuente (`source`: lista de cotejo o afiche, sin copiar su texto). Avisos sin puntaje en `notices` (por ejemplo, revisar el oído en un caso de garganta). Los dos campos son opcionales; la Persona 3 tiene que mostrarlos.
+- **Describir lo que vio:** se compara con el hallazgo esperado de la garganta o del oído; parcial si miró sin describir; «no veo placas» ya no cuenta como describirlas.
+- **Examen:** abatelenguas (tecla A o botón) en la orofaringe. En la otoscopia, con un oído afectado resta examinar uno solo (2) o empezar por el enfermo (1). Registro de fotos de garganta y de oído con sus zonas; un test exige que cada foto esté en `CREDITS.md`. En desarrollo, la tecla Z muestra las zonas para ubicarlas.
+- **Evaluador con IA real (Gemini):** bueno 97, mediocre 46, malo 5; tres corridas iguales (46); cero omisiones inventadas. La cuota gratuita es de 15 pedidos por minuto: el test espacia los pedidos. Por eso mismo, en producción el evaluador puede caer al juez por reglas si se cierran varias consultas juntas (lo que vio la Persona 1): conviene una clave con facturación para la demo.
+- **Sin docente:** la planilla de calibración (documento aparte) tiene propuestas con fuentes públicas para el tensiómetro (AHA 2019, Handler 2009), los signos de alarma y el otoscopio; el resto son decisiones del equipo. Falta verificarla y pasar los valores al código. El contraste con estudiantes se reduce a una estudiante y 2 casos (guía de prueba aparte).
+- **Pendiente:** fotos de la Persona 3, ítems de signos de alarma en garganta y oído, verificar la planilla y la prueba con la estudiante. Lo de comparar la hipótesis en código antes de confiar en la IA (`ai-judge.ts`) queda para después.
+- Validación: 185 tests en web y 20 en backend; lint, tipos y build pasan.
+
 ## 17/10 · Persona 1 · Dos pacientes con tres problemas cada uno, y todos los exámenes en cualquier caso
 
 - **Banco:** quedan Lucía (garganta) y Diego (oído). Se elige el paciente y después el problema (o «Al azar»). Los problemas se llaman «Problema 1, 2, 3» para no decir el diagnóstico (AGENTS.md: el diagnóstico vive en el servidor).
@@ -14,6 +25,7 @@ Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hiz
 - **Para la Persona 2:** los tests de técnica de presión y otoscopio usan a Lucía con todos los exámenes indicados, para que el punto nuevo no les cambie la cuenta.
 - **Para la Persona 3:** los seis problemas son borrador y hay que revisarlos con un médico.
 - Validación: 158 tests en web; lint, tipos y build pasan.
+
 ## 17/10 · Persona 1 · Arreglo y prevención de bugs (integrado con main)
 
 Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. Donde `main` ya resolvía algo (limpieza de invitados en Convex, tope de 6 conexiones de voz, tensiómetro, frecuencias de audio, mensajes del micrófono, costo de la voz), quedó su versión.

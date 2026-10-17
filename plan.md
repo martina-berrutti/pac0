@@ -656,16 +656,18 @@ Avance al 17/10 (el detalle está en `TODO.md`):
 
 ### Persona 2: examen y evaluador
 
-- [ ] Vista de examen: foto oscurecida, círculo de luz, zonas y registro del tiempo en `examActions`
-- [ ] Variantes de apertura de boca (parcial y completa) según la claridad de la instrucción
-- [ ] Extractor determinista y motor de puntaje en `lib/scoring/`, con tests
-- [ ] Esquema del informe con zod y evaluador: juez por ítem, verificador de omisiones y redactor
-- [ ] Veredicto con 85% y errores críticos
-- [ ] Evaluación del diagnóstico (hipótesis y diferenciales)
-- [ ] Tensiómetro virtual con teclas y ajustes por técnica (prioridad 2)
-- [ ] Ciclo de validación: 3 estudiantes simulados y prueba de consistencia
-- [ ] Contraste con 2 estudiantes reales
-- [ ] Otoscopio (prioridad 3)
+Avance al 17/10 (el detalle está en `TODO.md`):
+
+- [ ] Vista de examen: círculo de luz, zonas, tiempos y abatelenguas hechos; falta la foto con licencia de la Persona 3 (el registro ya está)
+- [x] Variantes de apertura de boca (parcial y completa) según la claridad de la instrucción
+- [x] Extractor determinista y motor de puntaje en `lib/scoring/`, con tests
+- [x] Esquema del informe con zod y evaluador: juez por ítem, verificador de omisiones y redactor
+- [x] Veredicto con 85% y errores críticos
+- [x] Evaluación del diagnóstico (hipótesis y diferenciales)
+- [x] Tensiómetro virtual con teclas y ajustes por técnica (prioridad 2); valores a verificar en la planilla de calibración
+- [x] Ciclo de validación: 3 estudiantes simulados y prueba de consistencia, también con IA real
+- [ ] Contraste con una estudiante real en 2 casos (garganta y oído); se reduce de 2 a 1 por tiempo
+- [x] Otoscopio (prioridad 3), con hallazgos por caso; faltan las fotos
 
 ### Persona 3: producto, clínica y diseño
 

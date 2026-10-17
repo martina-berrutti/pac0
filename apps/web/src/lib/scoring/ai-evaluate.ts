@@ -14,6 +14,7 @@ import {
 } from "./ai-judge";
 import { assembleReport, evaluate } from "./evaluate";
 import { extract } from "./extractor";
+import { creditSeenZones } from "./rule-judge";
 import type { EvaluationInput } from "./types";
 
 const MAX_TEXT = 300;
@@ -40,6 +41,7 @@ export async function writeFeedback(
 - why: por qué importa en la práctica clínica.
 - nextTime: qué hacer concretamente la próxima vez, con una frase de ejemplo si sirve.
 No cambies qué pasó ni agregues errores nuevos. Sin juicios sobre la persona.
+Si el error tiene fuente, el "why" tiene que ser coherente con ella; no la copies ni la cites textual.
 
 Caso: ${input.clinicalCase.title}. Motivo de consulta: ${input.clinicalCase.chiefComplaint}.
 
@@ -47,7 +49,7 @@ Errores:
 ${report.mistakes
 	.map((m, i) => {
 		const quote = m.evidence.find((e) => e.quote)?.quote;
-		return `${i}. ${m.what}${quote ? ` Cita: "${quote}"` : ""}`;
+		return `${i}. ${m.what}${quote ? ` Cita: "${quote}"` : ""}${m.source ? ` Fuente: ${m.source}.` : ""}`;
 	})
 	.join("\n")}
 
@@ -81,7 +83,9 @@ export async function evaluateWithAi(
 			aiJudgeItems(input, extracted, llm),
 			aiReasoning(input, llm),
 		]);
-		const items = await verifyOmissions(judged, input, extracted, llm);
+		const items = (await verifyOmissions(judged, input, extracted, llm)).map(
+			(i) => creditSeenZones(i, extracted),
+		);
 		const report = assembleReport(input, items, reasoning, "ia", extracted);
 		return await writeFeedback(report, input, llm);
 	} catch (error) {

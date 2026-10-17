@@ -21,4 +21,6 @@ export type Penalty = {
 	// Textos de la tarjeta de error; sin ellos van los genéricos.
 	why?: string;
 	nextTime?: string;
+	// Sin fuente, va la de la dimensión (SOURCES en evaluate.ts).
+	source?: string;
 };
