@@ -228,15 +228,15 @@ export default function ConsultationPage() {
 			<PatientAvatar
 				ref={avatar}
 				mood={mood}
-				className={`h-[42svh] w-full border bg-muted md:sticky md:top-4 md:h-[calc(100svh-6rem)] ${tool ? "max-md:hidden" : ""}`}
+				className={`h-[42svh] w-full overflow-hidden rounded-3xl border bg-gradient-to-b from-secondary to-muted md:sticky md:top-20 md:h-[calc(100svh-7rem)] ${tool ? "max-md:hidden" : ""}`}
 			/>
 
 			<div className="grid content-start gap-4">
 				<div>
-					<h1 className="font-semibold text-xl">
+					<h1 className="font-bold text-2xl">
 						{view.case.patient.name}, {view.case.patient.age} años
 					</h1>
-					<p className="text-muted-foreground text-sm">
+					<p className="mt-1 text-muted-foreground text-sm">
 						{view.case.title} · quedan{" "}
 						{/* El reloj de la voz queda congelado al cortarse: solo vale en vivo. */}
 						{Math.ceil(
@@ -246,17 +246,24 @@ export default function ConsultationPage() {
 						min · herramienta educativa, caso ficticio
 					</p>
 					{view.readOnly && (
-						<p className="mt-2 border p-2 text-muted-foreground text-sm">
+						<p className="mt-2 rounded-2xl bg-sun-soft p-3 text-sm">
 							Vista de docente: solo lectura.
 						</p>
 					)}
 				</div>
 
 				{!closing && !view.readOnly && (
-					<section className="grid gap-2 border p-3">
+					<section className="grid gap-3 rounded-3xl border bg-card p-4">
 						{voiceLive ? (
 							<div className="flex flex-wrap items-center justify-between gap-2">
-								<p className="text-sm" aria-live="polite">
+								<p
+									className="flex items-center gap-2 font-medium text-sm"
+									aria-live="polite"
+								>
+									<span
+										className={`size-2.5 rounded-full ${voice.status === "live" ? "animate-pulse-ring bg-success" : "animate-pulse bg-warning"}`}
+										aria-hidden="true"
+									/>
 									{voice.status === "connecting"
 										? "Conectando con el paciente…"
 										: voice.status === "reconnecting"
@@ -278,6 +285,8 @@ export default function ConsultationPage() {
 									personales reales.
 								</p>
 								<Button
+									size="lg"
+									className="h-12 text-base"
 									onClick={() => {
 										avatar.current?.unlockAudio();
 										voice.start();
@@ -304,7 +313,7 @@ export default function ConsultationPage() {
 				) : otoscopy ? (
 					<OtoscopioView sessionId={id} onClose={() => setOtoscopy(false)} />
 				) : (
-					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
+					<ol className="grid max-h-[55svh] content-start gap-2.5 overflow-y-auto rounded-3xl border bg-card p-4">
 						{view.turns.length === 0 && (
 							<li className="text-muted-foreground text-sm">
 								Tocá “Acepto: hablar por voz”, presentate y empezá la
@@ -318,11 +327,11 @@ export default function ConsultationPage() {
 								key={t.id}
 								className={
 									t.speaker === "estudiante"
-										? "justify-self-end bg-primary/10 px-3 py-2"
-										: "justify-self-start bg-muted px-3 py-2"
+										? "max-w-[85%] justify-self-end rounded-2xl rounded-tr-md bg-primary px-4 py-2.5 text-primary-foreground"
+										: "max-w-[85%] justify-self-start rounded-2xl rounded-tl-md bg-muted px-4 py-2.5"
 								}
 							>
-								<span className="block text-muted-foreground text-xs">
+								<span className="block text-xs opacity-70">
 									{t.speaker === "estudiante" ? "Vos" : view.case.patient.name}
 								</span>
 								{t.text}
@@ -335,7 +344,7 @@ export default function ConsultationPage() {
 				{/* Con un examen abierto, la charla sigue: últimas frases a la vista. */}
 				{tool && view.turns.length > 0 && (
 					<ol
-						className="grid gap-1 border p-2 text-sm"
+						className="grid gap-1 rounded-2xl border bg-card p-3 text-sm"
 						aria-label="Últimas frases"
 					>
 						{view.turns.slice(-3).map((t) => (
@@ -380,8 +389,14 @@ export default function ConsultationPage() {
 				{!tool &&
 					!view.readOnly &&
 					(closing ? (
-						<form onSubmit={finish} className="grid gap-2 border p-3">
-							<label htmlFor="hipotesis" className="font-medium">
+						<form
+							onSubmit={finish}
+							className="grid gap-3 rounded-3xl border bg-card p-5"
+						>
+							<label
+								htmlFor="hipotesis"
+								className="font-bold font-display text-lg"
+							>
 								Tu hipótesis (y por qué)
 							</label>
 							<Textarea

@@ -1,10 +1,13 @@
 "use client";
 
 import { Button } from "@pac0/ui/components/button";
+import { ShieldCheck, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { LogoMark } from "@/frontend/logo";
+import { Page, Surface } from "@/frontend/ui";
 import { api } from "@/lib/api-client";
 
 // Mensajes de /api/auth/google cuando el login no sale.
@@ -42,30 +45,46 @@ export default function SignInPage() {
 	}
 
 	return (
-		<div className="container mx-auto grid max-w-sm content-center gap-4 px-4 py-8">
-			<h1 className="font-semibold text-2xl">Entrar</h1>
-			<Button
-				size="lg"
-				className="h-11"
-				disabled={pending !== null}
-				onClick={enterAsGuest}
-			>
-				{pending === "invitado" ? "Entrando…" : "Entrar como invitado"}
-			</Button>
-			<Button
-				size="lg"
-				variant="outline"
-				className="h-11"
-				disabled={pending !== null}
-				onClick={enterWithGoogle}
-			>
-				{pending === "google" ? "Abriendo Google…" : "Entrar con Google"}
-			</Button>
-			<p className="text-muted-foreground text-sm">
-				Solo guardamos un alias y tu año de carrera. De tu cuenta de Google no
-				guardamos ni el nombre ni el correo. Lo que hace un invitado se borra a
-				las 24 horas.
-			</p>
-		</div>
+		<Page size="sm" className="min-h-[calc(100svh-4rem)] content-center">
+			<Surface className="grid animate-rise gap-6 p-7 sm:p-9">
+				<div className="grid justify-items-center gap-4 text-center">
+					<LogoMark className="size-16 animate-float" />
+					<div className="grid gap-1.5">
+						<h1 className="font-bold text-3xl">¡Hola! Soy Paco</h1>
+						<p className="text-muted-foreground">
+							Entrá y elegí a tu primer paciente. Tarda menos de 10 segundos.
+						</p>
+					</div>
+				</div>
+				<div className="grid gap-3">
+					<Button
+						size="lg"
+						className="h-12 text-base"
+						disabled={pending !== null}
+						onClick={enterAsGuest}
+					>
+						<UserRound aria-hidden="true" />
+						{pending === "invitado" ? "Entrando…" : "Entrar como invitado"}
+					</Button>
+					<Button
+						size="lg"
+						variant="outline"
+						className="h-12 text-base"
+						disabled={pending !== null}
+						onClick={enterWithGoogle}
+					>
+						{pending === "google" ? "Abriendo Google…" : "Entrar con Google"}
+					</Button>
+				</div>
+				<p className="flex gap-2.5 rounded-2xl bg-secondary/60 p-3.5 text-secondary-foreground text-sm">
+					<ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+					<span>
+						Solo guardamos un alias y tu año de carrera. De tu cuenta de Google
+						no guardamos ni el nombre ni el correo. Lo que hace un invitado se
+						borra a las 24 horas.
+					</span>
+				</p>
+			</Surface>
+		</Page>
 	);
 }

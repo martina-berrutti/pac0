@@ -2,11 +2,22 @@
 
 import { Button } from "@pac0/ui/components/button";
 import { Textarea } from "@pac0/ui/components/textarea";
+import { Sparkles, Stethoscope, Wand2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CaseSummary } from "@/cases/schema";
 import Loader from "@/components/loader";
+import {
+	IconBubble,
+	Page,
+	PageHeader,
+	PatientBadge,
+	Pill,
+	Surface,
+	selectClass,
+	toneForCase,
+} from "@/frontend/ui";
 import { ApiError, api, type PersonalityOption } from "@/lib/api-client";
 
 // Valor del selector de problema para sortear uno.
@@ -96,60 +107,67 @@ export default function CasesPage() {
 	if (cases === null) return <Loader />;
 
 	return (
-		<div className="container mx-auto grid max-w-xl content-start gap-6 px-4 py-8">
-			<h1 className="font-semibold text-2xl">
-				Hola{alias ? `, ${alias}` : ""}
-			</h1>
+		<Page size="lg">
+			<PageHeader
+				eyebrow="Tus pacientes"
+				title={
+					<>
+						Hola{alias ? `, ${alias}` : ""}{" "}
+						<span className="inline-block origin-[70%_70%] animate-wave">
+							👋
+						</span>
+					</>
+				}
+			>
+				¿A quién atendemos hoy? Elegí un paciente, su forma de ser y empezá la
+				consulta. Tenés hasta 8 minutos.
+			</PageHeader>
 
-			<form onSubmit={generate} className="grid gap-2 border p-3">
-				<label htmlFor="pedido" className="font-medium">
-					Pedime un paciente
-				</label>
-				<Textarea
-					id="pedido"
-					value={request}
-					onChange={(e) => setRequest(e.target.value)}
-					placeholder="Ej.: dame un paciente con algo de garganta, que sea ansioso y de unos 60 años"
-					maxLength={300}
-				/>
-				<Button type="submit" disabled={busy || request.trim().length < 3}>
-					Generar paciente
-				</Button>
-				<p className="text-muted-foreground text-xs">
-					Inventamos a la persona; lo clínico sale de plantillas del equipo. Los
-					casos generados no fueron revisados por un médico.
-				</p>
-			</form>
-
-			<section className="grid gap-2">
-				<h2 className="font-medium">Casos</h2>
-				<ul className="grid gap-2">
-					{groupCases(cases).map(({ key, cases: options }) => {
-						const first = options[0];
-						if (!first) return null;
-						const grouped = options.length > 1;
-						return (
-							<li key={key} className="grid gap-2 border p-3">
-								<div>
-									<p className="font-medium">
-										{first.title}
-										{first.origin === "generado" && (
-											<span className="ml-2 text-muted-foreground text-xs">
-												generado
-											</span>
-										)}
-										{!first.reviewed && (
-											<span className="ml-2 text-muted-foreground text-xs">
-												sin revisar
-											</span>
-										)}
-									</p>
-									<p className="text-muted-foreground text-sm">
-										{first.patient.name}, {first.patient.age} años
-										{grouped ? "" : `: “${first.chiefComplaint}”`}
-									</p>
+			<ul className="grid gap-4 md:grid-cols-2">
+				{groupCases(cases).map(({ key, cases: options }) => {
+					const first = options[0];
+					if (!first) return null;
+					const grouped = options.length > 1;
+					const tone = toneForCase(first.title);
+					return (
+						<Surface
+							as="li"
+							key={key}
+							className="grid animate-rise content-between gap-5 transition-shadow hover:shadow-lg"
+						>
+							<div className="grid gap-4">
+								<div className="flex items-start gap-4">
+									<PatientBadge name={first.patient.name} tone={tone} />
+									<div className="grid min-w-0 gap-1">
+										<h2 className="font-bold text-xl leading-tight">
+											{first.patient.name}, {first.patient.age} años
+										</h2>
+										<div className="flex flex-wrap gap-1.5">
+											<Pill tone={tone}>{first.title}</Pill>
+											{first.origin === "generado" && (
+												<Pill tone="mint">
+													<Sparkles className="size-3" aria-hidden="true" />
+													generado
+												</Pill>
+											)}
+											{!first.reviewed && <Pill>sin revisar</Pill>}
+										</div>
+									</div>
 								</div>
-								<div className="flex flex-wrap items-center gap-2">
+								{!grouped && (
+									<p className="rounded-2xl rounded-tl-md bg-muted px-4 py-3 text-sm">
+										“{first.chiefComplaint}”
+									</p>
+								)}
+								{grouped && (
+									<p className="text-muted-foreground text-sm">
+										Viene por {options.length} problemas distintos. Elegí uno o
+										dejá que sea sorpresa.
+									</p>
+								)}
+							</div>
+							<div className="grid gap-3">
+								<div className="grid gap-2">
 									{grouped && (
 										<select
 											aria-label="Problema"
@@ -157,14 +175,14 @@ export default function CasesPage() {
 											onChange={(e) =>
 												setProblem((cur) => ({ ...cur, [key]: e.target.value }))
 											}
-											className="h-8 border border-input bg-background px-2 text-sm"
+											className={selectClass}
 										>
 											{options.map((c) => (
 												<option key={c.id} value={c.id}>
 													{c.problem ?? c.id}
 												</option>
 											))}
-											<option value={RANDOM}>Al azar</option>
+											<option value={RANDOM}>Sorpresa (al azar)</option>
 										</select>
 									)}
 									<select
@@ -173,7 +191,7 @@ export default function CasesPage() {
 										onChange={(e) =>
 											setChosen((cur) => ({ ...cur, [key]: e.target.value }))
 										}
-										className="h-8 border border-input bg-background px-2 text-sm"
+										className={selectClass}
 									>
 										<option value="caso">Personalidad del caso</option>
 										{personalities.map((p) => (
@@ -182,15 +200,61 @@ export default function CasesPage() {
 											</option>
 										))}
 									</select>
-									<Button disabled={busy} onClick={() => start(key, options)}>
-										Empezar consulta
-									</Button>
 								</div>
-							</li>
-						);
-					})}
-				</ul>
-			</section>
-		</div>
+								<Button
+									size="lg"
+									className="h-11"
+									disabled={busy}
+									onClick={() => start(key, options)}
+								>
+									<Stethoscope aria-hidden="true" />
+									Empezar consulta
+								</Button>
+							</div>
+						</Surface>
+					);
+				})}
+			</ul>
+
+			<Surface className="border-dashed bg-gradient-to-br from-mint-soft to-coral-soft/60">
+				<form onSubmit={generate} className="grid gap-4">
+					<div className="flex items-start gap-3">
+						<IconBubble icon={Wand2} tone="coral" className="bg-card" />
+						<div className="grid gap-1">
+							<label
+								htmlFor="pedido"
+								className="font-bold font-display text-lg"
+							>
+								Pedime un paciente
+							</label>
+							<p className="text-muted-foreground text-sm">
+								Contame qué querés practicar y lo invento para vos.
+							</p>
+						</div>
+					</div>
+					<Textarea
+						id="pedido"
+						value={request}
+						onChange={(e) => setRequest(e.target.value)}
+						placeholder="Ej.: dame un paciente con algo de garganta, que sea ansioso y de unos 60 años"
+						maxLength={300}
+					/>
+					<div className="flex flex-wrap items-center justify-between gap-3">
+						<p className="max-w-sm text-muted-foreground text-xs">
+							Inventamos a la persona; lo clínico sale de plantillas del equipo.
+							Los casos generados no fueron revisados por un médico.
+						</p>
+						<Button
+							type="submit"
+							variant="secondary"
+							disabled={busy || request.trim().length < 3}
+						>
+							<Sparkles aria-hidden="true" />
+							Generar paciente
+						</Button>
+					</div>
+				</form>
+			</Surface>
+		</Page>
 	);
 }

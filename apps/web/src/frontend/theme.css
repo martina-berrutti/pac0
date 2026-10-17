@@ -1,0 +1,186 @@
+/* Identidad visual de Pac0 (Paciente 0). Se carga después de los estilos de
+ * @pac0/ui y redefine sus colores, así los componentes de shadcn toman la
+ * marca sin tocar packages/ui. Paleta: verde ambo (primario), coral (acento
+ * cálido), sol y menta para estados; fondo crema. */
+
+:root {
+	--background: oklch(0.985 0.01 90);
+	--foreground: oklch(0.27 0.035 220);
+	--card: oklch(1 0 0);
+	--card-foreground: oklch(0.27 0.035 220);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.27 0.035 220);
+	--primary: oklch(0.52 0.105 190);
+	--primary-foreground: oklch(0.99 0.01 190);
+	--secondary: oklch(0.95 0.035 175);
+	--secondary-foreground: oklch(0.33 0.07 190);
+	--muted: oklch(0.96 0.012 90);
+	--muted-foreground: oklch(0.5 0.025 220);
+	--accent: oklch(0.95 0.04 50);
+	--accent-foreground: oklch(0.45 0.12 35);
+	--destructive: oklch(0.58 0.2 25);
+	--border: oklch(0.91 0.015 90);
+	--input: oklch(0.88 0.02 90);
+	--ring: oklch(0.52 0.105 190);
+	--radius: 1rem;
+
+	/* Propios de la marca. */
+	--coral: oklch(0.7 0.16 35);
+	--coral-soft: oklch(0.94 0.045 40);
+	--sun: oklch(0.85 0.14 85);
+	--sun-soft: oklch(0.96 0.05 90);
+	--mint: oklch(0.9 0.07 170);
+	--mint-soft: oklch(0.96 0.03 170);
+	--success: oklch(0.58 0.13 155);
+	--warning: oklch(0.7 0.15 65);
+	--glow-a: oklch(0.93 0.06 170 / 0.7);
+	--glow-b: oklch(0.94 0.06 50 / 0.6);
+}
+
+.dark {
+	--background: oklch(0.19 0.025 215);
+	--foreground: oklch(0.95 0.01 90);
+	--card: oklch(0.235 0.03 215);
+	--card-foreground: oklch(0.95 0.01 90);
+	--popover: oklch(0.235 0.03 215);
+	--popover-foreground: oklch(0.95 0.01 90);
+	--primary: oklch(0.74 0.11 185);
+	--primary-foreground: oklch(0.2 0.03 215);
+	--secondary: oklch(0.3 0.045 195);
+	--secondary-foreground: oklch(0.9 0.04 175);
+	--muted: oklch(0.26 0.03 215);
+	--muted-foreground: oklch(0.74 0.02 210);
+	--accent: oklch(0.32 0.06 40);
+	--accent-foreground: oklch(0.88 0.08 45);
+	--destructive: oklch(0.7 0.18 25);
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 16%);
+	--ring: oklch(0.74 0.11 185);
+
+	--coral: oklch(0.74 0.14 35);
+	--coral-soft: oklch(0.32 0.06 35);
+	--sun: oklch(0.83 0.12 85);
+	--sun-soft: oklch(0.32 0.05 85);
+	--mint: oklch(0.45 0.07 170);
+	--mint-soft: oklch(0.28 0.04 170);
+	--success: oklch(0.74 0.13 155);
+	--warning: oklch(0.8 0.13 70);
+	--glow-a: oklch(0.35 0.06 190 / 0.45);
+	--glow-b: oklch(0.32 0.06 40 / 0.35);
+}
+
+@theme inline {
+	--font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+	--font-display:
+		var(--font-display-face), var(--font-geist-sans), ui-sans-serif, system-ui,
+		sans-serif;
+	--color-coral: var(--coral);
+	--color-coral-soft: var(--coral-soft);
+	--color-sun: var(--sun);
+	--color-sun-soft: var(--sun-soft);
+	--color-mint: var(--mint);
+	--color-mint-soft: var(--mint-soft);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--animate-float: pac0-float 6s ease-in-out infinite;
+	--animate-pulse-ring: pac0-pulse-ring 1.8s ease-out infinite;
+	--animate-rise: pac0-rise 0.5s ease-out both;
+	--animate-wave: pac0-wave 1.6s ease-in-out 1;
+}
+
+@keyframes pac0-wave {
+	0%,
+	60%,
+	100% {
+		transform: rotate(0);
+	}
+	10%,
+	30% {
+		transform: rotate(14deg);
+	}
+	20%,
+	40% {
+		transform: rotate(-8deg);
+	}
+}
+
+@keyframes pac0-float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-8px);
+	}
+}
+
+@keyframes pac0-pulse-ring {
+	0% {
+		box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 45%, transparent);
+	}
+	100% {
+		box-shadow: 0 0 0 14px transparent;
+	}
+}
+
+@keyframes pac0-rise {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/* Fuera de las capas de Tailwind a propósito: gana sobre las clases de
+ * packages/ui (que traen bordes rectos) sin editar ese paquete. */
+body {
+	background-color: var(--background);
+	background-image:
+		radial-gradient(60rem 30rem at 0% -10%, var(--glow-a), transparent 60%),
+		radial-gradient(50rem 28rem at 100% 0%, var(--glow-b), transparent 60%);
+	background-attachment: fixed;
+}
+
+[data-slot="button"] {
+	border-radius: 9999px;
+	font-size: 0.875rem;
+}
+
+[data-slot="input"],
+[data-slot="textarea"] {
+	border-radius: 0.875rem;
+	background-color: var(--card);
+	font-size: 0.9375rem;
+	padding-inline: 0.875rem;
+}
+
+[data-slot="input"] {
+	height: 2.75rem;
+}
+
+[data-slot="dropdown-menu-content"] {
+	border-radius: 1rem;
+}
+
+h1,
+h2,
+h3 {
+	font-family: var(--font-display);
+	letter-spacing: -0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		/* biome-ignore lint/complexity/noImportantStyles: «reducir movimiento» tiene que ganar siempre */
+		animation-duration: 0.01ms !important;
+		/* biome-ignore lint/complexity/noImportantStyles: «reducir movimiento» tiene que ganar siempre */
+		animation-iteration-count: 1 !important;
+		/* biome-ignore lint/complexity/noImportantStyles: «reducir movimiento» tiene que ganar siempre */
+		transition-duration: 0.01ms !important;
+	}
+}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 
 import "../index.css";
 import Header from "@/components/header";
@@ -10,13 +10,19 @@ const geistSans = Geist({
 	subsets: ["latin"],
 });
 
+// Títulos con más personalidad (frontend/theme.css: --font-display).
+const display = Bricolage_Grotesque({
+	variable: "--font-display-face",
+	subsets: ["latin"],
+});
+
 const geistMono = Geist_Mono({
 	variable: "--font-geist-mono",
 	subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-	title: "Paciente 0",
+	title: "Pac0 · Paciente 0",
 	description:
 		"Práctica de entrevista clínica con un paciente simulado. Herramienta educativa.",
 };
@@ -29,10 +35,10 @@ export default function RootLayout({
 	return (
 		<html lang="es" suppressHydrationWarning>
 			<body
-				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+				className={`${geistSans.variable} ${geistMono.variable} ${display.variable} antialiased`}
 			>
 				<Providers>
-					<div className="grid h-svh grid-rows-[auto_1fr]">
+					<div className="grid min-h-svh grid-rows-[auto_1fr]">
 						<Header />
 						{children}
 					</div>
