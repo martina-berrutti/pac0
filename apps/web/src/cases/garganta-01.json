@@ -1,0 +1,210 @@
+{
+	"id": "garganta-01",
+	"title": "Dolor de garganta",
+	"origin": "banco",
+	"reviewedBy": null,
+	"patient": { "name": "Lucía", "age": 24, "occupation": "estudiante" },
+	"personality": {
+		"cooperacion": 0.9,
+		"ansiedad": 0.3,
+		"locuacidad": 0.6,
+		"desconfianza": 0.1,
+		"paciencia": 0.7,
+		"audicion": "normal",
+		"vocabulario": "simple"
+	},
+	"chiefComplaint": "Me duele la garganta desde hace tres días",
+	"profile": {
+		"edad": "24 años",
+		"ocupacion": "estudio Ciencias de la Comunicación",
+		"vive": "con una compañera de apartamento",
+		"estadoCivil": "soltera"
+	},
+	"hiddenHistory": {
+		"inicio": "empezó hace tres días, de a poco",
+		"dolor": "me duele mucho al tragar, como un 7 de 10",
+		"fiebre": "anoche tuve 38,5",
+		"tos": "no tengo tos",
+		"mocos": "no, la nariz la tengo bien",
+		"contactos": "una amiga estuvo con algo parecido la semana pasada",
+		"alergias": "no soy alérgica a nada",
+		"medicacion": "solo tomé ibuprofeno",
+		"antecedentes": "nunca tuve nada importante",
+		"alcohol": "tomo los fines de semana, con amigos",
+		"tabaco": "no fumo",
+		"drogas": "no"
+	},
+	"vitals": { "pa": [112, 70], "fc": 96, "fr": 16, "tax": 37.8 },
+	"exam": {
+		"orofaringe": {
+			"variants": {
+				"parcial": "mouth-partial-01",
+				"completa": "throat-exudate-01"
+			},
+			"hotspots": [
+				"amigdala-izq",
+				"amigdala-der",
+				"uvula",
+				"paladar",
+				"lengua",
+				"pared-posterior"
+			],
+			"expected": "Amígdalas rojas con exudado blanquecino, úvula central"
+		}
+	},
+	"expectedChecklist": [
+		{
+			"id": "presentacion",
+			"item": "se presenta y saluda",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["hola", "buen día", "buenas", "me llamo", "soy"]
+		},
+		{
+			"id": "pregunta-abierta",
+			"item": "empieza con una pregunta abierta",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": [
+				"qué te trae",
+				"en qué te puedo",
+				"contame",
+				"qué te pasa",
+				"cómo estás"
+			]
+		},
+		{
+			"id": "inicio",
+			"item": "pregunta desde cuándo",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"desde cuándo",
+				"cuándo empez",
+				"hace cuánto",
+				"cuántos días"
+			]
+		},
+		{
+			"id": "caracteristicas-dolor",
+			"item": "caracteriza el dolor",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"al tragar",
+				"cuánto te duele",
+				"del 1 al 10",
+				"intensidad",
+				"cómo es el dolor"
+			]
+		},
+		{
+			"id": "fiebre",
+			"item": "pregunta por fiebre",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["fiebre", "temperatura", "chuchos"]
+		},
+		{
+			"id": "tos-catarro",
+			"item": "pregunta por tos o síntomas respiratorios",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["tos", "mocos", "nariz", "congest"]
+		},
+		{
+			"id": "contactos",
+			"item": "pregunta por contactos enfermos",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": ["alguien más", "contacto", "cerca tuyo", "alguien con"]
+		},
+		{
+			"id": "alergias",
+			"item": "alergias medicamentosas",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["alérgic", "alergia"]
+		},
+		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"tomaste algo",
+				"estás tomando",
+				"remedio",
+				"pastilla"
+			]
+		},
+		{
+			"id": "antecedentes",
+			"item": "antecedentes personales",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["antecedente", "enfermedad", "operad", "internad"]
+		},
+		{
+			"id": "habitos",
+			"item": "hábitos tóxicos",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": ["fumás", "tabaco", "alcohol", "tomás alcohol", "drogas"]
+		},
+		{
+			"id": "consentimiento",
+			"item": "explica y pide consentimiento antes de examinar",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"te voy a examinar",
+				"puedo",
+				"permiso",
+				"te parece si",
+				"te voy a revisar"
+			]
+		},
+		{
+			"id": "orofaringe",
+			"item": "inspecciona la orofaringe completa",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": []
+		},
+		{
+			"id": "describe-hallazgo",
+			"item": "describe lo que vio",
+			"dimension": "examen",
+			"weight": 2,
+			"keywords": ["exudado", "placas", "roj", "amígdalas", "pus"]
+		},
+		{
+			"id": "resume",
+			"item": "resume y verifica que entendió",
+			"dimension": "comunicacion",
+			"weight": 1,
+			"keywords": [
+				"entonces",
+				"si entendí bien",
+				"resumiendo",
+				"¿entendiste",
+				"alguna duda"
+			]
+		}
+	],
+	"notApplicable": [
+		"gineco-obstetricos",
+		"palpacion-cv",
+		"contacto-ocular",
+		"expresion-facial"
+	],
+	"criticalErrors": ["examen sin consentimiento"],
+	"truth": {
+		"diagnosis": "faringoamigdalitis aguda",
+		"acceptable": ["faringoamigdalitis", "faringitis", "amigdalitis", "angina"],
+		"differentials": ["viral", "estreptocócica", "mononucleosis"]
+	}
+}

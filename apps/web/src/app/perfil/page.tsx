@@ -1,17 +1,15 @@
 "use client";
 
-import { api } from "@pac0/backend/convex/_generated/api";
-import type { CareerYear } from "@pac0/backend/convex/validators";
 import { Button } from "@pac0/ui/components/button";
 import { Input } from "@pac0/ui/components/input";
 import { Label } from "@pac0/ui/components/label";
-import { useMutation, useQuery } from "convex/react";
-import { ConvexError } from "convex/values";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-const YEARS: { value: CareerYear; label: string }[] = [
+import { ApiError, api } from "@/lib/api-client";
+
+const YEARS = [
 	{ value: "1", label: "1º" },
 	{ value: "2", label: "2º" },
 	{ value: "3", label: "3º" },
@@ -22,35 +20,33 @@ const YEARS: { value: CareerYear; label: string }[] = [
 	{ value: "recibido", label: "Recién recibido" },
 ];
 
-// Primer ingreso: alias y año de carrera (plan.md, sección 10).
+// Alias y año de carrera (plan.md, sección 10).
 export default function ProfilePage() {
-	const viewer = useQuery(api.users.viewer);
-	const completeProfile = useMutation(api.users.completeProfile);
 	const router = useRouter();
 	const [alias, setAlias] = useState("");
-	const [year, setYear] = useState<CareerYear | "">("");
+	const [year, setYear] = useState("");
 	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
-		if (viewer) {
-			setAlias((current) => current || (viewer.alias ?? ""));
-			setYear((current) => current || (viewer.careerYear ?? ""));
-		}
-	}, [viewer]);
+		api.me().then(({ viewer }) => {
+			if (viewer) {
+				setAlias(viewer.alias ?? "");
+				setYear(viewer.careerYear ?? "");
+			}
+		});
+	}, []);
 
 	async function save(event: React.FormEvent) {
 		event.preventDefault();
-		if (year === "") {
-			return;
-		}
+		if (!year) return;
 		setSaving(true);
 		try {
-			await completeProfile({ alias, careerYear: year });
+			await api.saveProfile(alias, year);
 			router.replace("/casos");
 		} catch (error) {
 			toast.error(
-				error instanceof ConvexError
-					? String(error.data)
+				error instanceof ApiError
+					? error.message
 					: "No pudimos guardar. Probá de nuevo.",
 			);
 			setSaving(false);
@@ -83,7 +79,7 @@ export default function ProfilePage() {
 				<select
 					id="year"
 					value={year}
-					onChange={(e) => setYear(e.target.value as CareerYear)}
+					onChange={(e) => setYear(e.target.value)}
 					className="h-9 border border-input bg-background px-2 text-sm"
 					required
 				>

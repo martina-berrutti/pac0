@@ -1,18 +1,26 @@
 "use client";
-import { useAuthActions } from "@convex-dev/auth/react";
-import { api } from "@pac0/backend/convex/_generated/api";
 import { Button } from "@pac0/ui/components/button";
-import { useConvexAuth, useQuery } from "convex/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { api, type Me } from "@/lib/api-client";
 
 import { ModeToggle } from "./mode-toggle";
 
 export default function Header() {
-	const { isAuthenticated } = useConvexAuth();
-	const viewer = useQuery(api.users.viewer, isAuthenticated ? {} : "skip");
-	const { signOut } = useAuthActions();
+	const [me, setMe] = useState<Me | null>(null);
+	const pathname = usePathname();
 	const router = useRouter();
+
+	// Se vuelve a leer al cambiar de pantalla (entrar, perfil, salir).
+	useEffect(() => {
+		if (!pathname) return;
+		api
+			.me()
+			.then((r) => setMe(r.viewer))
+			.catch(() => setMe(null));
+	}, [pathname]);
 
 	return (
 		<div>
@@ -21,17 +29,18 @@ export default function Header() {
 					<Link href="/">Paciente 0</Link>
 				</nav>
 				<div className="flex items-center gap-2">
-					{isAuthenticated && (
+					{me && (
 						<>
-							{viewer?.alias && (
+							{me.alias && (
 								<span className="text-muted-foreground text-sm">
-									{viewer.alias}
+									{me.alias}
 								</span>
 							)}
 							<Button
 								variant="outline"
 								onClick={async () => {
-									await signOut();
+									await api.logout();
+									setMe(null);
 									router.replace("/");
 								}}
 							>

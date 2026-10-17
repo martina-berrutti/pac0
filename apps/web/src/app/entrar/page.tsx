@@ -1,34 +1,24 @@
 "use client";
 
-import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "@pac0/ui/components/button";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { api } from "@/lib/api-client";
+
 export default function SignInPage() {
-	const { signIn } = useAuthActions();
 	const router = useRouter();
-	const [pending, setPending] = useState<"google" | "invitado" | null>(null);
+	const [pending, setPending] = useState(false);
 
 	async function enterAsGuest() {
-		setPending("invitado");
+		setPending(true);
 		try {
-			await signIn("anonymous");
+			await api.enterAsGuest();
 			router.replace("/casos");
 		} catch {
 			toast.error("No pudimos entrar como invitado. Probá de nuevo.");
-			setPending(null);
-		}
-	}
-
-	async function enterWithGoogle() {
-		setPending("google");
-		try {
-			await signIn("google", { redirectTo: "/casos" });
-		} catch {
-			toast.error("No pudimos entrar con Google. Probá de nuevo.");
-			setPending(null);
+			setPending(false);
 		}
 	}
 
@@ -38,24 +28,18 @@ export default function SignInPage() {
 			<Button
 				size="lg"
 				className="h-11"
-				disabled={pending !== null}
-				onClick={enterWithGoogle}
-			>
-				{pending === "google" ? "Abriendo Google…" : "Entrar con Google"}
-			</Button>
-			<Button
-				size="lg"
-				variant="outline"
-				className="h-11"
-				disabled={pending !== null}
+				disabled={pending}
 				onClick={enterAsGuest}
 			>
-				{pending === "invitado" ? "Entrando…" : "Entrar como invitado"}
+				{pending ? "Entrando…" : "Entrar como invitado"}
+			</Button>
+			{/* Google vuelve con Convex Auth al final (TODO.md, fase final). */}
+			<Button size="lg" variant="outline" className="h-11" disabled>
+				Entrar con Google (pronto)
 			</Button>
 			<p className="text-muted-foreground text-sm">
-				Solo guardamos un alias y tu año de carrera. De tu cuenta de Google no
-				guardamos ni el nombre ni el correo. Lo que hace un invitado se borra a
-				las 24 horas.
+				Solo guardamos un alias y tu año de carrera. Lo que hace un invitado se
+				borra a las 24 horas.
 			</p>
 		</div>
 	);
