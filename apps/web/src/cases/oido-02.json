@@ -1,0 +1,208 @@
+{
+	"id": "oido-02",
+	"title": "Dolor de oído",
+	"group": "diego",
+	"problem": "Problema 2",
+	"relevantExams": ["oido"],
+	"origin": "banco",
+	"reviewedBy": null,
+	"patient": {
+		"name": "Diego",
+		"age": 29,
+		"occupation": "guardavidas",
+		"sex": "m"
+	},
+	"personality": {
+		"cooperacion": 0.9,
+		"ansiedad": 0.4,
+		"locuacidad": 0.6,
+		"desconfianza": 0.1,
+		"paciencia": 0.6,
+		"audicion": "normal",
+		"vocabulario": "simple"
+	},
+	"profile": {
+		"edad": "29 años",
+		"ocupacion": "soy guardavidas en una piscina",
+		"vive": "con mi novia"
+	},
+	"personalityStyle": "Directo y simpático, con voseo. Te molesta el oído y te lo tocás seguido.",
+	"chiefComplaint": "Me duele mucho el oído derecho desde anoche",
+	"hiddenHistory": {
+		"inicio": "venía resfriado hace una semana y anoche empezó el dolor, fuerte",
+		"dolor": "es un dolor profundo, por dentro, como que late; tocarme la oreja no me cambia nada",
+		"fiebre": "anoche tuve 38,3",
+		"resfrio": "sí, estoy resfriado hace una semana, con mocos",
+		"audicion": "escucho tapado de ese lado",
+		"secrecion": "no me sale nada del oído",
+		"agua": "esta semana no me metí a la piscina porque estaba resfriado",
+		"hisopos": "a veces uso hisopos",
+		"medicacion": "tomé un paracetamol anoche",
+		"antecedentes": "de chico tuve otitis varias veces",
+		"alcohol": "los fines de semana, poco",
+		"tabaco": "no fumo",
+		"drogas": "no",
+		"alergias": "soy alérgico a la penicilina"
+	},
+	"variations": {
+		"fiebre": ["anoche tuve 38,3", "tuve 38 y medio anoche"]
+	},
+	"vitals": {
+		"pa": [120, 76],
+		"fc": 92,
+		"fr": 16,
+		"tax": 38.1
+	},
+	"exam": {
+		"orofaringe": {
+			"variants": {
+				"parcial": "mouth-partial-01",
+				"completa": "throat-erythema-01"
+			},
+			"hotspots": [
+				"amigdala-izq",
+				"amigdala-der",
+				"uvula",
+				"paladar",
+				"lengua",
+				"pared-posterior"
+			],
+			"expected": "Leve eritema faríngeo sin exudado"
+		}
+	},
+	"expectedChecklist": [
+		{
+			"id": "presentacion",
+			"item": "se presenta y saluda",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["hola", "buen día", "buenas", "me llamo", "soy"]
+		},
+		{
+			"id": "pregunta-abierta",
+			"item": "empieza con una pregunta abierta",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["qué te trae", "en qué te puedo", "contame", "qué te pasa"]
+		},
+		{
+			"id": "inicio",
+			"item": "pregunta desde cuándo",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"desde cuándo",
+				"cuándo empez",
+				"hace cuánto",
+				"cuántos días"
+			]
+		},
+		{
+			"id": "caracteristicas-dolor",
+			"item": "caracteriza el dolor (qué lo empeora)",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"cuánto te duele",
+				"del 1 al 10",
+				"cómo es el dolor",
+				"tocás la oreja",
+				"late"
+			]
+		},
+		{
+			"id": "resfrio",
+			"item": "pregunta por resfrío o mocos previos",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["resfri", "mocos", "gripe", "catarro", "congest"]
+		},
+		{
+			"id": "secrecion",
+			"item": "pregunta por secreción y audición",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"secreción",
+				"líquido",
+				"supura",
+				"escuchás",
+				"tapado",
+				"audición"
+			]
+		},
+		{
+			"id": "fiebre",
+			"item": "pregunta por fiebre",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["fiebre", "temperatura"]
+		},
+		{
+			"id": "alergias",
+			"item": "alergias medicamentosas",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["alérgic", "alergia"]
+		},
+		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"tomaste algo",
+				"estás tomando",
+				"remedio"
+			]
+		},
+		{
+			"id": "antecedentes",
+			"item": "antecedentes de otitis",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": ["antes", "otras veces", "de chico", "antecedente"]
+		},
+		{
+			"id": "consentimiento",
+			"item": "explica y pide consentimiento antes de examinar",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"te voy a revisar",
+				"te voy a mirar",
+				"puedo",
+				"permiso",
+				"te parece si"
+			]
+		},
+		{
+			"id": "otoscopia",
+			"item": "otoscopia con buena técnica (ambos oídos, empezando por el sano)",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": []
+		},
+		{
+			"id": "resume",
+			"item": "resume y verifica que entendió",
+			"dimension": "comunicacion",
+			"weight": 1,
+			"keywords": ["entonces", "si entendí bien", "resumiendo", "alguna duda"]
+		}
+	],
+	"notApplicable": [
+		"gineco-obstetricos",
+		"palpacion-cv",
+		"contacto-ocular",
+		"expresion-facial"
+	],
+	"criticalErrors": ["examen sin consentimiento"],
+	"truth": {
+		"diagnosis": "otitis media aguda derecha",
+		"acceptable": ["otitis media"],
+		"differentials": ["otitis externa", "otitis media con efusión"]
+	}
+}

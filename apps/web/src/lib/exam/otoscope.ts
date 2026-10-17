@@ -102,6 +102,9 @@ const NORMAL: EarAppearance = { canal: "sano", tympanum: "nacarado" };
 const APPEARANCE: Record<string, Partial<Record<Ear, EarAppearance>>> = {
 	// Otitis externa derecha: conducto rojo con secreción, tímpano sano.
 	"oido-01": { derecho: { canal: "secrecion", tympanum: "nacarado" } },
+	// Otitis media aguda derecha: conducto sano, tímpano rojo y abombado.
+	"oido-02": { derecho: { canal: "sano", tympanum: "abombado" } },
+	// oido-03 (dolor que viene de la mandíbula): los dos oídos normales.
 	// Pacientes generados con la plantilla de otitis externa.
 	"otitis-externa": { derecho: { canal: "secrecion", tympanum: "nacarado" } },
 };

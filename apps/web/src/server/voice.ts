@@ -292,7 +292,7 @@ export async function runTool(
 					output: {
 						disponible: true,
 						que_pasa:
-							"Te van a revisar el oído con el otoscopio. Decí algo breve para que se note que entendiste (por ejemplo: dale, revisame, pero con cuidado que me duele) y quedate quieto. Si te tiran de la oreja que te duele, quejate. Seguí respondiendo si te hablan.",
+							"Te van a revisar el oído con el otoscopio. Decí algo breve para que se note que entendiste (por ejemplo: dale, revisame) y quedate quieto. Si te tiran de la oreja y según tu historia eso te duele, quejate; si no, no. Seguí respondiendo si te hablan.",
 					},
 					ui: { kind: "otoscope" },
 				};

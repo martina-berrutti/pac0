@@ -1,7 +1,7 @@
 // Arma el informe: juez por ítem + razonamiento + penalizaciones + motor.
 // El juez por reglas (evaluate) y el juez con IA (ai-evaluate.ts) comparten
 // assembleReport, así el puntaje siempre lo calcula este código.
-import type { Dimension } from "@/cases/schema";
+import type { ClinicalCase, Dimension, ExamKind } from "@/cases/schema";
 import {
 	type ItemResult,
 	type Mistake,
@@ -98,8 +98,41 @@ export function reasoningScore(input: EvaluationInput): Reasoning {
 	});
 }
 
+// Exámenes que no tienen que ver con el problema del paciente: 1 punto de
+// examen por cada tipo (garganta, oído o presión), aunque lo repita. Se puede
+// examinar todo, pero examinar de más alarga la consulta y molesta.
+const EXAM_LABELS: Record<ExamKind, string> = {
+	orofaringe: "la garganta",
+	oido: "el oído",
+	presion: "la presión",
+};
+
+function unrelatedExamPenalties(
+	extracted: Extracted,
+	clinicalCase: ClinicalCase,
+): Penalty[] {
+	const relevant = clinicalCase.relevantExams;
+	if (relevant.length === 0) return [];
+	const done: Record<ExamKind, boolean> = {
+		orofaringe: Boolean(extracted.fullExam ?? extracted.partialExam),
+		oido: extracted.otoscopies.length > 0,
+		presion: extracted.bp !== null,
+	};
+	return (Object.keys(done) as ExamKind[])
+		.filter((k) => done[k] && !relevant.includes(k))
+		.map((k) => ({
+			dimension: "examen",
+			points: 1,
+			tag: `examen-no-indicado-${k}`,
+			what: `${k === "presion" ? "Mediste" : "Revisaste"} ${EXAM_LABELS[k]}, que no tenía que ver con el problema del paciente.`,
+			why: "Examinar de más alarga la consulta y molesta al paciente sin sumar a su problema.",
+			nextTime: "Elegí los exámenes según lo que te contó el paciente.",
+		}));
+}
+
 function penalties(
 	extracted: Extracted,
+	clinicalCase: ClinicalCase,
 	turns: EvaluationInput["turns"] = [],
 ): Penalty[] {
 	// Turnos del estudiante justo después de que el paciente pidió que le
@@ -154,6 +187,7 @@ function penalties(
 		...out,
 		...bloodPressurePenalties(extracted),
 		...otoscopyPenalties(extracted),
+		...unrelatedExamPenalties(extracted, clinicalCase),
 	];
 }
 
@@ -224,7 +258,7 @@ export function assembleReport(
 	extracted: Extracted = extract(input),
 ): Report {
 	const { clinicalCase } = input;
-	const pens = penalties(extracted, input.turns);
+	const pens = penalties(extracted, clinicalCase, input.turns);
 	const turnText = new Map(extracted.studentTurns.map((t) => [t.id, t.text]));
 
 	const byDim = (d: Dimension) => items.filter((i) => i.dimension === d);

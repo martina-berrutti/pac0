@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { ClinicalCase } from "@/cases/schema";
+import { EXAM_KINDS } from "@/cases/schema";
 import type { VitalsMeasurement } from "@/lib/contracts/exam";
 import type { Turn } from "@/lib/contracts/session";
 import {
@@ -11,7 +12,14 @@ import {
 import { BP_STEPS } from "@/lib/patient/tools";
 import { evaluate } from "@/lib/scoring/evaluate";
 
-import { goodStudent, lucia } from "./helpers";
+import { lucia, goodStudent as luciaStudent } from "./helpers";
+
+// Acá se mide solo la técnica: con todos los exámenes indicados, examinar
+// algo que no es del problema no resta (eso se prueba en cases.test.ts).
+const goodStudent = () => ({
+	...luciaStudent(),
+	clinicalCase: { ...lucia, relevantExams: [...EXAM_KINDS] },
+});
 
 function said(...texts: string[]): Turn[] {
 	return texts.map((text, i) => ({

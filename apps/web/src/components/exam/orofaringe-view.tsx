@@ -2,12 +2,14 @@
 
 // Vista de examen de orofaringe con linterna (plan.md, sección 6). Un círculo
 // de luz sigue al mouse o al dedo y se mide cuánto tiempo pasa sobre cada
-// zona. Sin foto con licencia todavía: muestra un esquema (no es una imagen
-// clínica). La foto real la pone la Persona 3 en assets/ con CREDITS.md.
+// zona. Con apertura completa muestra la foto con licencia del caso
+// (lib/exam/throat-photos.ts, Persona 3); sin foto, un esquema que no es una
+// imagen clínica.
 import { Button } from "@pac0/ui/components/button";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ExamResult } from "@/lib/contracts/exam";
+import { THROAT_PHOTOS } from "@/lib/exam/throat-photos";
 
 // Posición (en %) y radio de cada zona sobre la imagen.
 const HOTSPOTS: Record<
@@ -43,13 +45,16 @@ export function OrofaringeView({
 				: exam.hotspots.filter((h) => h === "lengua"),
 		[exam],
 	);
+	const photo = exam.assetKey ? THROAT_PHOTOS[exam.assetKey] : undefined;
+	// Sobre la foto, cada zona está donde se ve en esa foto.
+	const spots = photo?.spots ?? HOTSPOTS;
 
 	useEffect(() => {
 		if (!light) return;
 		const tick = 100;
 		const id = setInterval(() => {
 			for (const key of visible) {
-				const h = HOTSPOTS[key];
+				const h = spots[key];
 				if (
 					h &&
 					Math.hypot(light.x - h.x, light.y - h.y) < h.r + LIGHT_RADIUS / 2
@@ -60,7 +65,7 @@ export function OrofaringeView({
 			force((n) => n + 1);
 		}, tick);
 		return () => clearInterval(id);
-	}, [light, visible]);
+	}, [light, visible, spots]);
 
 	function move(e: React.PointerEvent) {
 		const rect = box.current?.getBoundingClientRect();
@@ -96,24 +101,36 @@ export function OrofaringeView({
 				role="img"
 				aria-label={`Examen de orofaringe, apertura ${exam.action.variant}`}
 			>
-				{/* Esquema hasta tener la foto con licencia. */}
-				<div className="absolute inset-[12%] rounded-[45%] bg-rose-950" />
-				{visible.map((key) => {
-					const h = HOTSPOTS[key];
-					if (!h) return null;
-					return (
-						<div
-							key={key}
-							className="absolute rounded-full border border-rose-300/40 bg-rose-800/70"
-							style={{
-								left: `${h.x - h.r}%`,
-								top: `${h.y - h.r * 1.33}%`,
-								width: `${h.r * 2}%`,
-								height: `${h.r * 2.66}%`,
-							}}
-						/>
-					);
-				})}
+				{photo ? (
+					// biome-ignore lint/performance/noImgElement: foto fija de public/, sin optimización de next/image
+					<img
+						src={photo.src}
+						alt=""
+						draggable={false}
+						className="absolute inset-0 h-full w-full object-cover"
+					/>
+				) : (
+					<>
+						{/* Esquema mientras no haya foto para esta apertura. */}
+						<div className="absolute inset-[12%] rounded-[45%] bg-rose-950" />
+						{visible.map((key) => {
+							const h = HOTSPOTS[key];
+							if (!h) return null;
+							return (
+								<div
+									key={key}
+									className="absolute rounded-full border border-rose-300/40 bg-rose-800/70"
+									style={{
+										left: `${h.x - h.r}%`,
+										top: `${h.y - h.r * 1.33}%`,
+										width: `${h.r * 2}%`,
+										height: `${h.r * 2.66}%`,
+									}}
+								/>
+							);
+						})}
+					</>
+				)}
 				<div
 					className="pointer-events-none absolute inset-0"
 					style={{
@@ -123,7 +140,9 @@ export function OrofaringeView({
 					}}
 				/>
 				<p className="absolute bottom-1 left-2 text-[10px] text-neutral-400">
-					Esquema. Foto pendiente: {exam.assetKey ?? "sin imagen"}
+					{photo
+						? `Foto: ${photo.credit}`
+						: `Esquema. Foto pendiente: ${exam.assetKey ?? "sin imagen"}`}
 				</p>
 			</div>
 			<ul className="grid grid-cols-2 gap-1 text-xs">

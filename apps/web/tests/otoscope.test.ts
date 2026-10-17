@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { ClinicalCase } from "@/cases/schema";
+import { EXAM_KINDS } from "@/cases/schema";
 import {
 	type ExamAction,
 	OTOSCOPY,
@@ -10,7 +11,14 @@ import type { Turn } from "@/lib/contracts/session";
 import { assessOtoscopy, otoscopyScenario } from "@/lib/exam/otoscope";
 import { evaluate } from "@/lib/scoring/evaluate";
 
-import { goodStudent, lucia } from "./helpers";
+import { lucia, goodStudent as luciaStudent } from "./helpers";
+
+// Acá se mide solo la técnica: con todos los exámenes indicados, examinar
+// algo que no es del problema no resta (eso se prueba en cases.test.ts).
+const goodStudent = () => ({
+	...luciaStudent(),
+	clinicalCase: { ...lucia, relevantExams: [...EXAM_KINDS] },
+});
 
 const explained: Turn[] = [
 	{
