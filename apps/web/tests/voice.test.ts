@@ -52,11 +52,11 @@ afterEach(() => {
 });
 
 describe("sesión de voz (Gemini Live)", () => {
-	test("sin GEMINI_API_KEY avisa que se use el texto", async () => {
+	test("sin GEMINI_API_KEY avisa qué falta configurar", async () => {
 		vi.stubEnv("GEMINI_API_KEY", "");
 		const id = startSession(ana, lucia.id, "caso");
 		await expect(createLiveSession(ana, id)).rejects.toThrow(
-			"versión por texto",
+			"falta GEMINI_API_KEY",
 		);
 	});
 

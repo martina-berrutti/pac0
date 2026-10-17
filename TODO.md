@@ -69,7 +69,8 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] El paciente interrumpe o retoma tras un silencio largo (20 s): `interrupcion_paciente` y `silencio_largo`
 - [x] Detección de turno más rápida para pacientes impacientes (`silenceDurationMs` 500 en vez de 800)
 - [x] Tope de 8 minutos en el servidor y reloj en pantalla
-- [x] Versión por texto de respaldo
+- [x] Decisión del 17/10: la consulta es **solo por voz**; se sacó el campo para escribir (la transcripción se ve para leer)
+- [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
 - [ ] **Probar la voz de verdad con la clave de Google AI Studio** (todavía no se probó en vivo)
 - [ ] Verificar en vivo qué versión de API acepta el token efímero (`v1beta` o `v1alpha`; el servidor prueba las dos)
 - [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno)

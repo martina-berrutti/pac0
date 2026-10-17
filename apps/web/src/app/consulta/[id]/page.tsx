@@ -1,7 +1,7 @@
 "use client";
 
-// Consulta por voz, con texto de respaldo. Versión mínima de la Persona 1;
-// la Persona 3 la diseña.
+// Consulta solo por voz; la transcripción se muestra para leer. Versión
+// mínima de la Persona 1; la Persona 3 la diseña.
 import { Button } from "@pac0/ui/components/button";
 import { Input } from "@pac0/ui/components/input";
 import { Textarea } from "@pac0/ui/components/textarea";
@@ -22,7 +22,6 @@ export default function ConsultationPage() {
 	const { id } = useParams<{ id: string }>();
 	const router = useRouter();
 	const [view, setView] = useState<SessionView | null>(null);
-	const [text, setText] = useState("");
 	const [sending, setSending] = useState(false);
 	const [exam, setExam] = useState<ExamResult | null>(null);
 	const [closing, setClosing] = useState(false);
@@ -71,27 +70,6 @@ export default function ConsultationPage() {
 		if (view?.turns.length)
 			bottom.current?.scrollIntoView({ behavior: "smooth" });
 	}, [view?.turns.length]);
-
-	async function send(event: React.FormEvent) {
-		event.preventDefault();
-		const message = text.trim();
-		if (!message || !view) return;
-		setSending(true);
-		setText("");
-		try {
-			const r = await api.sendTurn(id, message);
-			setView({
-				...view,
-				turns: [...view.turns, r.studentTurn, r.patientTurn],
-			});
-			if (r.exam) setExam(r.exam);
-		} catch (e) {
-			setText(message);
-			toast.error(e instanceof ApiError ? e.message : "No se pudo enviar.");
-		} finally {
-			setSending(false);
-		}
-	}
 
 	async function closeExam(times: Record<string, number>) {
 		if (exam && exam.action.variant !== "negado") {
@@ -186,9 +164,10 @@ export default function ConsultationPage() {
 					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
 						{view.turns.length === 0 && (
 							<li className="text-muted-foreground text-sm">
-								Presentate y empezá la entrevista. Para examinar, pedile que
-								abra la boca (por ejemplo: “¿puedo revisarte? abrí la boca y
-								decí aaa”).
+								Tocá “Acepto: hablar por voz”, presentate y empezá la
+								entrevista. Para examinar, pedile que abra la boca (por ejemplo:
+								“¿puedo revisarte? abrí la boca y decí aaa”). Acá vas a ver lo
+								que se dice.
 							</li>
 						)}
 						{view.turns.map((t) => (
@@ -208,18 +187,6 @@ export default function ConsultationPage() {
 						))}
 						<div ref={bottom} />
 					</ol>
-					<form onSubmit={send} className={voiceLive ? "hidden" : "flex gap-2"}>
-						<Input
-							value={text}
-							onChange={(e) => setText(e.target.value)}
-							placeholder="Escribí tu pregunta…"
-							aria-label="Tu mensaje"
-							disabled={sending}
-						/>
-						<Button type="submit" disabled={sending || !text.trim()}>
-							Enviar
-						</Button>
-					</form>
 				</>
 			)}
 

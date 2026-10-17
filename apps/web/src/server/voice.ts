@@ -101,7 +101,7 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 	if (!apiKey)
 		throw new HttpError(
 			503,
-			"La voz no está configurada (falta GEMINI_API_KEY). Usá la versión por texto.",
+			"La voz no está configurada: falta GEMINI_API_KEY en el servidor.",
 		);
 	const { session, elapsed } = activeSession(viewer, sessionId);
 	const model = liveModel();
@@ -137,7 +137,7 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 	}
 	throw new HttpError(
 		502,
-		"No pudimos abrir la sesión de voz. Usá la versión por texto.",
+		"No pudimos conectar con el paciente. Probá de nuevo en unos segundos.",
 	);
 }
 

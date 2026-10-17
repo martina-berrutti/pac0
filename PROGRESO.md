@@ -2,6 +2,12 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Consulta solo por voz
+
+- Se sacó el campo para escribir en `/consulta`: la entrevista es solo por voz y la transcripción se muestra para leer. La hipótesis y los diferenciales se siguen escribiendo al terminar.
+- La API de turnos por texto queda para los tests y `scripts/probar-personaje.mjs`, sin pantalla.
+- Ojo: el plan (secciones 5 y 14) pedía una versión por texto como plan B si falla la voz o el wifi. Queda el video de respaldo.
+
 ## 17/10 · Persona 1 · La voz pasa a Gemini Live (Google AI Studio)
 
 - Decisión: la voz usa la Live API de Gemini en vez de OpenAI Realtime. Una sola clave (`GEMINI_API_KEY`) sirve para la voz, el paciente por texto y el generador.
