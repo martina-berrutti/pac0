@@ -19,4 +19,11 @@ crons.interval(
 	{},
 );
 
+crons.interval(
+	"purge sessions past retention",
+	{ hours: 1 },
+	internal.records.purgeOldSessions,
+	{},
+);
+
 export default crons;

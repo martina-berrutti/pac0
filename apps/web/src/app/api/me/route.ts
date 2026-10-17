@@ -4,24 +4,32 @@ import {
 	CAREER_YEARS,
 	getViewer,
 	requireViewer,
+	roleOf,
 	setViewer,
 	validateAlias,
 } from "@/server/auth";
 import { handle, readBody } from "@/server/http";
 import { store } from "@/server/store";
+import type { Viewer } from "@/server/token";
+
+// Lo que ve la pantalla. El id de cuenta sirve para pedir el rol de docente
+// (DOCENTES); es un hash, no el correo. El invitado no tiene.
+function publicViewer(viewer: Viewer) {
+	return {
+		alias: viewer.alias,
+		careerYear: viewer.careerYear,
+		guest: viewer.guest,
+		role: roleOf(viewer),
+		accountId: viewer.guest ? null : viewer.uid,
+	};
+}
 
 // Perfil actual, o null sin sesión.
 export async function GET() {
 	return handle(async () => {
 		const viewer = await getViewer();
 		if (!viewer) return { viewer: null };
-		return {
-			viewer: {
-				alias: viewer.alias,
-				careerYear: viewer.careerYear,
-				guest: viewer.guest,
-			},
-		};
+		return { viewer: publicViewer(viewer) };
 	});
 }
 
@@ -49,12 +57,6 @@ export async function PATCH(req: Request) {
 			});
 		}
 		await setViewer(next);
-		return {
-			viewer: {
-				alias: next.alias,
-				careerYear: next.careerYear,
-				guest: next.guest,
-			},
-		};
+		return { viewer: publicViewer(next) };
 	});
 }

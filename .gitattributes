@@ -1,0 +1,10 @@
+# Finales de línea LF en todas las computadoras (Biome los exige; en Windows
+# core.autocrlf=true los pasaba a CRLF y npm run lint fallaba).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.mp3 binary
+*.wav binary

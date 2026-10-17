@@ -632,18 +632,27 @@ Cada frente publica primero sus tipos y datos de ejemplo, y los demás trabajan 
 
 ### Persona 1: voz y motor del paciente
 
-- [ ] Clonar el repo, hacer el primer commit y publicar la base con `create-better-t-stack` (con la Persona 3: deploy en Vercel y Convex)
-- [ ] Esquema de Convex (sección 4) y publicar los tipos
-- [ ] Autenticación con Google e invitado (sección 10)
-- [ ] Endpoint de clave efímera y sesión de voz por WebRTC en `/consulta`
-- [ ] Prompt del paciente armado desde el caso y la personalidad, sin el diagnóstico
-- [ ] Herramientas `examinar` y `terminar_consulta`; después `medir_presion`, `mostrar_region` y `actualizar_estado`
-- [ ] Guardar turnos y eventos en Convex
-- [ ] Personalidades y datos que se liberan con la confianza (prioridad 2)
-- [ ] Interrupciones en ambos sentidos (prioridad 2)
-- [ ] Tope de 8 minutos y versión por texto de respaldo
-- [ ] Pruebas de intentos de sacar al paciente de personaje
-- [ ] Conectar el audio del paciente al avatar (prioridad 3)
+Avance al 17/10 (el detalle está en `TODO.md`):
+
+- [x] Clonar el repo, hacer el primer commit y publicar la base con `create-better-t-stack` (con la Persona 3: deploy en Vercel y Convex)
+- [x] Esquema de Convex (sección 4) y publicar los tipos
+- [ ] Autenticación con Google e invitado (sección 10): invitado andando; Google con el código listo, faltan las credenciales OAuth en Vercel
+- [x] Endpoint de clave efímera y sesión de voz en `/consulta` (cambió a Gemini Live por WebSocket)
+- [x] Prompt del paciente armado desde el caso y la personalidad, sin el diagnóstico
+- [x] Herramientas `examinar` y `terminar_consulta`; después `medir_presion`, `mostrar_region` y `actualizar_estado`
+- [ ] Guardar turnos y eventos en Convex: el código está; producción sigue en memoria hasta cargar `CONVEX_URL` y `STORE_SECRET` en Vercel
+- [x] Personalidades y datos que se liberan con la confianza (prioridad 2)
+- [x] Interrupciones en ambos sentidos (prioridad 2); falta probarlas con micrófono
+- [ ] Tope de 8 minutos (hecho) y versión por texto de respaldo (se sacó; decidir si alcanza con el video)
+- [x] Pruebas de intentos de sacar al paciente de personaje (repetir en producción con Convex)
+- [x] Conectar el audio del paciente al avatar (prioridad 3): `readPatientLevel()` listo; falta que lo use el avatar de la Persona 3
+- [ ] Probar la voz con micrófono en el navegador, en computadora y en celular (agregado)
+- [ ] Elegir la voz y medir el costo real de una consulta (agregado; secciones 5 y 14)
+- [x] Rol en el perfil (estudiante o docente por lista autorizada) y acceso de docentes a los informes (agregado; sección 10, prioridad 3); falta cargar `DOCENTES` en Vercel
+- [x] Los eventos objetivos (interrupciones, silencios, consentimiento) actualizan el estado del paciente (agregado; sección 5, versión 1)
+- [x] Reconectar la voz sin perder la conversación (agregado); probado en producción
+- [x] Límite de consultas de voz por usuario y por día para cuidar los créditos (agregado; sección 14, riesgos)
+- [x] Retención de las transcripciones configurable (agregado; sección 2); el plazo lo define la facultad
 
 ### Persona 2: examen y evaluador
 

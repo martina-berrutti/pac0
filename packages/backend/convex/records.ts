@@ -3,7 +3,13 @@
 // cookie; cada función exige STORE_SECRET, que el navegador nunca ve.
 import { ConvexError, v } from "convex/values";
 
-import { internalMutation, mutation, query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
+import {
+	internalMutation,
+	type MutationCtx,
+	mutation,
+	query,
+} from "./_generated/server";
 
 export const recordKind = v.union(
 	v.literal("case"),
@@ -14,6 +20,7 @@ export const recordKind = v.union(
 	v.literal("vitals"),
 	v.literal("report"),
 	v.literal("user"),
+	v.literal("mistakes"),
 );
 
 function checkSecret(secret: string) {
@@ -105,24 +112,99 @@ export const listByOwner = query({
 	},
 });
 
+// Últimas sesiones de todos (invitados y cuentas), para los docentes.
+export const listRecentSessions = query({
+	args: { secret: v.string(), limit: v.number() },
+	handler: async (ctx, { secret, limit }) => {
+		checkSecret(secret);
+		const n = Math.min(Math.max(1, Math.floor(limit)), 200);
+		const lists = await Promise.all(
+			[true, false].map((guest) =>
+				ctx.db
+					.query("records")
+					.withIndex("by_guest_and_kind", (q) =>
+						q.eq("guest", guest).eq("kind", "session"),
+					)
+					.order("desc")
+					.take(n),
+			),
+		);
+		return lists
+			.flat()
+			.sort((a, b) => b._creationTime - a._creationTime)
+			.slice(0, n)
+			.map((d) => d.data);
+	},
+});
+
+// Sesiones creadas desde `since` por todos los usuarios, hasta `max` (para el
+// tope diario que cuida los créditos de la voz).
+export const countSessionsSince = query({
+	args: { secret: v.string(), since: v.number(), max: v.number() },
+	handler: async (ctx, { secret, since, max }) => {
+		checkSecret(secret);
+		let count = 0;
+		for (const guest of [true, false]) {
+			const docs = await ctx.db
+				.query("records")
+				.withIndex("by_guest_and_kind", (q) =>
+					q
+						.eq("guest", guest)
+						.eq("kind", "session")
+						.gte("_creationTime", since),
+				)
+				.take(Math.min(Math.max(0, Math.floor(max)), 5000));
+			count += docs.length;
+		}
+		return count;
+	},
+});
+
 const GUEST_TTL_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const PER_RUN = 20;
 // Presupuesto de borrados por corrida. Convex limita cuánto lee y escribe una
 // mutación: si una corrida se pasara, fallaría entera y la siguiente volvería
 // a tomar las mismas sesiones viejas, así que la limpieza quedaría trabada.
 // Con presupuesto, una sesión larga se borra en varias corridas.
 const DELETE_BUDGET = 1000;
-const SESSIONS_PER_RUN = 20;
 
-const SESSION_CHILDREN = ["turn", "event", "exam", "vitals", "report"] as const;
+// Borra una sesión con todo lo que cuelga de ella, sin pasar de `budget`
+// borrados. Si no entra entera, borra lo que puede, deja la sesión y avisa
+// con done = false (la próxima corrida sigue).
+async function deleteSession(
+	ctx: MutationCtx,
+	doc: Doc<"records">,
+	budget: number,
+): Promise<{ deleted: number; done: boolean }> {
+	let deleted = 0;
+	for (const child of ["turn", "event", "exam", "vitals", "report"] as const) {
+		const room = budget - deleted;
+		if (room <= 0) return { deleted, done: false };
+		const rows = await ctx.db
+			.query("records")
+			.withIndex("by_kind_and_sessionId", (q) =>
+				q.eq("kind", child).eq("sessionId", doc.appId),
+			)
+			.take(room + 1);
+		for (const row of rows.slice(0, room)) await ctx.db.delete(row._id);
+		deleted += Math.min(rows.length, room);
+		if (rows.length > room) return { deleted, done: false };
+	}
+	if (deleted >= budget) return { deleted, done: false };
+	await ctx.db.delete(doc._id);
+	return { deleted: deleted + 1, done: true };
+}
 
 // Borra lo de los invitados de más de 24 horas (plan.md, sección 10): sus
-// sesiones con todo lo que cuelga de ellas y sus casos generados.
+// sesiones con todo lo que cuelga de ellas, sus casos generados y su perfil
+// de errores.
 export const purgeExpiredGuests = internalMutation({
 	args: {},
 	handler: async (ctx) => {
 		const cutoff = Date.now() - GUEST_TTL_MS;
 		let deleted = 0;
-		for (const kind of ["session", "case"] as const) {
+		for (const kind of ["session", "case", "mistakes"] as const) {
 			// Por índice: solo invitados, del más viejo al más nuevo.
 			const old = await ctx.db
 				.query("records")
@@ -130,36 +212,46 @@ export const purgeExpiredGuests = internalMutation({
 					q.eq("guest", true).eq("kind", kind),
 				)
 				.order("asc")
-				.take(SESSIONS_PER_RUN);
+				.take(PER_RUN);
 			for (const doc of old) {
 				if (doc._creationTime > cutoff || deleted >= DELETE_BUDGET) break;
-				let pending = false;
 				if (kind === "session") {
-					for (const child of SESSION_CHILDREN) {
-						const room = DELETE_BUDGET - deleted;
-						if (room <= 0) {
-							pending = true;
-							break;
-						}
-						const rows = await ctx.db
-							.query("records")
-							.withIndex("by_kind_and_sessionId", (q) =>
-								q.eq("kind", child).eq("sessionId", doc.appId),
-							)
-							.take(room + 1);
-						// Si hay más de lo que entra, la sesión queda para la próxima.
-						if (rows.length > room) pending = true;
-						for (const row of rows.slice(0, room)) {
-							await ctx.db.delete(row._id);
-							deleted += 1;
-						}
-						if (pending) break;
-					}
+					const r = await deleteSession(ctx, doc, DELETE_BUDGET - deleted);
+					deleted += r.deleted;
+					if (!r.done) return deleted;
+				} else {
+					await ctx.db.delete(doc._id);
+					deleted += 1;
 				}
-				if (pending) break;
-				await ctx.db.delete(doc._id);
-				deleted += 1;
 			}
+		}
+		return deleted;
+	},
+});
+
+// Retención de las transcripciones de las cuentas (plan.md, sección 2): con
+// TRANSCRIPT_RETENTION_DAYS cargada, borra las sesiones más viejas con todo
+// lo que cuelga de ellas. Sin la variable no borra nada: el plazo lo define
+// la facultad (ley 18.331).
+export const purgeOldSessions = internalMutation({
+	args: {},
+	handler: async (ctx) => {
+		const days = Number(process.env.TRANSCRIPT_RETENTION_DAYS);
+		if (!Number.isFinite(days) || days <= 0) return 0;
+		const cutoff = Date.now() - days * DAY_MS;
+		const old = await ctx.db
+			.query("records")
+			.withIndex("by_guest_and_kind", (q) =>
+				q.eq("guest", false).eq("kind", "session"),
+			)
+			.order("asc")
+			.take(PER_RUN);
+		let deleted = 0;
+		for (const doc of old) {
+			if (doc._creationTime > cutoff || deleted >= DELETE_BUDGET) break;
+			const r = await deleteSession(ctx, doc, DELETE_BUDGET - deleted);
+			deleted += r.deleted;
+			if (!r.done) break;
 		}
 		return deleted;
 	},

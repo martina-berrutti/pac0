@@ -38,7 +38,7 @@ export default function ConsultationPage() {
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
-	const bottom = useRef<HTMLDivElement>(null);
+	const bottom = useRef<HTMLLIElement>(null);
 
 	const voice = useVoice({
 		sessionId: id,
@@ -63,7 +63,10 @@ export default function ConsultationPage() {
 		},
 		onError: (message) => toast.error(message),
 	});
-	const voiceLive = voice.status === "live" || voice.status === "connecting";
+	const voiceLive =
+		voice.status === "live" ||
+		voice.status === "connecting" ||
+		voice.status === "reconnecting";
 
 	useEffect(() => {
 		api
@@ -143,11 +146,13 @@ export default function ConsultationPage() {
 							<p className="text-sm" aria-live="polite">
 								{voice.status === "connecting"
 									? "Conectando con el paciente…"
-									: voice.patientSpeaking
-										? `${view.case.patient.name} está hablando…`
-										: voice.studentSpeaking
-											? "Te escucha…"
-											: "En línea. Hablá cuando quieras."}
+									: voice.status === "reconnecting"
+										? "Se cortó la voz. Reconectando…"
+										: voice.patientSpeaking
+											? `${view.case.patient.name} está hablando…`
+											: voice.studentSpeaking
+												? "Te escucha…"
+												: "En línea. Hablá cuando quieras."}
 							</p>
 							<Button variant="outline" onClick={() => voice.stop()}>
 								Cortar la voz
@@ -174,34 +179,32 @@ export default function ConsultationPage() {
 			) : otoscopy ? (
 				<OtoscopioView sessionId={id} onClose={() => setOtoscopy(false)} />
 			) : (
-				<>
-					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
-						{view.turns.length === 0 && (
-							<li className="text-muted-foreground text-sm">
-								Tocá “Acepto: hablar por voz”, presentate y empezá la
-								entrevista. Para examinar, pedile que abra la boca (por ejemplo:
-								“¿puedo revisarte? abrí la boca y decí aaa”). Acá vas a ver lo
-								que se dice.
-							</li>
-						)}
-						{view.turns.map((t) => (
-							<li
-								key={t.id}
-								className={
-									t.speaker === "estudiante"
-										? "justify-self-end bg-primary/10 px-3 py-2"
-										: "justify-self-start bg-muted px-3 py-2"
-								}
-							>
-								<span className="block text-muted-foreground text-xs">
-									{t.speaker === "estudiante" ? "Vos" : view.case.patient.name}
-								</span>
-								{t.text}
-							</li>
-						))}
-						<div ref={bottom} />
-					</ol>
-				</>
+				<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
+					{view.turns.length === 0 && (
+						<li className="text-muted-foreground text-sm">
+							Tocá “Acepto: hablar por voz”, presentate y empezá la entrevista.
+							Para examinar, pedile que abra la boca (por ejemplo: “¿puedo
+							revisarte? abrí la boca y decí aaa”). Acá vas a ver lo que se
+							dice.
+						</li>
+					)}
+					{view.turns.map((t) => (
+						<li
+							key={t.id}
+							className={
+								t.speaker === "estudiante"
+									? "justify-self-end bg-primary/10 px-3 py-2"
+									: "justify-self-start bg-muted px-3 py-2"
+							}
+						>
+							<span className="block text-muted-foreground text-xs">
+								{t.speaker === "estudiante" ? "Vos" : view.case.patient.name}
+							</span>
+							{t.text}
+						</li>
+					))}
+					<li ref={bottom} aria-hidden="true" />
+				</ol>
 			)}
 
 			{!tool && !closing && (

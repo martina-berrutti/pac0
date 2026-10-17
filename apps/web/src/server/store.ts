@@ -9,6 +9,7 @@ import { anyApi } from "convex/server";
 import { caseBank } from "@/cases";
 import type { ClinicalCase } from "@/cases/schema";
 import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
+import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
 import type { Session, SessionEvent, Turn } from "@/lib/contracts/session";
 
@@ -18,6 +19,9 @@ export type Profile = { alias: string; careerYear: string };
 export interface Store {
 	getProfile(uid: string): Promise<Profile | undefined>;
 	saveProfile(uid: string, profile: Profile): Promise<void>;
+	// Perfil de errores entre consultas (server/mistakes.ts).
+	getMistakes(uid: string): Promise<MistakeEntry[]>;
+	saveMistakes(uid: string, entries: MistakeEntry[]): Promise<void>;
 	listCases(ownerId: string): Promise<ClinicalCase[]>;
 	getCase(id: string): Promise<ClinicalCase | undefined>;
 	// Casos generados: solo los ve quien los pidió.
@@ -26,6 +30,10 @@ export interface Store {
 	getSession(id: string): Promise<Session | undefined>;
 	updateSession(id: string, patch: Partial<Session>): Promise<Session>;
 	listSessions(userId: string): Promise<Session[]>;
+	// Últimas sesiones de todos, para los docentes.
+	listRecentSessions(limit: number): Promise<Session[]>;
+	// Sesiones creadas desde `since` por todos, contando hasta `max`.
+	countSessionsSince(since: number, max: number): Promise<number>;
 	addTurn(t: Turn): Promise<void>;
 	listTurns(sessionId: string): Promise<Turn[]>;
 	addEvent(e: SessionEvent): Promise<void>;
@@ -55,12 +63,19 @@ class MemoryStore implements Store {
 	private vitals = new Map<string, VitalsMeasurement[]>();
 	private reports = new Map<string, Report>();
 	private profiles = new Map<string, Profile>();
+	private mistakes = new Map<string, MistakeEntry[]>();
 
 	async getProfile(uid: string) {
 		return this.profiles.get(uid);
 	}
 	async saveProfile(uid: string, profile: Profile) {
 		this.profiles.set(uid, profile);
+	}
+	async getMistakes(uid: string) {
+		return this.mistakes.get(uid) ?? [];
+	}
+	async saveMistakes(uid: string, entries: MistakeEntry[]) {
+		this.mistakes.set(uid, entries);
 	}
 	async listCases(ownerId: string) {
 		const own = [...this.generated.values()]
@@ -91,6 +106,16 @@ class MemoryStore implements Store {
 		return [...this.sessions.values()]
 			.filter((s) => s.userId === userId)
 			.sort((a, b) => b.startedAt - a.startedAt);
+	}
+	async listRecentSessions(limit: number) {
+		return [...this.sessions.values()]
+			.sort((a, b) => b.startedAt - a.startedAt)
+			.slice(0, limit);
+	}
+	async countSessionsSince(since: number, max: number) {
+		let count = 0;
+		for (const s of this.sessions.values()) if (s.startedAt >= since) count++;
+		return Math.min(count, max);
 	}
 	async addTurn(t: Turn) {
 		this.turns.set(t.sessionId, [...(this.turns.get(t.sessionId) ?? []), t]);
@@ -147,6 +172,7 @@ export const GUEST_PREFIX = "gst_";
 
 type Kind =
 	| "user"
+	| "mistakes"
 	| "case"
 	| "session"
 	| "turn"
@@ -210,6 +236,12 @@ class ConvexStore implements Store {
 	async saveProfile(uid: string, profile: Profile) {
 		await this.put("user", uid, profile, { ownerId: uid });
 	}
+	async getMistakes(uid: string) {
+		return (await this.get<MistakeEntry[]>("mistakes", uid)) ?? [];
+	}
+	async saveMistakes(uid: string, entries: MistakeEntry[]) {
+		await this.put("mistakes", uid, entries, { ownerId: uid });
+	}
 	async listCases(ownerId: string) {
 		return [
 			...caseBank,
@@ -240,6 +272,19 @@ class ConvexStore implements Store {
 	}
 	listSessions(userId: string) {
 		return this.byOwner<Session>("session", userId);
+	}
+	listRecentSessions(limit: number): Promise<Session[]> {
+		return this.client.query(anyApi.records.listRecentSessions, {
+			secret: this.secret,
+			limit,
+		});
+	}
+	countSessionsSince(since: number, max: number): Promise<number> {
+		return this.client.query(anyApi.records.countSessionsSince, {
+			secret: this.secret,
+			since,
+			max,
+		});
 	}
 	async addTurn(t: Turn) {
 		await this.put("turn", t.id, t, { sessionId: t.sessionId });

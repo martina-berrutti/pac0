@@ -8,6 +8,7 @@ import type {
 	ExamAction,
 	OtoscopyRecord,
 } from "@/lib/contracts/exam";
+import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
 import type { SessionView, TurnResult } from "@/server/consultation";
 import type { OtoscopyStart } from "@/server/otoscopy";
@@ -60,6 +61,9 @@ export type Me = {
 	alias: string | null;
 	careerYear: string | null;
 	guest: boolean;
+	role: "estudiante" | "docente";
+	// Id de cuenta para pedir el rol de docente; null para el invitado.
+	accountId: string | null;
 };
 export type PersonalityOption = {
 	key: string;
@@ -139,4 +143,6 @@ export const api = {
 		}),
 	report: (id: string) =>
 		request<{ report: Report }>(`/api/sessions/${id}/report`),
+	// Perfil de errores entre consultas (lo más repetido primero).
+	mistakes: () => request<{ mistakes: MistakeEntry[] }>("/api/me/mistakes"),
 };
