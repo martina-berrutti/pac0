@@ -12,7 +12,15 @@ import {
 import { MARK_TOLERANCE, TECHNIQUE } from "@/lib/exam/blood-pressure";
 import { OTOSCOPY_TECHNIQUE } from "@/lib/exam/otoscope";
 
-import { dimensionScore, PENALTY_CAP, totalScore, verdictFor } from "./engine";
+import {
+	dimensionScore,
+	MIN_ANAMNESIS_FOR_DIAGNOSIS,
+	PENALTY_CAP,
+	TRUST_BONUS,
+	TRUST_GAIN,
+	totalScore,
+	verdictFor,
+} from "./engine";
 import { type Extracted, extract } from "./extractor";
 import { judgeItem, normalize } from "./rule-judge";
 import type { EvaluationInput, Penalty } from "./types";
@@ -132,6 +140,30 @@ function penalties(extracted: Extracted): Penalty[] {
 		}
 		asked.add(key);
 	}
+	for (const t of extracted.jargonTurns) {
+		out.push({
+			dimension: "comunicacion",
+			points: 1,
+			tag: "jerga",
+			what: "Usaste un término médico sin explicarlo.",
+			turnId: t.id,
+			why: "El paciente no entiende la jerga y puede contestar mal o sentirse lejos.",
+			nextTime:
+				'Usá palabras simples o explicá el término: "exudado, o sea, unas placas blancas".',
+		});
+	}
+	for (const { cue, reply } of extracted.ignoredCues) {
+		out.push({
+			dimension: "comunicacion",
+			points: 3,
+			tag: "ignora-pista",
+			what: `El paciente dijo "${cue.text}" y seguiste sin recogerlo.`,
+			turnId: reply.id,
+			why: "Ignorar una pista emocional o de dolor baja la confianza y puede esconder información importante.",
+			nextTime:
+				'Reconocé lo que siente antes de seguir: "Entiendo que te preocupe, vamos a ver qué es".',
+		});
+	}
 	return [
 		...out,
 		...bloodPressurePenalties(extracted),
@@ -198,6 +230,104 @@ function bloodPressurePenalties({ bp }: Extracted): Penalty[] {
 	return out;
 }
 
+// Saltar al diagnóstico sin datos suficientes: 5 puntos de razonamiento si
+// plantea una hipótesis con poca anamnesis o sin examinar.
+function jumpedToDiagnosis(
+	input: EvaluationInput,
+	items: ItemResult[],
+	extracted: Extracted,
+): Penalty[] {
+	if (!input.session.closing?.hypothesis.trim()) return [];
+	const anamnesis = items.filter((i) => i.dimension === "anamnesis");
+	const applicable = anamnesis.reduce((s, i) => s + i.weight, 0);
+	const covered = anamnesis.reduce(
+		(s, i) =>
+			s + i.weight * (i.status === "si" ? 1 : i.status === "parcial" ? 0.5 : 0),
+		0,
+	);
+	const coverage = applicable === 0 ? 100 : (covered / applicable) * 100;
+	const missing = [
+		coverage < MIN_ANAMNESIS_FOR_DIAGNOSIS ? "con poca anamnesis" : null,
+		extracted.examined ? null : "sin examinar",
+	].filter((x): x is string => x !== null);
+	if (missing.length === 0) return [];
+	return [
+		{
+			dimension: "razonamiento",
+			points: 5,
+			tag: "salta-al-diagnostico",
+			what: `Planteaste una hipótesis ${missing.join(" y ")}.`,
+			why: "Una hipótesis sin datos suficientes se queda con la primera idea y deja pasar otras causas.",
+			nextTime:
+				"Completá la historia y el examen antes de cerrar con una hipótesis.",
+		},
+	];
+}
+
+// Errores críticos (plan.md, sección 8). Bloquean el "Lo hiciste bien".
+function criticalMistakes(
+	items: ItemResult[],
+	extracted: Extracted,
+): Mistake[] {
+	const out: Mistake[] = [];
+	// Error crítico: examinar antes de explicar y pedir permiso.
+	if (extracted.examWithoutConsent) {
+		out.push({
+			tag: "examen-sin-consentimiento",
+			what: "Examinaste sin explicar ni pedir permiso.",
+			why: "Es un error crítico: el consentimiento va antes de cualquier examen.",
+			nextTime:
+				"Explicá qué vas a hacer y preguntá si podés antes de examinar.",
+			critical: true,
+			evidence: [{ examActionId: extracted.examWithoutConsent.id }],
+		});
+	}
+	const { insisted } = extracted;
+	if (insisted) {
+		out.push({
+			tag: "insiste-contra-negativa",
+			what: "Insististe cuando el paciente se negó, sin resolver la negativa.",
+			why: "Es un error crítico: ante una negativa no se presiona; se reconoce la emoción, se explica y se pide permiso.",
+			nextTime:
+				'"Entiendo que no quieras. Es para ver cómo están las amígdalas; si querés que pare, me avisás. ¿Te parece?"',
+			critical: true,
+			evidence: insisted.turn
+				? [{ turnId: insisted.turn.id, quote: insisted.turn.text }]
+				: [{ examActionId: insisted.examActionId }],
+		});
+	}
+	for (const i of items.filter((x) => x.status === "no" && isAlarm(x))) {
+		out.push({
+			tag: `alarma-${i.itemId}`,
+			what: `No ${i.item}.`,
+			why: "Es un error crítico: pasar por alto una señal de alarma puede demorar una urgencia.",
+			nextTime: "Antes de cerrar, preguntá siempre por los signos de alarma.",
+			critical: true,
+			evidence: [],
+		});
+	}
+	if (extracted.disrespectfulTurns.length > 0) {
+		out.push({
+			tag: "trato-irrespetuoso",
+			what: "Le hablaste al paciente de forma irrespetuosa.",
+			why: "Es un error crítico: el trato respetuoso es la base de la consulta.",
+			nextTime:
+				"Aunque el paciente esté difícil, mantené un tono calmo y amable.",
+			critical: true,
+			evidence: extracted.disrespectfulTurns.map((t) => ({
+				turnId: t.id,
+				quote: t.text,
+			})),
+		});
+	}
+	return out;
+}
+
+// Los ítems de signos de alarma del caso (por ejemplo "sintomas-alarma").
+function isAlarm(i: ItemResult) {
+	return normalize(`${i.itemId} ${i.item}`).includes("alarma");
+}
+
 export function assembleReport(
 	input: EvaluationInput,
 	items: ItemResult[],
@@ -206,7 +336,10 @@ export function assembleReport(
 	extracted: Extracted = extract(input),
 ): Report {
 	const { clinicalCase } = input;
-	const pens = penalties(extracted);
+	const pens = [
+		...penalties(extracted),
+		...jumpedToDiagnosis(input, items, extracted),
+	];
 	const turnText = new Map(extracted.studentTurns.map((t) => [t.id, t.text]));
 
 	const byDim = (d: Dimension) => items.filter((i) => i.dimension === d);
@@ -227,21 +360,17 @@ export function assembleReport(
 			pensFor("comunicacion"),
 		),
 	};
-
-	const mistakes: Mistake[] = [];
-	// Error crítico: examinar antes de explicar y pedir permiso.
-	if (extracted.examWithoutConsent) {
-		mistakes.push({
-			tag: "examen-sin-consentimiento",
-			what: "Examinaste sin explicar ni pedir permiso.",
-			why: "Es un error crítico: el consentimiento va antes de cualquier examen.",
-			nextTime:
-				"Explicá qué vas a hacer y preguntá si podés antes de examinar.",
-			critical: true,
-			evidence: [{ examActionId: extracted.examWithoutConsent.id }],
-		});
+	// Suma: subir la confianza de un paciente difícil.
+	const { trust } = extracted;
+	const wonTrust = trust.difficult && trust.end - trust.start >= TRUST_GAIN;
+	if (wonTrust) {
+		scores.comunicacion = Math.min(100, scores.comunicacion + TRUST_BONUS);
 	}
-	for (const i of items.filter((x) => x.status === "no" && x.weight >= 2)) {
+
+	const mistakes: Mistake[] = criticalMistakes(items, extracted);
+	for (const i of items.filter(
+		(x) => x.status === "no" && x.weight >= 2 && !isAlarm(x),
+	)) {
 		mistakes.push({
 			tag: i.itemId,
 			what: `No ${i.item} (no aparece en ningún turno).`,
@@ -289,11 +418,24 @@ export function assembleReport(
 		});
 	}
 
-	const strengths = items
-		.filter((i) => i.status === "si" && i.evidence[0])
-		.sort((a, b) => b.weight - a.weight)
-		.slice(0, 3)
-		.map((i) => ({ text: `Bien: ${i.item}.`, evidence: i.evidence[0] ?? {} }));
+	const pct = (x: number) => `${Math.round(x * 100)}%`;
+	const strengths = [
+		...(wonTrust
+			? [
+					{
+						text: `Ganaste la confianza de un paciente difícil (de ${pct(trust.start)} a ${pct(trust.end)}).`,
+						evidence: {},
+					},
+				]
+			: []),
+		...items
+			.filter((i) => i.status === "si" && i.evidence[0])
+			.sort((a, b) => b.weight - a.weight)
+			.map((i) => ({
+				text: `Bien: ${i.item}.`,
+				evidence: i.evidence[0] ?? {},
+			})),
+	].slice(0, 3);
 
 	const total = totalScore(scores);
 	const { verdict, message } = verdictFor(
