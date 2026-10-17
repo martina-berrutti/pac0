@@ -10,6 +10,7 @@ import type {
 } from "@/lib/contracts/exam";
 import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
+import { timeoutSignal } from "@/lib/timeout-signal";
 import type { SessionView, TurnResult } from "@/server/consultation";
 import type { OtoscopyStart } from "@/server/otoscopy";
 import type { BpGauge, BpStart } from "@/server/vitals";
@@ -23,23 +24,45 @@ export class ApiError extends Error {
 	}
 }
 
+// Tope por pedido: sin él, un servidor colgado deja la pantalla cargando para
+// siempre. Es generoso porque el informe con IA puede tardar.
+const REQUEST_TIMEOUT_MS = 60_000;
+
 async function request<T>(
 	path: string,
 	init?: { method?: string; body?: unknown },
 ): Promise<T> {
-	const res = await fetch(path, {
-		method: init?.method ?? "GET",
-		headers:
-			init?.body === undefined
-				? undefined
-				: { "Content-Type": "application/json" },
-		body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-	});
-	const data = (await res.json().catch(() => ({}))) as { error?: string };
+	let res: Response;
+	try {
+		res = await fetch(path, {
+			method: init?.method ?? "GET",
+			headers:
+				init?.body === undefined
+					? undefined
+					: { "Content-Type": "application/json" },
+			body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+			signal: timeoutSignal(REQUEST_TIMEOUT_MS),
+		});
+	} catch {
+		throw new ApiError(
+			0,
+			"No pudimos comunicarnos con el servidor. Revisá la conexión y probá de nuevo.",
+		);
+	}
+	const data = (await res.json().catch(() => null)) as {
+		error?: string;
+	} | null;
 	if (!res.ok)
 		throw new ApiError(
 			res.status,
-			data.error ?? "Algo salió mal. Probá de nuevo.",
+			data?.error ?? "Algo salió mal. Probá de nuevo.",
+		);
+	// Un 200 con el cuerpo cortado no es una respuesta: la pantalla se rompería
+	// al leer campos que no están.
+	if (data === null)
+		throw new ApiError(
+			res.status,
+			"La respuesta del servidor llegó cortada. Probá de nuevo.",
 		);
 	return data as T;
 }

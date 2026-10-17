@@ -50,6 +50,9 @@ export default function ConsultationPage() {
 	const [draft, setDraft] = useState("");
 	const [typing, setTyping] = useState(false);
 	const bottom = useRef<HTMLLIElement>(null);
+	// Reloj local sin voz (plan B por texto): parte de lo que quedaba al cargar.
+	const loadedAt = useRef(Date.now());
+	const [now, setNow] = useState(() => Date.now());
 	const avatar = useRef<PatientAvatarHandle>(null);
 	const [mood, setMood] = useState<Mood>("neutral");
 	const showState = useCallback(
@@ -110,6 +113,11 @@ export default function ConsultationPage() {
 			.session(id)
 			.then((v) => {
 				if (v.hasReport) router.replace(`/informe/${id}`);
+				// Al volver a una consulta vencida o cerrada no se ofrece la voz
+				// (el servidor la rechazaría): se pasa directo a la hipótesis.
+				if (v.remainingMs === 0 || v.session.status !== "activa")
+					setClosing(true);
+				loadedAt.current = Date.now();
 				setView(v);
 				showState(v.session.state);
 			})
@@ -133,6 +141,24 @@ export default function ConsultationPage() {
 		if (view?.turns.length)
 			bottom.current?.scrollIntoView({ behavior: "smooth" });
 	}, [view?.turns.length]);
+
+	// Sin voz, el reloj de la pantalla lo lleva esta página (la voz tiene el
+	// suyo). Al llegar a cero en modo texto se pasa a la hipótesis.
+	const localRemainingMs = view
+		? Math.max(0, view.remainingMs - (now - loadedAt.current))
+		: 0;
+	useEffect(() => {
+		// También para el docente: solo mueve el reloj, no muestra controles.
+		if (!view || closing) return;
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, [view, closing]);
+	useEffect(() => {
+		if (textMode && view && !closing && localRemainingMs === 0) {
+			toast.info("Se terminaron los 8 minutos de la consulta.");
+			setClosing(true);
+		}
+	}, [textMode, view, closing, localRemainingMs]);
 
 	async function closeExam(times: Record<string, number>) {
 		if (exam && exam.action.variant !== "negado") {
@@ -161,6 +187,8 @@ export default function ConsultationPage() {
 					? e.message
 					: "No se pudo enviar. Probá de nuevo.",
 			);
+			// La consulta venció o se cerró: no tiene sentido seguir escribiendo.
+			if (e instanceof ApiError && e.status === 409) setClosing(true);
 		} finally {
 			setTyping(false);
 		}
@@ -172,8 +200,13 @@ export default function ConsultationPage() {
 		try {
 			const list = differentials
 				.split(",")
-				.map((d) => d.trim())
-				.filter(Boolean);
+				.map((d) => d.trim().slice(0, 100))
+				.filter(Boolean)
+				// El servidor acepta hasta 10; más darían "Datos inválidos".
+				.slice(0, 10);
+			// Primero se terminan de guardar los últimos turnos de la voz: si no,
+			// el informe sale sin ellos y el servidor los rechaza por consulta cerrada.
+			await voice.drain();
 			await api.finish(id, hypothesis, list);
 			router.push(`/informe/${id}`);
 		} catch (e) {
@@ -205,12 +238,21 @@ export default function ConsultationPage() {
 					</h1>
 					<p className="text-muted-foreground text-sm">
 						{view.case.title} · quedan{" "}
-						{Math.ceil((voice.remainingMs ?? view.remainingMs) / 60000)} min ·
-						herramienta educativa, caso ficticio
+						{/* El reloj de la voz queda congelado al cortarse: solo vale en vivo. */}
+						{Math.ceil(
+							((voiceLive ? voice.remainingMs : null) ?? localRemainingMs) /
+								60000,
+						)}{" "}
+						min · herramienta educativa, caso ficticio
 					</p>
+					{view.readOnly && (
+						<p className="mt-2 border p-2 text-muted-foreground text-sm">
+							Vista de docente: solo lectura.
+						</p>
+					)}
 				</div>
 
-				{!closing && (
+				{!closing && !view.readOnly && (
 					<section className="grid gap-2 border p-3">
 						{voiceLive ? (
 							<div className="flex flex-wrap items-center justify-between gap-2">
@@ -307,7 +349,7 @@ export default function ConsultationPage() {
 					</ol>
 				)}
 
-				{textMode && !voiceLive && !tool && !closing && (
+				{textMode && !voiceLive && !tool && !closing && !view.readOnly && (
 					<form onSubmit={sendText} className="flex gap-2">
 						<Input
 							aria-label={`Escribile a ${view.case.patient.name}`}
@@ -324,7 +366,7 @@ export default function ConsultationPage() {
 					</form>
 				)}
 
-				{!tool && !closing && (
+				{!tool && !closing && !view.readOnly && (
 					<div className="flex flex-wrap gap-2">
 						<Button variant="outline" onClick={() => setBp({ start: null })}>
 							Tomar la presión
@@ -336,6 +378,7 @@ export default function ConsultationPage() {
 				)}
 
 				{!tool &&
+					!view.readOnly &&
 					(closing ? (
 						<form onSubmit={finish} className="grid gap-2 border p-3">
 							<label htmlFor="hipotesis" className="font-medium">

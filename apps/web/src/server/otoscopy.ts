@@ -13,7 +13,7 @@ import {
 import { assessOtoscopy, otoscopyScenario } from "@/lib/exam/otoscope";
 
 import { HttpError } from "./auth";
-import { activeSession } from "./consultation";
+import { activeSession, FINISH_EXAM_GRACE_MS } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -37,7 +37,10 @@ export async function startOtoscopy(
 		endMs: null,
 	};
 	await store.addExamAction(action);
-	const scenario = otoscopyScenario(clinicalCase.id, clinicalCase.patient.age);
+	const scenario = otoscopyScenario(
+		clinicalCase.templateId ?? clinicalCase.id,
+		clinicalCase.patient.age,
+	);
 	// Solo lo que se ve en ese oído; la técnica correcta no sale del servidor.
 	return { actionId: action.id, appearance: scenario.appearance[ear] };
 }
@@ -51,6 +54,7 @@ export async function finishOtoscopy(
 	const { session, clinicalCase, elapsed } = await activeSession(
 		viewer,
 		sessionId,
+		FINISH_EXAM_GRACE_MS,
 	);
 	const action = (await store.listExamActions(sessionId)).find(
 		(a) => a.id === actionId && a.maneuver === OTOSCOPY,
@@ -66,7 +70,10 @@ export async function finishOtoscopy(
 		ear,
 		record,
 		before,
-		otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
+		otoscopyScenario(
+			clinicalCase.templateId ?? clinicalCase.id,
+			clinicalCase.patient.age,
+		),
 	);
 	await store.updateExamAction(actionId, {
 		hotspotTimesMs: { conducto: record.canalMs, timpano: record.tympanumMs },

@@ -118,8 +118,10 @@ describe("generador con las plantillas nuevas", () => {
 			clinicalCase.expectedChecklist.some((i) => i.id === "otoscopia"),
 		).toBe(true);
 		expect(
-			otoscopyScenario(clinicalCase.id, clinicalCase.patient.age).appearance
-				.derecho.canal,
+			otoscopyScenario(
+				clinicalCase.templateId ?? clinicalCase.id,
+				clinicalCase.patient.age,
+			).appearance.derecho.canal,
 		).toBe("secrecion");
 	});
 

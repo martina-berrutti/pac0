@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 // SDK de Google simulado: registra la clave usada y los tokens pedidos.
-const genai = vi.hoisted(() => ({ create: vi.fn(), keys: [] as string[] }));
+const genai = vi.hoisted(() => ({
+	create: vi.fn(),
+	keys: [] as string[],
+	timeouts: [] as (number | undefined)[],
+}));
 vi.mock("@google/genai", () => ({
 	Modality: { AUDIO: "AUDIO" },
 	GoogleGenAI: class {
 		authTokens = { create: genai.create };
-		constructor(opts: { apiKey: string }) {
+		constructor(opts: { apiKey: string; httpOptions?: { timeout?: number } }) {
 			genai.keys.push(opts.apiKey);
+			genai.timeouts.push(opts.httpOptions?.timeout);
 		}
 	},
 }));
@@ -44,6 +49,7 @@ const beto: Viewer = {
 beforeEach(() => {
 	genai.create.mockReset();
 	genai.keys.length = 0;
+	genai.timeouts.length = 0;
 	// Acá Ana empieza muchas consultas: el tope diario se prueba en persona1.test.ts.
 	vi.stubEnv("MAX_SESSIONS_PER_USER_PER_DAY", "1000");
 });
@@ -335,6 +341,218 @@ describe("pendientes de la Persona 1", () => {
 	});
 });
 
+describe("bugs de la Persona 1", () => {
+	test("pedir permiso para otra cosa no autoriza el examen", async () => {
+		const id = await startSession(ana, lucia.id, "hostil");
+		await recordVoiceTurn(
+			ana,
+			id,
+			"estudiante",
+			"¿Puedo preguntarte cuántos años tenés?",
+			false,
+		);
+		expect((await store.getSession(id))?.consentGiven).toBe(false);
+		await recordVoiceTurn(ana, id, "estudiante", "¿Me das permiso?", false);
+		expect((await store.getSession(id))?.consentGiven).toBe(true);
+	});
+
+	test("'palabra' o 'cabra' no son pedidos de examen", async () => {
+		const { isExamRequest } = await import("@/lib/patient/exam-instruction");
+		expect(isExamRequest("contame en tus palabras")).toBe(false);
+		expect(isExamRequest("Abrí la boca")).toBe(true);
+		expect(isExamRequest("¿me abrís la boca?")).toBe(true);
+	});
+
+	test("argumentos fuera del esquema se corrigen en vez de fallar", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "actualizar_estado", {
+			delta: { confianza: -0.9, paciencia: "mucho" },
+		});
+		const state = (await store.getSession(id))?.state;
+		// El cambio de ánimo queda acotado a ±0,3 por llamada.
+		expect(state?.confianza).toBeCloseTo(0.6);
+		const exam = await runTool(ana, id, "examinar", {
+			zona: "garganta",
+			claridad: "Alta",
+		});
+		expect(exam.output.variante).toBe("completa");
+		const bp = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [...BP_STEPS, "paso_inventado"],
+		});
+		// El paso inventado no hace fallar la herramienta y no se guarda.
+		expect(bp.ui.kind).toBe("vitals");
+		expect((await store.listVitals(id))[0]?.stepsCompleted).toEqual([
+			...BP_STEPS,
+		]);
+	});
+
+	test("nombres heredados de Object no son herramientas", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		for (const name of ["toString", "constructor", "__proto__"]) {
+			await expect(runTool(ana, id, name, {})).rejects.toThrow("desconocida");
+		}
+	});
+
+	test("anotar_dato no pisa el perfil del paciente", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		const [key] = Object.keys(lucia.profile);
+		await runTool(ana, id, "anotar_dato", { clave: key, valor: "otra cosa" });
+		expect((await store.getSession(id))?.inventedFacts).toEqual({});
+	});
+
+	test("al reconectar la voz, el paciente recibe lo que ya se habló", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "AIza-test-servidor");
+		genai.create.mockResolvedValueOnce({ name: "auth_tokens/otro" });
+		const id = await startSession(ana, lucia.id, "caso");
+		await recordVoiceTurn(ana, id, "estudiante", "Hola, soy Ana", false);
+		await recordVoiceTurn(ana, id, "paciente", "Hola, me duele", false);
+		const now = Date.now();
+		await createLiveSession(ana, id);
+		const { config } = (genai.create.mock.calls[0] ?? [])[0] as {
+			config: {
+				expireTime: string;
+				liveConnectConstraints: { config: { systemInstruction: string } };
+			};
+		};
+		const instructions = config.liveConnectConstraints.config.systemInstruction;
+		expect(instructions).toContain("Estudiante: Hola, soy Ana");
+		expect(instructions).toContain("Vos: Hola, me duele");
+		expect(instructions).not.toContain(lucia.truth.diagnosis);
+		// El token no dura más que la consulta (8 min) y el margen.
+		expect(new Date(config.expireTime).getTime() - now).toBeLessThanOrEqual(
+			8.5 * 60 * 1000 + 1000,
+		);
+	});
+
+	test("el generador entiende 'él' y 'varón'", async () => {
+		const { generateCase } = await import("@/lib/patient/generator");
+		for (const text of [
+			"un paciente con dolor de garganta, que sea él",
+			"un varón con dolor de garganta",
+		]) {
+			const { clinicalCase } = await generateCase({ text }, () => 0);
+			expect([
+				"Mateo",
+				"Santiago",
+				"Joaquín",
+				"Nicolás",
+				"Diego",
+				"Juan",
+				"Carlos",
+				"Raúl",
+				"Jorge",
+				"Pablo",
+			]).toContain(clinicalCase.patient.name);
+		}
+	});
+});
+
+describe("prevención de errores (segunda pasada)", () => {
+	test("la vista de la sesión no manda la historia sorteada ni lo inventado", async () => {
+		const { getSessionView } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "anotar_dato", {
+			clave: "hermanos",
+			valor: "tengo dos hermanos",
+		});
+		const view = JSON.stringify(await getSessionView(ana, id));
+		const fiebre = (await store.getSession(id))?.historyOverrides.fiebre ?? "";
+		expect(fiebre).not.toBe("");
+		expect(view).not.toContain(fiebre);
+		expect(view).not.toContain("tengo dos hermanos");
+		expect(view).not.toContain("historyOverrides");
+		expect(view).not.toContain(lucia.truth.diagnosis);
+	});
+
+	test("un turno de voz largo se guarda recortado, no se pierde", async () => {
+		const id = await startSession(ana, lucia.id, "mayor");
+		const { turn } = await recordVoiceTurn(
+			ana,
+			id,
+			"paciente",
+			"y bueno ".repeat(1000),
+			false,
+		);
+		expect(turn.text.length).toBeLessThanOrEqual(4000);
+	});
+
+	test("los tiempos del examen solo guardan zonas del caso", async () => {
+		const { saveExamTimes } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "caso");
+		const run = await runTool(ana, id, "examinar", {
+			zona: "garganta",
+			claridad: "alta",
+			consentimiento: true,
+		});
+		if (run.ui.kind !== "exam") throw new Error("sin examen");
+		const [real] = run.ui.exam.hotspots;
+		const saved = await saveExamTimes(ana, id, run.ui.exam.action.id, {
+			[real as string]: 1200,
+			inventada: 5000,
+		});
+		expect(saved?.hotspotTimesMs).toEqual({ [real as string]: 1200 });
+	});
+
+	test("un cuerpo enorme se rechaza antes de llegar al almacenamiento", async () => {
+		const { readBody } = await import("@/server/http");
+		const { z } = await import("zod");
+		const req = new Request("http://x", {
+			method: "POST",
+			body: JSON.stringify({ text: "a".repeat(100_000) }),
+		});
+		await expect(readBody(req, z.object({ text: z.string() }))).rejects.toThrow(
+			"demasiado grande",
+		);
+	});
+
+	test("paciente por reglas: 'datos' no es una pregunta por la tos", async () => {
+		const { ruleRespond } = await import("@/lib/patient/rule-responder");
+		const { buildPatientBrief } = await import("@/lib/patient/brief");
+		const b = buildPatientBrief(lucia, lucia.personality, "");
+		const state = { confianza: 0.9, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 };
+		const tos = lucia.hiddenHistory.tos ?? "";
+		expect(ruleRespond(b, state, "¿Tenés tos?", 1).text).toContain(tos);
+		expect(
+			ruleRespond(b, state, "¿Me das todos tus datos?", 1).text,
+		).not.toContain(tos);
+	});
+});
+
+test("generador: 'todos los datos' no es tos y '100 años' no es '00'", async () => {
+	const { generateCase } = await import("@/lib/patient/generator");
+	const { clinicalCase } = await generateCase(
+		{
+			text: "un paciente con dolor de garganta al tragar, con todos los datos",
+		},
+		() => 0.99,
+	);
+	expect(clinicalCase.title).toBe("Dolor de garganta");
+	const viejo = await generateCase(
+		{ text: "una señora de 100 años con dolor de garganta" },
+		() => 0,
+	);
+	expect(viejo.clinicalCase.patient.age).toBe(95);
+});
+
+test("si el evaluador falla, la sesión no queda cerrada sin informe", async () => {
+	const evaluateModule = await import("@/lib/scoring/evaluate");
+	const { finishSession } = await import("@/server/consultation");
+	const id = await startSession(ana, lucia.id, "caso");
+	const spy = vi
+		.spyOn(evaluateModule, "evaluate")
+		.mockImplementationOnce(() => {
+			throw new Error("evaluador roto");
+		});
+	await expect(finishSession(ana, id, "faringitis", [])).rejects.toThrow(
+		"evaluador roto",
+	);
+	expect((await store.getSession(id))?.status).toBe("activa");
+	spy.mockRestore();
+	const report = await finishSession(ana, id, "faringitis", []);
+	expect(report.sessionId).toBe(id);
+	expect((await store.getSession(id))?.status).toBe("evaluada");
+});
+
 describe("límite de conexiones de voz", () => {
 	test("después de 6 tokens en una consulta, se rechaza", async () => {
 		vi.stubEnv("GEMINI_API_KEY", "AIza-test");
@@ -343,5 +561,282 @@ describe("límite de conexiones de voz", () => {
 		for (let i = 0; i < 6; i++) await createLiveSession(ana, id);
 		await expect(createLiveSession(ana, id)).rejects.toThrow("muchas veces");
 		expect(genai.create).toHaveBeenCalledTimes(6);
+	});
+});
+
+describe("consentimiento de punta a punta (voz y evaluador)", () => {
+	const finishFor = async (id: string) => {
+		const { finishSession } = await import("@/server/consultation");
+		return finishSession(ana, id, "faringitis", []);
+	};
+	const critical = (r: Awaited<ReturnType<typeof finishFor>>) =>
+		r.mistakes.some((m) => m.tag === "examen-sin-consentimiento");
+
+	test("pedir permiso después de examinar sigue siendo error crítico", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "examinar", {
+			zona: "garganta",
+			claridad: "alta",
+			consentimiento: false,
+		});
+		// El permiso llega 5 segundos después del examen (en el test todo pasa
+		// en el mismo milisegundo, y "a la vez" cuenta como con permiso).
+		const startedAt = (await store.getSession(id))?.startedAt ?? Date.now();
+		await store.updateSession(id, { startedAt: startedAt - 5000 });
+		await recordVoiceTurn(
+			ana,
+			id,
+			"estudiante",
+			"¿Me das permiso para revisarte la garganta?",
+			false,
+		);
+		expect((await store.getSession(id))?.consentGiven).toBe(true);
+		expect(critical(await finishFor(id))).toBe(true);
+	});
+
+	test("con permiso antes de examinar no hay error crítico", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await recordVoiceTurn(
+			ana,
+			id,
+			"estudiante",
+			"¿Te puedo revisar la garganta?",
+			false,
+		);
+		await runTool(ana, id, "examinar", {
+			zona: "garganta",
+			claridad: "alta",
+			consentimiento: true,
+		});
+		expect(critical(await finishFor(id))).toBe(false);
+	});
+});
+
+test("una medición empezada antes de los 8 minutos se puede terminar", async () => {
+	const { markReading, placeCuff, startMeasurement } = await import(
+		"@/server/vitals"
+	);
+	const id = await startSession(ana, lucia.id, "caso");
+	const { measurementId } = await startMeasurement(ana, id);
+	await placeCuff(ana, id, measurementId, "adecuado", false);
+	// Pasaron 8 minutos y 20 segundos: se puede marcar, no empezar otra.
+	await store.updateSession(id, {
+		startedAt: Date.now() - (8 * 60 + 20) * 1000,
+	});
+	await expect(
+		markReading(ana, id, measurementId, { pas: 110, pad: 70 }),
+	).resolves.toEqual({ ok: true });
+	await expect(startMeasurement(ana, id)).rejects.toThrow("8 minutos");
+});
+
+test("un docente ve la consulta de otro en solo lectura", async () => {
+	const { getSessionView } = await import("@/server/consultation");
+	const docente: Viewer = {
+		uid: "ggl_docente",
+		alias: "Profe",
+		careerYear: "recibido",
+		guest: false,
+		exp: Date.now() + 1e6,
+	};
+	vi.stubEnv("DOCENTES", "ggl_docente");
+	const id = await startSession(ana, lucia.id, "caso");
+	expect((await getSessionView(ana, id)).readOnly).toBe(false);
+	expect((await getSessionView(docente, id)).readOnly).toBe(true);
+	await expect(getSessionView(beto, id)).rejects.toThrow(
+		"Sesión no encontrada",
+	);
+});
+
+test("el perfil que inventa la IA queda acotado", async () => {
+	const { personaSchema } = await import("@/lib/patient/generator");
+	const profile = Object.fromEntries(
+		Array.from({ length: 20 }, (_, i) => [`dato${i}`, "x"]),
+	);
+	const ok = personaSchema.parse({
+		name: "Ana",
+		occupation: "docente",
+		chiefComplaint: "Me duele la garganta",
+		profile,
+	});
+	expect(Object.keys(ok.profile)).toHaveLength(6);
+	expect(() =>
+		personaSchema.parse({
+			name: "Ana",
+			occupation: "docente",
+			chiefComplaint: "Me duele la garganta",
+			profile: { vive: "a".repeat(500) },
+		}),
+	).toThrow();
+});
+
+test("el token de Gemini se pide con tope", async () => {
+	vi.stubEnv("GEMINI_API_KEY", "AIza-test-servidor");
+	genai.create.mockResolvedValueOnce({ name: "auth_tokens/t" });
+	const id = await startSession(ana, lucia.id, "caso");
+	await createLiveSession(ana, id);
+	expect(genai.timeouts[0]).toBeGreaterThan(0);
+	expect(genai.timeouts[0]).toBeLessThan(15_000);
+});
+
+describe("repetir cuando el paciente lo pide no es una pregunta repetida", () => {
+	const ask = "¿Desde cuándo te duele la garganta?";
+	const run = async (patientSays: string) => {
+		const { finishSession } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "mayor");
+		await recordVoiceTurn(ana, id, "estudiante", ask, false);
+		await recordVoiceTurn(ana, id, "paciente", patientSays, false);
+		await recordVoiceTurn(ana, id, "estudiante", ask, false);
+		const events = await store.listEvents(id);
+		const report = await finishSession(ana, id, "faringitis", []);
+		return {
+			stateRepeat: events.some((e) => e.motivo?.includes("repitió")),
+			reportRepeat: report.mistakes.some((m) => m.tag === "repite-pregunta"),
+		};
+	};
+
+	test("después de '¿cómo? no le escuché', repetir no penaliza", async () => {
+		expect(
+			await run("¿Cómo? Perdón, no le escuché bien. ¿Me lo repite?"),
+		).toEqual({
+			stateRepeat: false,
+			reportRepeat: false,
+		});
+	});
+
+	test("repetir sin que lo pida sigue contando", async () => {
+		const r = await run("Desde hace dos días.");
+		expect(r.stateRepeat).toBe(true);
+	});
+});
+
+describe("revisión independiente", () => {
+	test("el id de un caso generado no revela la plantilla y el otoscopio sigue andando", async () => {
+		const { generateCase } = await import("@/lib/patient/generator");
+		const { startOtoscopy } = await import("@/server/otoscopy");
+		const { toSummary } = await import("@/cases/schema");
+		const { clinicalCase } = await generateCase({
+			text: "un paciente con dolor de oído",
+		});
+		expect(clinicalCase.id).not.toContain("otitis");
+		expect(JSON.stringify(toSummary(clinicalCase))).not.toContain("otitis");
+		await store.addGeneratedCase(ana.uid, clinicalCase);
+		const id = await startSession(ana, clinicalCase.id, "caso");
+		const { appearance } = await startOtoscopy(ana, id, "derecho");
+		expect(appearance.canal).toBe("secrecion");
+	});
+
+	test("las claves que inventa el modelo quedan en ASCII (Convex no acepta otras)", async () => {
+		const { asciiKey } = await import("@/lib/patient/keys");
+		expect(asciiKey("Año de nacimiento")).toBe("ano_de_nacimiento");
+		expect(asciiKey("$ocupación")).toBe("ocupacion");
+		expect(asciiKey("¿?")).toBe("dato");
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "anotar_dato", {
+			clave: "con quién vive",
+			valor: "con mi hermana",
+		});
+		const keys = Object.keys((await store.getSession(id))?.inventedFacts ?? {});
+		expect(keys).toEqual(["con_quien_vive"]);
+		const { personaSchema } = await import("@/lib/patient/generator");
+		const persona = personaSchema.parse({
+			name: "Ana",
+			occupation: "docente",
+			chiefComplaint: "Me duele la garganta",
+			profile: { "situación laboral": "docente" },
+		});
+		expect(Object.keys(persona.profile)).toEqual(["situacion_laboral"]);
+	});
+
+	test("si el cierre se corta después de guardar el informe, leer el informe lo completa", async () => {
+		const mistakes = await import("@/server/mistakes");
+		const { finishSession, getReport } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "caso");
+		const original = store.changeSession.bind(store);
+		const spy = vi
+			.spyOn(store, "changeSession")
+			.mockImplementation(async (sid, change) => {
+				if (
+					change.ifStatus === "finalizada" &&
+					change.set?.status === "evaluada"
+				)
+					throw new Error("Convex caído");
+				return original(sid, change);
+			});
+		await expect(finishSession(ana, id, "faringitis", [])).rejects.toThrow(
+			"Convex caído",
+		);
+		expect((await store.getSession(id))?.status).toBe("finalizada");
+		spy.mockRestore();
+		const record = vi.spyOn(mistakes, "recordMistakes");
+		await getReport(ana, id);
+		await getReport(ana, id);
+		await finishSession(ana, id, "faringitis", []);
+		expect(record).toHaveBeenCalledTimes(1);
+		expect((await store.getSession(id))?.status).toBe("evaluada");
+		record.mockRestore();
+	});
+
+	test("dos cierres a la vez suman los errores una sola vez", async () => {
+		const mistakes = await import("@/server/mistakes");
+		const { finishSession } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "caso");
+		const record = vi.spyOn(mistakes, "recordMistakes");
+		const results = await Promise.allSettled([
+			finishSession(ana, id, "faringitis", []),
+			finishSession(ana, id, "faringitis", []),
+		]);
+		expect(results.some((r) => r.status === "fulfilled")).toBe(true);
+		expect(record).toHaveBeenCalledTimes(1);
+		expect((await store.getSession(id))?.status).toBe("evaluada");
+		record.mockRestore();
+	});
+});
+
+test("el cupo por IP se cuenta solo si la consulta se va a crear", async () => {
+	const counted = vi.fn(async () => {});
+	await expect(
+		startSession(ana, "caso-que-no-existe", "caso", counted),
+	).rejects.toThrow("Caso no encontrado");
+	expect(counted).not.toHaveBeenCalled();
+	vi.stubEnv("MAX_SESSIONS_PER_USER_PER_DAY", "1");
+	const carla: Viewer & { alias: string } = { ...ana, uid: "usr_carla" };
+	await startSession(carla, lucia.id, "caso", counted);
+	expect(counted).toHaveBeenCalledTimes(1);
+	// Llegó a su tope diario: el pedido falla sin gastar el cupo del salón.
+	await expect(startSession(carla, lucia.id, "caso", counted)).rejects.toThrow(
+		"tope",
+	);
+	expect(counted).toHaveBeenCalledTimes(1);
+});
+
+describe("pedidos simultáneos a la misma consulta", () => {
+	test("el consentimiento se da una sola vez", async () => {
+		const { giveConsent } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "hostil");
+		const session = await store.getSession(id);
+		if (!session) throw new Error("sin sesión");
+		await Promise.all([giveConsent(session, 1000), giveConsent(session, 1000)]);
+		const events = await store.listEvents(id);
+		expect(events.filter((e) => e.type === "consentimiento")).toHaveLength(1);
+		expect(events.filter((e) => e.motivo === "consentimiento")).toHaveLength(1);
+	});
+
+	test("un solo cambio de ánimo del modelo por turno", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await recordVoiceTurn(ana, id, "estudiante", "Hola, ¿cómo estás?", false);
+		const before = (await store.getSession(id))?.state.confianza ?? 0;
+		const runs = await Promise.all([
+			runTool(ana, id, "actualizar_estado", {
+				delta: { confianza: -0.1 },
+				motivo: "a",
+			}),
+			runTool(ana, id, "actualizar_estado", {
+				delta: { confianza: -0.1 },
+				motivo: "b",
+			}),
+		]);
+		expect(runs.filter((r) => r.output.ok === true)).toHaveLength(1);
+		const after = (await store.getSession(id))?.state.confianza ?? 0;
+		expect(after).toBeCloseTo(before - 0.1);
 	});
 });

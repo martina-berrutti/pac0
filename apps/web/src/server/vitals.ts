@@ -17,7 +17,7 @@ import {
 } from "@/lib/exam/blood-pressure";
 
 import { HttpError } from "./auth";
-import { activeSession } from "./consultation";
+import { activeSession, FINISH_EXAM_GRACE_MS } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -76,7 +76,11 @@ export async function placeCuff(
 	size: CuffSize,
 	overClothes: boolean,
 ): Promise<BpGauge> {
-	const { clinicalCase } = await activeSession(viewer, sessionId);
+	const { clinicalCase } = await activeSession(
+		viewer,
+		sessionId,
+		FINISH_EXAM_GRACE_MS,
+	);
 	const m = await ownMeasurement(sessionId, measurementId);
 	if (m.cuff) throw new HttpError(409, "El manguito ya está colocado");
 	const cuff = { size, overClothes };
@@ -96,7 +100,7 @@ export async function markReading(
 	measurementId: string,
 	marked: BpReading,
 ) {
-	await activeSession(viewer, sessionId);
+	await activeSession(viewer, sessionId, FINISH_EXAM_GRACE_MS);
 	const m = await ownMeasurement(sessionId, measurementId);
 	if (!m.cuff) throw new HttpError(409, "Primero colocá el manguito");
 	await store.updateVitals(measurementId, { marked });

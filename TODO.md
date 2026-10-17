@@ -158,6 +158,7 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Veredicto: 85% sin errores críticos, 70% a 84% "casi", menos de 70% "a repasar"
 - [x] Penalizaciones: interrumpir desde la tercera vez, pregunta sugestiva, pregunta repetida
 - [x] Error crítico: examinar sin consentimiento
+- [x] Ese error crítico mira el orden (extractor: `atMs` del evento `consentimiento` contra cada examen); test de punta a punta con la voz en `tests/voice.test.ts`
 - [x] Razonamiento: hipótesis 40%, diferenciales 25%, justificación 20%, estudios 15%
 - [ ] Penalizaciones que faltan: jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico
 - [ ] Errores críticos que faltan: insistir contra la negativa, pasar por alto una alarma, trato irrespetuoso

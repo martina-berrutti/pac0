@@ -36,6 +36,8 @@ const OPEN_STARTS = [
 	"como empezo",
 	"que sentis",
 	"que te preocupa",
+	"que te preocupe",
+	"hay algo mas",
 	"en que te puedo",
 	"que mas",
 ];
@@ -54,9 +56,21 @@ const CLOSED_STARTS = [
 	"fue ",
 	"sentis",
 ];
-// "…, ¿no?", "…, ¿verdad?": palabra suelta al final y con signo de pregunta
-// (antes "¿tenés algún hermano?" daba sugestiva por el "no" de "hermano").
-const LEADING = [/(?:^|[\s,¿])(no|verdad|cierto|no es cierto)\s*\?\s*$/i];
+// Pregunta sugestiva: termina en ", ¿no?", "¿verdad?" o "¿cierto?". "No"
+// tiene que ser una palabra entera ("¿todo bueno?" no cuenta) y "o no" es una
+// pregunta neutra ("¿fumás o no?"). La usa también el evaluador.
+export function isLeadingQuestion(text: string) {
+	const t = text.trim().toLowerCase();
+	if (/(?:^|[\s¿])o\s+no\s*\?*\s*$/u.test(t)) return false;
+	// "¿Por qué no?" es una pregunta abierta, no sugestiva.
+	if (/por\s+qu[eé]\s+no\s*\?*\s*$/u.test(t)) return false;
+	// Con signo de pregunta, o con coma antes si la voz no transcribió el signo
+	// ("te duele, no"). Una frase como "eso no" no es una pregunta.
+	return (
+		/(?:^|[\s,¿])(no|verdad|cierto|no es cierto)\s*\?+\s*$/u.test(t) ||
+		/,\s*(no|verdad|cierto|no es cierto)\s*$/u.test(t)
+	);
+}
 // Términos médicos que un paciente no entiende sin explicación.
 const JARGON = [
 	"odinofagia",
@@ -81,7 +95,6 @@ const JARGON = [
 const EXPLAINS = ["o sea", "es decir", "quiere decir", "que significa", "osea"];
 const EMPATHY = [
 	"entiendo",
-	"tranqui",
 	"no te preocupes",
 	"debe ser",
 	"lamento",
@@ -93,6 +106,33 @@ const EMPATHY = [
 	"estoy para ayudarte",
 	"vamos a ver juntos",
 ];
+
+// El paciente pidió que le repitan ("¿cómo?", "no le escuché"): repetir la
+// pregunta es lo correcto, no una pregunta repetida. La usa también el
+// evaluador.
+const REPEAT_REQUESTS = [
+	"repet",
+	"no te escuche",
+	"no le escuche",
+	"no escuche",
+	"no te entendi",
+	"no le entendi",
+	"mas fuerte",
+];
+
+export function askedToRepeat(patientText: string) {
+	const t = normalize(patientText);
+	return t === "como" || REPEAT_REQUESTS.some((w) => t.includes(w));
+}
+
+// Empatía, con el texto normalizado. "No entiendo" no lo es, y "tranqui"
+// cuenta suelto o en "quedate tranquila", no en "¿dormís tranquilo?".
+function isEmpathy(t: string) {
+	if (/(^| )no entiendo( |$)/.test(t)) return false;
+	if (/(^| )tranqui( |$)/.test(t)) return true;
+	if (/(quedate|estate|esta) tranquil[ao]/.test(t)) return true;
+	return EMPATHY.some((w) => t.includes(w));
+}
 
 export type Classification = {
 	tags: TurnTag[];
@@ -121,6 +161,8 @@ const MOTIVOS: Record<TurnTag, string> = {
 export function classifyStudentTurn(
 	text: string,
 	previousStudentTexts: string[],
+	// Lo último que dijo el paciente: si pidió que le repitan, repetir no cuenta.
+	lastPatientText = "",
 ): Classification {
 	const t = normalize(text);
 	const tags: TurnTag[] = [];
@@ -135,13 +177,14 @@ export function classifyStudentTurn(
 		CLOSED_STARTS.some((w) => t.startsWith(w) || t.includes(` ${w}`))
 	)
 		tags.push("pregunta_cerrada");
-	if (LEADING.some((re) => re.test(text.trim()))) tags.push("sugestiva");
+	if (isLeadingQuestion(text)) tags.push("sugestiva");
 	if (JARGON.some((w) => t.includes(w)) && !EXPLAINS.some((w) => t.includes(w)))
 		tags.push("jerga");
-	if (EMPATHY.some((w) => t.includes(w))) tags.push("empatia");
+	if (isEmpathy(t)) tags.push("empatia");
 	if (
 		isQuestion &&
 		t.length > 8 &&
+		!askedToRepeat(lastPatientText) &&
 		previousStudentTexts.some((p) => normalize(p) === t)
 	)
 		tags.push("repetida");

@@ -11,16 +11,17 @@ crons.interval(
 	{},
 );
 
+// Cada corrida tiene un presupuesto de borrados (records.ts): corre seguido.
 crons.interval(
 	"purge expired guest records",
-	{ hours: 1 },
+	{ minutes: 10 },
 	internal.records.purgeExpiredGuests,
 	{},
 );
 
 crons.interval(
 	"purge sessions past retention",
-	{ hours: 6 },
+	{ hours: 1 },
 	internal.records.purgeOldSessions,
 	{},
 );

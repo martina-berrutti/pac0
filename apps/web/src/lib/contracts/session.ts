@@ -41,6 +41,9 @@ export type Session = {
 	stateToolTurn?: number;
 	// Conexiones de voz pedidas en esta consulta (hay un tope).
 	voiceStarts?: number;
+	// Si los errores del informe ya se sumaron al perfil (una vez por consulta).
+	// Opcional: las sesiones guardadas antes no lo tienen.
+	mistakesRecorded?: boolean;
 };
 
 export type VoiceUsage = {

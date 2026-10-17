@@ -29,7 +29,7 @@ import {
 } from "@/lib/patient/exam-instruction";
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
-import { EVENT_DELTAS } from "@/lib/patient/state";
+import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
 import {
 	classifyStudentTurn,
 	stateBand,
@@ -91,6 +91,8 @@ export type SessionView = {
 	examActions: ExamAction[];
 	remainingMs: number;
 	hasReport: boolean;
+	// Un docente puede leer la consulta de otro, pero no hablar ni cerrarla.
+	readOnly: boolean;
 };
 
 export async function ownSession(viewer: Viewer, sessionId: string) {
@@ -158,11 +160,16 @@ export async function startSession(
 	viewer: Viewer & { alias: string },
 	caseId: string,
 	personalityKey: string,
+	// Corre con todo validado, justo antes de crear la sesión (la ruta cuenta
+	// ahí el límite por IP: así un pedido que igual iba a fallar no gasta el
+	// cupo de todo el salón).
+	beforeCreate: () => Promise<void> = async () => {},
 ) {
 	const visible = await store.listCases(viewer.uid);
 	const clinicalCase = visible.find((c) => c.id === caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
 	await checkSessionLimits(viewer);
+	await beforeCreate();
 	const { key, personality } = resolvePersonality(
 		personalityKey,
 		clinicalCase.personality,
@@ -227,6 +234,7 @@ export async function getSessionView(
 		examActions,
 		remainingMs: Math.max(0, MAX_SESSION_MS - (Date.now() - session.startedAt)),
 		hasReport: report !== undefined,
+		readOnly: session.userId !== viewer.uid,
 	};
 }
 
@@ -276,6 +284,10 @@ async function patientReply(
 		return rules;
 	}
 }
+
+// Margen para terminar un examen que se empezó antes de los 8 minutos
+// (marcar la presión, cerrar la otoscopia): sin él se pierde la medición.
+export const FINISH_EXAM_GRACE_MS = 60_000;
 
 // Exige una sesión activa y dentro del tope de 8 minutos (más un margen para
 // que lleguen las últimas transcripciones de la voz).
@@ -327,13 +339,30 @@ export async function nudgeState(
 // Registra el consentimiento una sola vez y sube la confianza.
 export async function giveConsent(session: Session, atMs: number) {
 	if (session.consentGiven) return session;
+	// Atómico: con dos pedidos a la vez, solo uno lo da (y sube la confianza).
+	const delta = EVENT_DELTAS.consentimiento;
+	const next = await store.changeSession(session.id, {
+		ifEquals: { consentGiven: false },
+		set: { consentGiven: true },
+		stateDelta: delta,
+	});
+	if (!next) return (await store.getSession(session.id)) ?? session;
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
 		type: "consentimiento",
 		atMs,
 	});
-	return nudgeState(session, "consentimiento", atMs, { consentGiven: true });
+	if (delta)
+		await store.addEvent({
+			id: newId("evt"),
+			sessionId: session.id,
+			type: "cambio_animo",
+			atMs,
+			delta,
+			motivo: "consentimiento",
+		});
+	return next;
 }
 
 // Si el estudiante explica o pide permiso, queda registrado el consentimiento.
@@ -398,14 +427,22 @@ export async function classifyStudent(
 	text: string,
 	atMs: number,
 ): Promise<{ session: Session; tags: TurnTag[]; stateNote: string | null }> {
-	const previous = (await store.listTurns(session.id))
+	const turns = await store.listTurns(session.id);
+	const previous = turns
 		.filter((t) => t.speaker === "estudiante")
 		.map((t) => t.text);
-	const c = classifyStudentTurn(text, previous);
+	const lastPatient = turns.findLast((t) => t.speaker === "paciente");
+	const c = classifyStudentTurn(text, previous, lastPatient?.text);
 	if (!c.motivo) return { session, tags: c.tags, stateNote: null };
-	const before = stateBand(session.state);
 	const next =
 		(await store.changeSession(session.id, { stateDelta: c.delta })) ?? session;
+	// El nivel de antes sale del estado nuevo (atómico) menos este cambio, no
+	// de una lectura vieja: con otro pedido en el medio, la nota al modelo
+	// podía faltar o sobrar.
+	const undo = Object.fromEntries(
+		Object.entries(c.delta).map(([k, d]) => [k, d === undefined ? d : -d]),
+	) as Partial<PatientState>;
+	const before = stateBand(applyDelta(next.state, undo));
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
@@ -494,13 +531,15 @@ export async function saveExamTimes(
 	actionId: string,
 	hotspotTimesMs: Record<string, number>,
 ) {
-	const { session } = await ownSession(viewer, sessionId);
+	const { session, clinicalCase } = await ownSession(viewer, sessionId);
 	const actions = await store.listExamActions(sessionId);
-	if (!actions.some((a) => a.id === actionId))
-		throw new HttpError(404, "Acción de examen no encontrada");
+	const action = actions.find((a) => a.id === actionId);
+	if (!action) throw new HttpError(404, "Acción de examen no encontrada");
+	// Solo las zonas que existen en el caso: nada inventado llega al evaluador.
+	const known = new Set(clinicalCase.exam[action.zone]?.hotspots ?? []);
 	const clean = Object.fromEntries(
 		Object.entries(hotspotTimesMs)
-			.filter(([, v]) => Number.isFinite(v) && v >= 0)
+			.filter(([k, v]) => known.has(k) && Number.isFinite(v) && v >= 0)
 			.map(([k, v]) => [k, Math.min(v, MAX_SESSION_MS)]),
 	);
 	return store.updateExamAction(actionId, {
@@ -515,57 +554,119 @@ export async function finishSession(
 	hypothesis: string,
 	differentials: string[],
 ): Promise<Report> {
-	const { clinicalCase } = await ownSession(viewer, sessionId);
+	const { session, clinicalCase } = await ownSession(viewer, sessionId);
 	const existing = await store.getReport(sessionId);
-	if (existing) return existing;
-	// Solo cierra si sigue activa: con dos cierres a la vez, el segundo no
-	// vuelve a evaluar ni suma los errores dos veces.
-	const closed = await store.changeSession(sessionId, {
-		ifStatus: "activa",
-		set: {
-			status: "evaluada",
-			endedAt: Date.now(),
-			closing: {
-				hypothesis: hypothesis.slice(0, 500),
-				differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
-			},
-		},
-	});
-	if (!closed) {
-		const report = await store.getReport(sessionId);
-		if (report) return report;
-		throw new HttpError(
-			409,
-			"La consulta ya se está cerrando. Esperá unos segundos.",
-		);
+	if (existing) {
+		// Un cierre anterior se cortó después de guardar el informe: se
+		// completa lo que faltó (el estado y los errores, una sola vez).
+		if (session.status === "finalizada")
+			await completeClosing(sessionId, session.userId, existing);
+		return existing;
 	}
-	const [turns, events, examActions, vitals] = await Promise.all([
-		store.listTurns(sessionId),
-		store.listEvents(sessionId),
-		store.listExamActions(sessionId),
-		store.listVitals(sessionId),
-	]);
-	const input = {
-		clinicalCase,
-		session: closed,
-		turns,
-		events,
-		examActions,
-		vitals,
+	const closing = {
+		hypothesis: hypothesis.slice(0, 500),
+		differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
 	};
-	// Con clave, evaluador con IA; sin clave o si falla, juez por reglas.
-	const report = aiEnabled()
-		? await evaluateWithAi(input, completeJson)
-		: evaluate(input);
-	await store.saveReport(report);
-	// Suma los errores al perfil del usuario (una vez por consulta).
-	await recordMistakes(viewer.uid, report);
-	return report;
+	// Reclamo atómico del cierre: con dos cierres a la vez, solo uno evalúa y
+	// suma los errores. "finalizada" es el paso intermedio: la sesión queda
+	// "evaluada" recién con el informe guardado.
+	let claimed = await store.changeSession(sessionId, {
+		ifStatus: "activa",
+		set: { status: "finalizada", endedAt: Date.now(), closing },
+	});
+	if (!claimed) {
+		const current = await store.getSession(sessionId);
+		// Un cierre que quedó a medias (por ejemplo, Vercel cortó la función)
+		// se retoma pasado un rato; uno en curso, no.
+		const stale =
+			current?.status === "finalizada" &&
+			Date.now() - (current.endedAt ?? 0) > STALE_CLOSING_MS;
+		if (stale)
+			claimed = await store.changeSession(sessionId, {
+				ifStatus: "finalizada",
+				set: { endedAt: Date.now(), closing },
+			});
+		if (!claimed) {
+			const report = await store.getReport(sessionId);
+			if (report) return report;
+			throw new HttpError(
+				409,
+				"La consulta ya se está cerrando. Si no termina, probá de nuevo en un par de minutos.",
+			);
+		}
+	}
+	try {
+		const [turns, events, examActions, vitals] = await Promise.all([
+			store.listTurns(sessionId),
+			store.listEvents(sessionId),
+			store.listExamActions(sessionId),
+			store.listVitals(sessionId),
+		]);
+		const input = {
+			clinicalCase,
+			// El evaluador ve la sesión ya cerrada.
+			session: { ...claimed, status: "evaluada" as const },
+			turns,
+			events,
+			examActions,
+			vitals,
+		};
+		// Con clave, evaluador con IA; sin clave o si falla, juez por reglas.
+		const report = aiEnabled()
+			? await evaluateWithAi(input, completeJson)
+			: evaluate(input);
+		// El informe va antes que el estado: si se corta en el medio, el
+		// próximo intento encuentra el informe y completa el resto.
+		await store.saveReport(report);
+		await completeClosing(sessionId, session.userId, report);
+		return report;
+	} catch (error) {
+		// Si no se llegó a guardar el informe, la consulta vuelve a estar
+		// activa para poder reintentar el cierre.
+		if (!(await store.getReport(sessionId)))
+			await store
+				.changeSession(sessionId, {
+					ifStatus: "finalizada",
+					set: { status: "activa" },
+				})
+				.catch(() => {});
+		throw error;
+	}
 }
 
+// Termina un cierre con el informe ya guardado. El paso finalizada → evaluada
+// es atómico y solo quien lo gana suma los errores al perfil: con dos cierres
+// o reintentos a la vez, se suman como mucho una vez, y la sesión no queda
+// trabada en "finalizada". Si sumar los errores falla, se pierde ese conteo
+// (queda en el log) pero el informe y el cierre siguen bien.
+async function completeClosing(
+	sessionId: string,
+	userId: string,
+	report: Report,
+) {
+	const won = await store.changeSession(sessionId, {
+		ifStatus: "finalizada",
+		set: { status: "evaluada", mistakesRecorded: true },
+	});
+	if (!won) return;
+	await recordMistakes(userId, report).catch((error) =>
+		console.error("No se pudo sumar los errores al perfil", error),
+	);
+}
+
+// Pasado este tiempo, un cierre que no terminó se puede retomar.
+const STALE_CLOSING_MS = 2 * 60 * 1000;
+
 export async function getReport(viewer: Viewer, sessionId: string) {
-	await readableSession(viewer, sessionId);
+	const { session } = await readableSession(viewer, sessionId);
 	const report = await store.getReport(sessionId);
 	if (!report) throw new HttpError(404, "Todavía no hay informe");
+	// Un cierre que se cortó después de guardar el informe se completa acá:
+	// al recargar, la pantalla va directo al informe y nadie vuelve a cerrar.
+	// Solo la dueña (un docente puede leer, no cerrar).
+	if (session.status === "finalizada" && session.userId === viewer.uid)
+		await completeClosing(sessionId, session.userId, report).catch((error) =>
+			console.error("No se pudo completar el cierre", error),
+		);
 	return report;
 }

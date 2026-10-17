@@ -4,7 +4,7 @@ import { requireViewer } from "@/server/auth";
 import { sendTurn } from "@/server/consultation";
 import { handle, readBody } from "@/server/http";
 
-const bodySchema = z.object({ text: z.string().min(1).max(1000) });
+const bodySchema = z.object({ text: z.string().min(1).max(10_000) });
 
 // Versión por texto de la consulta (respaldo de la voz).
 export async function POST(

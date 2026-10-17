@@ -190,6 +190,37 @@ describe("records (almacenamiento de la app web)", () => {
 			t.query(api.records.listRecentSessions, { secret: "otro", limit: 2 }),
 		).rejects.toThrow("No autorizado");
 	});
+
+	test("una sesión con más registros que el presupuesto se borra en varias corridas", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		vi.useFakeTimers();
+		const t = convexTest(schema, modules);
+		await t.run(async (ctx) => {
+			await ctx.db.insert("records", {
+				kind: "session",
+				appId: "larga",
+				ownerId: "gst_a",
+				guest: true,
+				data: {},
+			});
+			for (let i = 0; i < 1500; i++) {
+				await ctx.db.insert("records", {
+					kind: "turn",
+					appId: `t${i}`,
+					sessionId: "larga",
+					data: {},
+				});
+			}
+		});
+		vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+		const purge = () => t.mutation(internal.records.purgeExpiredGuests, {});
+		expect(await purge()).toBe(1000);
+		const left = await t.run((ctx) => ctx.db.query("records").collect());
+		// La sesión sigue hasta que se borran todos sus registros.
+		expect(left.some((r) => r.kind === "session")).toBe(true);
+		expect(await purge()).toBe(501);
+		expect(await t.run((ctx) => ctx.db.query("records").collect())).toEqual([]);
+	});
 });
 
 describe("changeSession (cambios atómicos)", () => {
@@ -245,5 +276,44 @@ describe("changeSession (cambios atómicos)", () => {
 		vi.advanceTimersByTime(1000);
 		expect(await hit("a")).toBe(true);
 		await expect(hit("a", "otro")).rejects.toThrow("No autorizado");
+	});
+
+	test("changeSession con ifEquals aplica solo si el campo sigue igual", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		const t = convexTest(schema, modules);
+		await t.mutation(api.records.put, {
+			secret,
+			kind: "session",
+			appId: "s1",
+			ownerId: "gst_a",
+			data: {
+				id: "s1",
+				status: "activa",
+				consentGiven: false,
+				state: { confianza: 0.5 },
+			},
+		} as never);
+		const change = {
+			ifEquals: { consentGiven: false },
+			set: { consentGiven: true },
+		};
+		const first = await t.mutation(api.records.changeSession, {
+			secret,
+			appId: "s1",
+			change,
+		} as never);
+		const second = await t.mutation(api.records.changeSession, {
+			secret,
+			appId: "s1",
+			change,
+		} as never);
+		expect(first).not.toBeNull();
+		expect(second).toBeNull();
+		const turn = await t.mutation(api.records.changeSession, {
+			secret,
+			appId: "s1",
+			change: { ifEquals: { stateToolTurn: null }, set: { stateToolTurn: 1 } },
+		} as never);
+		expect(turn).not.toBeNull();
 	});
 });

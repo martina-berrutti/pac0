@@ -15,9 +15,14 @@ export async function POST(req: Request) {
 	return handle(async () => {
 		const viewer = await requireProfile();
 		const body = await readBody(req, bodySchema);
-		await limitByIp("sessions");
 		return {
-			sessionId: await startSession(viewer, body.caseId, body.personalityKey),
+			sessionId: await startSession(
+				viewer,
+				body.caseId,
+				body.personalityKey,
+				// El cupo por IP se cuenta solo si la consulta se va a crear.
+				() => limitByIp("sessions"),
+			),
 		};
 	});
 }
