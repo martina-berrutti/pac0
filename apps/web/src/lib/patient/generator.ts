@@ -19,6 +19,7 @@ import {
 	ARCHETYPES,
 	type Archetype,
 	applyPersonalityRequest,
+	mentions,
 } from "./personalities";
 
 export type GenerationRequest = { text: string; personalityKey?: string };
@@ -106,10 +107,12 @@ export function chooseArchetype(text: string, explicitKey?: string): Archetype {
 	const explicit = ARCHETYPES.find((a) => a.key === explicitKey);
 	if (explicit) return explicit;
 	const t = text.toLowerCase();
-	return (
-		ARCHETYPES.find((a) => includesAny(t, a.keywords)) ??
-		(ARCHETYPES[0] as Archetype)
-	);
+	const asked = (a: Archetype) => a.keywords.some((w) => mentions(t, w));
+	// "Una abuela ansiosa": la edad pesa más que el carácter (la ansiedad
+	// se suma después como ajuste).
+	const older = ARCHETYPES.find((a) => a.key === "mayor");
+	if (older && asked(older)) return older;
+	return ARCHETYPES.find(asked) ?? (ARCHETYPES[0] as Archetype);
 }
 
 function parseAge(
@@ -119,7 +122,8 @@ function parseAge(
 	minAge = 16,
 ) {
 	// "100 años" no tiene que leerse como "00 años".
-	const match = text.match(/(?<!\d)(\d{1,3})\s*años/);
+	// "Tos hace 2 años" es un dato de la historia, no la edad.
+	const match = text.match(/(?<!hace\s+)(?<!\d)(\d{1,3})\s*años/);
 	// La plantilla puede pedir una edad mínima (la historia tiene que cerrar).
 	if (match) return Math.max(minAge, Math.min(95, Number(match[1])));
 	if (archetype.key === "mayor") return 68 + Math.floor(rand() * 15);
@@ -166,7 +170,12 @@ function randomPersona(
 ) {
 	return {
 		name: pick(sex === "f" ? FEMALE_NAMES : MALE_NAMES, rand),
-		occupation: age >= 66 ? "jubilado" : pick(OCCUPATIONS, rand),
+		occupation:
+			age >= 66
+				? sex === "f"
+					? "jubilada"
+					: "jubilado"
+				: pick(OCCUPATIONS, rand),
 		chiefComplaint: pick(tpl.chiefComplaints, rand),
 		profile: {
 			edad: `${age} años`,
@@ -222,6 +231,7 @@ export async function generateCase(
 		title: tpl.title,
 		origin: "generado",
 		templateId: tpl.id,
+		createdAt: Date.now(),
 		reviewedBy: null,
 		patient: { name: persona.name, age, occupation: persona.occupation, sex },
 		personality,

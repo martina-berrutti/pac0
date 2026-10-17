@@ -843,3 +843,175 @@ describe("pedidos simultáneos a la misma consulta", () => {
 		expect(after).toBeCloseTo(before - 0.1);
 	});
 });
+
+describe("revisión exhaustiva", () => {
+	test("si Google no da el token, la conexión reservada se devuelve", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "AIza-test");
+		genai.create.mockRejectedValue(new Error("Google caído"));
+		const id = await startSession(ana, lucia.id, "caso");
+		for (let i = 0; i < 8; i++)
+			await expect(createLiveSession(ana, id)).rejects.toThrow("No pudimos");
+		expect((await store.getSession(id))?.voiceStarts ?? 0).toBe(0);
+		genai.create.mockReset();
+	});
+
+	test("los tiempos del examen no tocan una otoscopia", async () => {
+		const { saveExamTimes } = await import("@/server/consultation");
+		const { startOtoscopy } = await import("@/server/otoscopy");
+		const id = await startSession(ana, lucia.id, "caso");
+		const { actionId } = await startOtoscopy(ana, id, "derecho");
+		await expect(saveExamTimes(ana, id, actionId, {})).rejects.toThrow(
+			"no encontrada",
+		);
+	});
+
+	test("paciente por reglas: preguntas de la entrevista no son pedir el diagnóstico", async () => {
+		const { ruleRespond } = await import("@/lib/patient/rule-responder");
+		const { buildPatientBrief } = await import("@/lib/patient/brief");
+		const b = buildPatientBrief(lucia, lucia.personality, "");
+		const st = { confianza: 0.9, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 };
+		const fishing = "para eso vine";
+		expect(
+			ruleRespond(b, st, "hace cuanto que tenes fiebre", 1).text,
+		).not.toContain(fishing);
+		expect(
+			ruleRespond(b, st, "¿tenés algún diagnóstico previo?", 1).text,
+		).not.toContain(fishing);
+		expect(ruleRespond(b, st, "¿Qué tenés?", 1).text).toContain(fishing);
+		expect(ruleRespond(b, st, "¿cuál es tu diagnóstico?", 1).text).toContain(
+			fishing,
+		);
+	});
+
+	test("generador: negaciones y 'abuela ansiosa'", async () => {
+		const { generateCase } = await import("@/lib/patient/generator");
+		const poco = await generateCase(
+			{ text: "dolor de garganta, poco colaborador" },
+			() => 0,
+		);
+		expect(poco.clinicalCase.personality.cooperacion).toBeLessThan(0.5);
+		const callado = await generateCase(
+			{ text: "dolor de garganta, que no hable mucho" },
+			() => 0,
+		);
+		expect(callado.clinicalCase.personality.locuacidad).toBeLessThan(0.5);
+		const abuela = await generateCase(
+			{ text: "una abuela ansiosa con dolor de garganta" },
+			() => 0,
+		);
+		expect(abuela.clinicalCase.patient.age).toBeGreaterThanOrEqual(68);
+		expect(abuela.clinicalCase.personality.ansiedad).toBeGreaterThan(0.8);
+	});
+
+	test("clasificador: pedidos de repetir, empatía en preguntas y 'de verdad'", async () => {
+		const { askedToRepeat, classifyStudentTurn, isLeadingQuestion } =
+			await import("@/lib/patient/turn-classifier");
+		for (const t of ["¿Qué?", "¿Eh?", "¿Perdón?", "¿Cómo dijo, doctor?"])
+			expect(askedToRepeat(t), t).toBe(true);
+		expect(askedToRepeat("¿Qué tal?")).toBe(false);
+		expect(
+			classifyStudentTurn("¿Es normal que tengas fiebre?", []).tags,
+		).not.toContain("empatia");
+		expect(isLeadingQuestion("¿De verdad?")).toBe(false);
+		expect(classifyStudentTurn("tenes fiebre", []).tags).toContain(
+			"pregunta_cerrada",
+		);
+	});
+});
+
+describe("pedidos simultáneos del mismo usuario", () => {
+	test("el manguito se coloca una sola vez", async () => {
+		const { placeCuff, startMeasurement } = await import("@/server/vitals");
+		const id = await startSession(ana, lucia.id, "caso");
+		const { measurementId } = await startMeasurement(ana, id);
+		const results = await Promise.allSettled([
+			placeCuff(ana, id, measurementId, "adecuado", false),
+			placeCuff(ana, id, measurementId, "grande", false),
+		]);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+	});
+
+	test("la otoscopia se termina una sola vez", async () => {
+		const { finishOtoscopy, startOtoscopy } = await import("@/server/otoscopy");
+		const id = await startSession(ana, lucia.id, "caso");
+		const { actionId } = await startOtoscopy(ana, id, "derecho");
+		const record = {
+			hand: "derecha" as const,
+			prep: [],
+			speculum: "adulto" as const,
+			traction: "arriba-atras" as const,
+			roughInsertions: 0,
+			maxDepth: 10,
+			canalMs: 1000,
+			tympanumMs: 1000,
+		};
+		const results = await Promise.allSettled([
+			finishOtoscopy(ana, id, actionId, record),
+			finishOtoscopy(ana, id, actionId, record),
+		]);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+	});
+
+	test("dos consultas cerradas a la vez suman los errores de las dos", async () => {
+		const { recordMistakes, getMistakes } = await import("@/server/mistakes");
+		const report = (tag: string) =>
+			({ mistakes: [{ tag, what: tag, critical: false }] }) as never;
+		const uid = "usr_dos_pestanas";
+		await Promise.all([
+			recordMistakes(uid, report("a")),
+			recordMistakes(uid, report("b")),
+			recordMistakes(uid, report("a")),
+		]);
+		const entries = await getMistakes(uid);
+		expect(entries.find((e) => e.tag === "a")?.count).toBe(2);
+		expect(entries.find((e) => e.tag === "b")?.count).toBe(1);
+	});
+
+	test("el tope diario de consultas no se saltea con pedidos en paralelo", async () => {
+		vi.stubEnv("MAX_SESSIONS_PER_USER_PER_DAY", "2");
+		const dora: Viewer & { alias: string } = { ...ana, uid: "usr_dora" };
+		const results = await Promise.allSettled(
+			Array.from({ length: 5 }, () => startSession(dora, lucia.id, "caso")),
+		);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(2);
+	});
+});
+
+test("la vista de la consulta no muestra la técnica de la otoscopia antes del informe", async () => {
+	const { getSessionView } = await import("@/server/consultation");
+	const { finishOtoscopy, startOtoscopy } = await import("@/server/otoscopy");
+	const id = await startSession(ana, lucia.id, "caso");
+	const { actionId } = await startOtoscopy(ana, id, "derecho");
+	await finishOtoscopy(ana, id, actionId, {
+		hand: "derecha",
+		prep: [],
+		speculum: "adulto",
+		traction: "abajo-atras",
+		roughInsertions: 3,
+		maxDepth: 90,
+		canalMs: 500,
+		tympanumMs: 0,
+	});
+	expect((await store.listExamActions(id))[0]?.technique).toBeDefined();
+	const view = await getSessionView(ana, id);
+	expect(JSON.stringify(view.examActions)).not.toContain("technique");
+});
+
+test("Convex: un paciente de oído generado se puede guardar (claves con tilde)", async () => {
+	const { convexToJson } = await import("convex/values");
+	const { decodeKeys, encodeKeys } = await import("@/server/store");
+	const { generateCase } = await import("@/lib/patient/generator");
+	const { clinicalCase } = await generateCase({
+		text: "un paciente con dolor de oído",
+	});
+	// Tal cual, Convex lo rechaza: así fallaba en producción.
+	expect(() => convexToJson(clinicalCase as never)).toThrow("ASCII");
+	const encoded = encodeKeys(clinicalCase);
+	expect(() => convexToJson(encoded as never)).not.toThrow();
+	expect(decodeKeys(encoded)).toEqual(clinicalCase);
+	// Las claves comunes no cambian: los datos viejos se leen igual.
+	expect(encodeKeys({ fiebre: "sí", $x: 1 })).toEqual({
+		fiebre: "sí",
+		"~k~%24x": 1,
+	});
+});

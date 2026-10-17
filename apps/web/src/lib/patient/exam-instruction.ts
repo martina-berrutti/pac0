@@ -16,8 +16,14 @@ const EXAM_PATTERNS = [
 	/\b(deci|diga|decime|digame)\s+a{2,}/,
 	/\ba{3,}\b/,
 	/\bsac(a|ate|que)\s+(la\s+)?lengua\b/,
-	/\b(revisar|examinar|mirar)(te|le|lo|la)\b/,
-	/\b(puedo|podemos|dejas|deja)\s+(revisar|examinar|mirar)\b/,
+	// Con un verbo que lo pide: "¿puedo revisarte?", "me dejás ver la
+	// garganta". "¿Algún médico llegó a revisarte?" es anamnesis, no examen.
+	// El verbo tiene que apuntar al paciente o a una parte del cuerpo: "vamos a
+	// ver qué te pasa" o "¿puedo ver tus análisis?" no son examen.
+	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)(te|le|lo|la)\b/,
+	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)\s+((la|el|los|las|tu|su)\s+)?(garganta|boca|oido|oidos|oreja|amigdalas|lengua)\b/,
+	// "¿Puedo revisar?" a secas, como frase entera.
+	/\b(puedo|podemos|dejas|deja|dejame|permitis|permite)\s+(revisar|examinar)[\s?!.,]*$/,
 	/\blinterna\b/,
 ];
 const FULL_OPEN_WORDS = [
@@ -49,6 +55,13 @@ const CONSENT_WORDS = [
 	"está bien si",
 	"esta bien si",
 	"te molesta si",
+	"me permitís",
+	"me permitis",
+	"me permite",
+	"le parece",
+	// Al saludar ("hola, con tu permiso") no alcanza: va con el examen.
+	"con tu permiso",
+	"con su permiso",
 ];
 
 function includesAny(text: string, words: string[]) {
@@ -77,18 +90,23 @@ const ASKS_PERMISSION = [
 	"me darías permiso",
 	"tengo permiso",
 	"tengo tu permiso",
-	"con tu permiso",
-	"con su permiso",
 	"pido permiso",
 	"pedirte permiso",
 	"pedirle permiso",
-	"permiso para",
 ];
+// "Permiso para revisarte" sí; "¿pediste permiso para faltar?" no.
+const PERMISSION_FOR_EXAM =
+	/permiso\s+para\s+(revisar|examinar|mirar|ver|tomar|escuchar|tocar)/;
 
 // Permiso para examinar: pedirlo explícitamente, o pedirlo junto con el
 // examen. "¿Puedo preguntarte la edad?" no autoriza a abrirle la boca.
 export function asksConsent(text: string) {
 	if (includesAny(text, ASKS_PERMISSION)) return true;
+	const plain = text
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
+	if (PERMISSION_FOR_EXAM.test(plain)) return true;
 	return includesAny(text, CONSENT_WORDS) && isExamRequest(text);
 }
 

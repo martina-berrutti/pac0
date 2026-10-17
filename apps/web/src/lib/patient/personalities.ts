@@ -108,6 +108,11 @@ const PERSONALITY_TWEAKS: {
 			"no quiere abrir",
 			"no se deje examinar",
 			"no se deja examinar",
+			"poco colaborador",
+			"nada colaborador",
+			"no colabora",
+			"poco amable",
+			"nada amable",
 		],
 		apply: { cooperacion: 0.2 },
 		note: "No te dejás examinar hasta que te expliquen para qué y te pidan permiso.",
@@ -129,7 +134,15 @@ const PERSONALITY_TWEAKS: {
 		note: "Hablás de más y te vas por las ramas.",
 	},
 	{
-		words: ["hable poco", "habla poco", "callad", "monosílab", "cortante"],
+		words: [
+			"hable poco",
+			"habla poco",
+			"no hable mucho",
+			"no habla mucho",
+			"callad",
+			"monosílab",
+			"cortante",
+		],
 		apply: { locuacidad: 0.15 },
 		note: "Respondés con muy pocas palabras.",
 	},
@@ -149,11 +162,26 @@ const PERSONALITY_TWEAKS: {
 		note: "Desconfiás y no contás datos íntimos hasta sentirte en confianza.",
 	},
 	{
-		words: ["muy ansios", "muy nervios", "asustadísim"],
+		words: ["muy ansios", "muy nervios", "asustadísim", "ansios", "nervios"],
 		apply: { ansiedad: 0.95 },
 		note: "Estás muy nervioso y preguntás seguido si es grave.",
 	},
 ];
+
+// Si el texto pide esto, sin negarlo antes: "colaborador" en "poco (o nada)
+// colaborador" o "hable mucho" en "que no hable mucho" no cuentan.
+const NEGATIONS = ["no", "poco", "nada", "sin", "nunca", "ni"];
+
+export function mentions(text: string, word: string) {
+	let from = 0;
+	for (;;) {
+		const i = text.indexOf(word, from);
+		if (i === -1) return false;
+		const before = text.slice(0, i).trim().split(/\s+/).at(-1) ?? "";
+		if (word.startsWith("no ") || !NEGATIONS.includes(before)) return true;
+		from = i + word.length;
+	}
+}
 
 export function applyPersonalityRequest(
 	text: string,
@@ -163,7 +191,7 @@ export function applyPersonalityRequest(
 	let personality = { ...base };
 	const notes: string[] = [];
 	for (const tweak of PERSONALITY_TWEAKS) {
-		if (tweak.words.some((w) => t.includes(w))) {
+		if (tweak.words.some((w) => mentions(t, w))) {
 			personality = { ...personality, ...tweak.apply };
 			notes.push(tweak.note);
 		}

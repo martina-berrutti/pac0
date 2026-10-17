@@ -4,6 +4,11 @@ import { requireViewer } from "@/server/auth";
 import { finishSession } from "@/server/consultation";
 import { handle, readBody } from "@/server/http";
 
+// El evaluador con IA encadena varias llamadas: más tiempo que el que da
+// Vercel por defecto en algunos planes (si se cortara, el cierre quedaría a
+// medias y se retomaría a los 2 minutos).
+export const maxDuration = 60;
+
 const bodySchema = z.object({
 	hypothesis: z.string().trim().min(1, "Escribí tu hipótesis").max(500),
 	differentials: z

@@ -36,6 +36,8 @@ const OUTPUT_RATE = 24_000;
 const MAX_RECONNECTS = 3;
 // Tope para que Google abra la conexión de voz.
 const CONNECT_TIMEOUT_MS = 15_000;
+// Espera para guardar el turno del estudiante cuando empieza el paciente.
+const STUDENT_FLUSH_DELAY_MS = 700;
 // Cuánto se espera a que arranque el audio antes de seguir conectando.
 const RESUME_WAIT_MS = 1_000;
 
@@ -186,6 +188,31 @@ export function useVoice({
 	// Llamadas a herramientas que Gemini canceló (el estudiante interrumpió):
 	// si todavía no se ejecutaron, no se ejecutan ni se responden.
 	const cancelledCalls = useRef(new Set<string>());
+	// Notas para el paciente que llegaron mientras generaba su respuesta.
+	const pendingNotes = useRef<string[]>([]);
+	// Herramientas pedidas por el modelo que todavía no se respondieron: una
+	// nota en ese momento cortaría la respuesta en curso.
+	const toolsPending = useRef(0);
+	// Guardado diferido del turno del estudiante (ver onMessage).
+	const studentFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	// Contexto para el paciente sin hacerlo hablar (turnComplete false). Si el
+	// paciente está generando su respuesta, mandarlo la cortaría (y contaría
+	// como una interrupción del estudiante): espera a que termine su turno.
+	const deliverNote = useCallback((text: string) => {
+		if (st.current.patientTurnStarted || toolsPending.current > 0) {
+			pendingNotes.current.push(text);
+			return;
+		}
+		const target = openSession(live.current);
+		if (!target) return;
+		safeSend(() =>
+			target.sendClientContent({
+				turns: [{ role: "user", parts: [{ text }] }],
+				turnComplete: false,
+			}),
+		);
+	}, []);
 
 	// Todo lo que se manda al servidor va en fila (lib/voice/queue.ts): los
 	// turnos quedan en el orden en que se dijeron, el permiso se anota antes de
@@ -214,6 +241,11 @@ export function useVoice({
 	const stop = useCallback(
 		(reason: "ended" | "error" = "ended") => {
 			attempt.current += 1;
+			if (studentFlushTimer.current) {
+				clearTimeout(studentFlushTimer.current);
+				studentFlushTimer.current = null;
+			}
+			pendingNotes.current = [];
 			// Lo último que se dijo antes de cortar también va al informe.
 			flushPending.current();
 			stopPlayback();
@@ -249,17 +281,10 @@ export function useVoice({
 			)
 				.then(({ nota }) => {
 					// El paciente se entera como contexto, sin que le toque hablar.
-					const target = openSession(live.current);
-					if (nota && target)
-						safeSend(() =>
-							target.sendClientContent({
-								turns: [{ role: "user", parts: [{ text: nota }] }],
-								turnComplete: false,
-							}),
-						);
+					if (nota) deliverNote(nota);
 				})
 				.catch(() => {}),
-		[sessionId, enqueue],
+		[sessionId, enqueue, deliverNote],
 	);
 
 	const saveTurn = useCallback(
@@ -280,24 +305,10 @@ export function useVoice({
 					callbacks.current.onState?.(state);
 					// El clasificador cambió el ánimo del paciente: se lo contamos al
 					// modelo como contexto, sin pedirle que responda (turnComplete false).
-					const target = openSession(live.current);
-					if (stateNote && target) {
-						safeSend(() =>
-							target.sendClientContent({
-								turns: [
-									{
-										role: "user",
-										parts: [
-											{
-												text: `(Nota interna, no la digas en voz alta: así te sentís ahora con el estudiante: ${stateNote}. Que se note en cómo respondés.)`,
-											},
-										],
-									},
-								],
-								turnComplete: false,
-							}),
+					if (stateNote)
+						deliverNote(
+							`(Nota interna, no la digas en voz alta: así te sentís ahora con el estudiante: ${stateNote}. Que se note en cómo respondés.)`,
 						);
-					}
 				} catch (e) {
 					callbacks.current.onError(
 						e instanceof Error ? e.message : "No se guardó un turno",
@@ -305,7 +316,7 @@ export function useVoice({
 				}
 			});
 		},
-		[sessionId, enqueue],
+		[sessionId, enqueue, deliverNote],
 	);
 
 	const flushStudent = useCallback(() => {
@@ -357,7 +368,7 @@ export function useVoice({
 		};
 	}, []);
 
-	const runTools = useCallback(
+	const answerTools = useCallback(
 		async (
 			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
 		) => {
@@ -408,6 +419,20 @@ export function useVoice({
 		[sessionId, enqueue],
 	);
 
+	const runTools = useCallback(
+		async (
+			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
+		) => {
+			toolsPending.current += 1;
+			try {
+				await answerTools(calls);
+			} finally {
+				toolsPending.current -= 1;
+			}
+		},
+		[answerTools],
+	);
+
 	const onMessage = useCallback(
 		(m: LiveServerMessage) => {
 			const s = st.current;
@@ -443,15 +468,29 @@ export function useVoice({
 					// El paciente arranca mientras el estudiante todavía hablaba.
 					if (now - s.lastStudentChunk < 300 && s.studentText.trim())
 						event("interrupcion_paciente");
-					flushStudent();
+					// La transcripción del estudiante suele llegar un poco tarde: se
+					// guarda su turno en un momento, para no partirlo en dos. Si
+					// antes termina el turno del paciente, se guarda ahí (primero).
+					if (studentFlushTimer.current)
+						clearTimeout(studentFlushTimer.current);
+					studentFlushTimer.current = setTimeout(() => {
+						studentFlushTimer.current = null;
+						flushStudent();
+					}, STUDENT_FLUSH_DELAY_MS);
 				}
 				playChunk(data);
 			}
 			if (content?.outputTranscription?.text)
 				s.patientText += content.outputTranscription.text;
 			if (content?.turnComplete) {
+				if (studentFlushTimer.current) {
+					clearTimeout(studentFlushTimer.current);
+					studentFlushTimer.current = null;
+				}
 				flushStudent();
 				flushPatient(false);
+				// Las notas que esperaban al paciente ya se pueden mandar.
+				for (const note of pendingNotes.current.splice(0)) deliverNote(note);
 			}
 			for (const id of m.toolCallCancellation?.ids ?? [])
 				cancelledCalls.current.add(id);
@@ -478,6 +517,7 @@ export function useVoice({
 			}
 		},
 		[
+			deliverNote,
 			enqueue,
 			event,
 			flushPatient,
@@ -565,6 +605,8 @@ export function useVoice({
 			s.lastActivity = Date.now();
 			setStatus("live");
 		} catch (e) {
+			// Si la estudiante cortó mientras reconectaba, no es un error.
+			if (attempt.current !== mine) return;
 			if (e instanceof Error && e.message === "Conexión de voz descartada")
 				return;
 			stop("error");
@@ -683,6 +725,25 @@ export function useVoice({
 			if (cancelled()) return;
 			const node = new AudioWorkletNode(ctx, "p0-capture");
 			ctx.createMediaStreamSource(stream).connect(node);
+			// En Safari un procesador sin salida puede no correr: va a una salida
+			// en silencio.
+			const mute = ctx.createGain();
+			mute.gain.value = 0;
+			node.connect(mute);
+			mute.connect(ctx.destination);
+			// Safari pausa el audio del micrófono (llamada, segundo plano): se
+			// reanuda. Si el micrófono se corta, se avisa en vez de seguir mudo.
+			ctx.onstatechange = () => {
+				if (ctx.state !== "running" && ctx.state !== "closed")
+					ctx.resume().catch(() => {});
+			};
+			stream.getTracks()[0]?.addEventListener?.("ended", () => {
+				if (cancelled() || !live.current) return;
+				stop("error");
+				callbacks.current.onError(
+					"Se cortó el micrófono. Tocá de nuevo “hablar por voz” para seguir.",
+				);
+			});
 			const rate = ctx.sampleRate;
 			const chunk: number[] = [];
 			node.port.onmessage = (e: MessageEvent<Float32Array>) => {
@@ -704,7 +765,8 @@ export function useVoice({
 			};
 
 			setRemainingMs(token.remainingMs);
-			setStatus("live");
+			// Si se cortó mientras cargaba y ya está reconectando, no se pisa.
+			setStatus((st) => (st === "reconnecting" ? st : "live"));
 		} catch (e) {
 			if (cancelled()) return;
 			// Cortó la usuaria mientras conectaba: no es un error.
@@ -793,23 +855,11 @@ export function useVoice({
 
 	// Contexto para el paciente sin hacerlo hablar (turnComplete false): por
 	// ejemplo, que el estudiante terminó de revisarlo.
-	const sendNote = useCallback((note: string) => {
-		const target = openSession(live.current);
-		if (!target) return;
-		safeSend(() =>
-			target.sendClientContent({
-				turns: [
-					{
-						role: "user",
-						parts: [
-							{ text: `(Nota interna, no la digas en voz alta: ${note})` },
-						],
-					},
-				],
-				turnComplete: false,
-			}),
-		);
-	}, []);
+	const sendNote = useCallback(
+		(note: string) =>
+			deliverNote(`(Nota interna, no la digas en voz alta: ${note})`),
+		[deliverNote],
+	);
 
 	const setExamining = useCallback((value: boolean) => {
 		examining.current = value;
