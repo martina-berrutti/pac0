@@ -19,6 +19,11 @@ export type SessionChange = {
 	incVoiceStarts?: boolean;
 	// Solo aplica si la sesión está en este estado; si no, no cambia nada.
 	ifStatus?: Session["status"];
+	// Solo aplica si estos campos siguen valiendo esto (un campo que falta
+	// cuenta como null). Para decidir con el valor actual y no con uno leído
+	// antes: el consentimiento se da una vez, un cambio de ánimo por turno.
+	// Un Convex sin desplegar lo ignora (el cambio llega como v.any()).
+	ifEquals?: { consentGiven?: boolean; stateToolTurn?: number | null };
 };
 
 export const MAX_INVENTED_FACTS = 40;
@@ -31,6 +36,8 @@ export function applySessionChange(
 	change: SessionChange,
 ): Session | null {
 	if (change.ifStatus && session.status !== change.ifStatus) return null;
+	for (const [k, v] of Object.entries(change.ifEquals ?? {}))
+		if ((session[k as keyof Session] ?? null) !== (v ?? null)) return null;
 	const next: Session = { ...session, ...change.set };
 	if (change.stateDelta) {
 		const state = { ...next.state };

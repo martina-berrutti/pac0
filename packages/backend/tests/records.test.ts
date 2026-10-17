@@ -277,4 +277,43 @@ describe("changeSession (cambios atómicos)", () => {
 		expect(await hit("a")).toBe(true);
 		await expect(hit("a", "otro")).rejects.toThrow("No autorizado");
 	});
+
+	test("changeSession con ifEquals aplica solo si el campo sigue igual", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		const t = convexTest(schema, modules);
+		await t.mutation(api.records.put, {
+			secret,
+			kind: "session",
+			appId: "s1",
+			ownerId: "gst_a",
+			data: {
+				id: "s1",
+				status: "activa",
+				consentGiven: false,
+				state: { confianza: 0.5 },
+			},
+		} as never);
+		const change = {
+			ifEquals: { consentGiven: false },
+			set: { consentGiven: true },
+		};
+		const first = await t.mutation(api.records.changeSession, {
+			secret,
+			appId: "s1",
+			change,
+		} as never);
+		const second = await t.mutation(api.records.changeSession, {
+			secret,
+			appId: "s1",
+			change,
+		} as never);
+		expect(first).not.toBeNull();
+		expect(second).toBeNull();
+		const turn = await t.mutation(api.records.changeSession, {
+			secret,
+			appId: "s1",
+			change: { ifEquals: { stateToolTurn: null }, set: { stateToolTurn: 1 } },
+		} as never);
+		expect(turn).not.toBeNull();
+	});
 });

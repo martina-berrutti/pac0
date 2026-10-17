@@ -94,6 +94,11 @@ export const changeSession = mutation({
 			voiceStarts?: number;
 		};
 		if (change.ifStatus && session.status !== change.ifStatus) return null;
+		// Igual que ifEquals en apps/web/src/lib/contracts/session-change.ts.
+		for (const [k, v] of Object.entries(
+			(change.ifEquals ?? {}) as Record<string, unknown>,
+		))
+			if ((session[k] ?? null) !== (v ?? null)) return null;
 		const next = { ...session, ...(change.set ?? {}) };
 		if (change.stateDelta) {
 			const state = { ...next.state };

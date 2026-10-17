@@ -391,10 +391,18 @@ export async function runTool(
 					d === undefined ? d : Math.max(-0.3, Math.min(0.3, d)),
 				]),
 			) as typeof args.delta;
+			// Atómico: si otro pedido ya cambió el ánimo en este turno, este no.
 			const updated = await store.changeSession(sessionId, {
+				ifEquals: { stateToolTurn: session.stateToolTurn ?? null },
 				stateDelta: bounded,
 				set: { stateToolTurn: studentTurns },
 			});
+			if (!updated) {
+				return {
+					output: { ok: false, motivo: "Ya cambiaste tu ánimo en este turno." },
+					ui: { kind: "none" },
+				};
+			}
 			const next = updated?.state ?? applyDelta(session.state, bounded);
 			await store.addEvent({
 				id: newId("evt"),

@@ -29,7 +29,7 @@ import {
 } from "@/lib/patient/exam-instruction";
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
-import { EVENT_DELTAS } from "@/lib/patient/state";
+import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
 import {
 	classifyStudentTurn,
 	stateBand,
@@ -339,13 +339,30 @@ export async function nudgeState(
 // Registra el consentimiento una sola vez y sube la confianza.
 export async function giveConsent(session: Session, atMs: number) {
 	if (session.consentGiven) return session;
+	// Atómico: con dos pedidos a la vez, solo uno lo da (y sube la confianza).
+	const delta = EVENT_DELTAS.consentimiento;
+	const next = await store.changeSession(session.id, {
+		ifEquals: { consentGiven: false },
+		set: { consentGiven: true },
+		stateDelta: delta,
+	});
+	if (!next) return (await store.getSession(session.id)) ?? session;
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
 		type: "consentimiento",
 		atMs,
 	});
-	return nudgeState(session, "consentimiento", atMs, { consentGiven: true });
+	if (delta)
+		await store.addEvent({
+			id: newId("evt"),
+			sessionId: session.id,
+			type: "cambio_animo",
+			atMs,
+			delta,
+			motivo: "consentimiento",
+		});
+	return next;
 }
 
 // Si el estudiante explica o pide permiso, queda registrado el consentimiento.
@@ -417,9 +434,15 @@ export async function classifyStudent(
 	const lastPatient = turns.findLast((t) => t.speaker === "paciente");
 	const c = classifyStudentTurn(text, previous, lastPatient?.text);
 	if (!c.motivo) return { session, tags: c.tags, stateNote: null };
-	const before = stateBand(session.state);
 	const next =
 		(await store.changeSession(session.id, { stateDelta: c.delta })) ?? session;
+	// El nivel de antes sale del estado nuevo (atómico) menos este cambio, no
+	// de una lectura vieja: con otro pedido en el medio, la nota al modelo
+	// podía faltar o sobrar.
+	const undo = Object.fromEntries(
+		Object.entries(c.delta).map(([k, d]) => [k, d === undefined ? d : -d]),
+	) as Partial<PatientState>;
+	const before = stateBand(applyDelta(next.state, undo));
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,

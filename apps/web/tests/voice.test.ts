@@ -808,3 +808,35 @@ test("el cupo por IP se cuenta solo si la consulta se va a crear", async () => {
 	);
 	expect(counted).toHaveBeenCalledTimes(1);
 });
+
+describe("pedidos simultáneos a la misma consulta", () => {
+	test("el consentimiento se da una sola vez", async () => {
+		const { giveConsent } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "hostil");
+		const session = await store.getSession(id);
+		if (!session) throw new Error("sin sesión");
+		await Promise.all([giveConsent(session, 1000), giveConsent(session, 1000)]);
+		const events = await store.listEvents(id);
+		expect(events.filter((e) => e.type === "consentimiento")).toHaveLength(1);
+		expect(events.filter((e) => e.motivo === "consentimiento")).toHaveLength(1);
+	});
+
+	test("un solo cambio de ánimo del modelo por turno", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await recordVoiceTurn(ana, id, "estudiante", "Hola, ¿cómo estás?", false);
+		const before = (await store.getSession(id))?.state.confianza ?? 0;
+		const runs = await Promise.all([
+			runTool(ana, id, "actualizar_estado", {
+				delta: { confianza: -0.1 },
+				motivo: "a",
+			}),
+			runTool(ana, id, "actualizar_estado", {
+				delta: { confianza: -0.1 },
+				motivo: "b",
+			}),
+		]);
+		expect(runs.filter((r) => r.output.ok === true)).toHaveLength(1);
+		const after = (await store.getSession(id))?.state.confianza ?? 0;
+		expect(after).toBeCloseTo(before - 0.1);
+	});
+});
