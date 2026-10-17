@@ -5,6 +5,11 @@ import type { ChecklistItem } from "@/cases/schema";
 import type { ItemResult } from "@/lib/contracts/report";
 import type { Turn } from "@/lib/contracts/session";
 import { MARK_TOLERANCE } from "@/lib/exam/blood-pressure";
+import {
+	describeEars,
+	MIN_LOOK_MS,
+	otoscopyScenario,
+} from "@/lib/exam/otoscope";
 
 import { type Extracted, extract } from "./extractor";
 import type { EvaluationInput } from "./types";
@@ -82,24 +87,44 @@ export function creditSeenZones(
 	result: ItemResult,
 	extracted: Extracted,
 ): ItemResult {
-	const { fullExam, zonesSeen } = extracted;
-	if (
-		result.itemId !== DESCRIBE_ITEM ||
-		result.status !== "no" ||
-		!fullExam ||
-		zonesSeen.length === 0
-	)
-		return result;
-	return {
-		...result,
-		status: "parcial",
-		evidence: [
-			{
-				examActionId: fullExam.id,
-				quote: `viste ${zonesSeen.join(", ")} pero no lo describiste`,
-			},
-		],
-	};
+	if (result.itemId !== DESCRIBE_ITEM || result.status !== "no") return result;
+	const { fullExam, zonesSeen, otoscopies } = extracted;
+	const looked = otoscopies.find(
+		(a) =>
+			(a.hotspotTimesMs.conducto ?? 0) >= MIN_LOOK_MS ||
+			(a.hotspotTimesMs.timpano ?? 0) >= MIN_LOOK_MS,
+	);
+	const evidence =
+		fullExam && zonesSeen.length > 0
+			? {
+					examActionId: fullExam.id,
+					quote: `viste ${zonesSeen.join(", ")} pero no lo describiste`,
+				}
+			: looked
+				? {
+						examActionId: looked.id,
+						quote: "miraste el oído pero no describiste lo que viste",
+					}
+				: null;
+	return evidence
+		? { ...result, status: "parcial", evidence: [evidence] }
+		: result;
+}
+
+// Lo que tenía que describir: el hallazgo de la boca bien abierta o, si hizo
+// otoscopia, el de los oídos. Sin examen que lo muestre, null.
+export function expectedFinding(
+	input: EvaluationInput,
+	extracted: Extracted,
+): string | null {
+	const { clinicalCase } = input;
+	if (extracted.fullExam)
+		return clinicalCase.exam[extracted.fullExam.zone]?.expected ?? null;
+	if (extracted.otoscopies.length > 0)
+		return describeEars(
+			otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
+		);
+	return null;
 }
 
 function judgeExamAction(

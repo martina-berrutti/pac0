@@ -13,6 +13,7 @@ import {
 	spotFor,
 	ZONE_LABELS,
 } from "@/lib/exam/oropharynx";
+import { EAR_PHOTOS } from "@/lib/exam/otoscope";
 
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const credits = readFileSync(
@@ -36,10 +37,11 @@ describe("abatelenguas", () => {
 	});
 });
 
-describe("fotos de la orofaringe", () => {
+describe("fotos de la orofaringe y del oído", () => {
 	const photos = Object.entries(OROPHARYNX_PHOTOS);
+	const all = [...photos, ...Object.entries(EAR_PHOTOS)];
 
-	test.each(photos)("%s: el archivo existe y está en CREDITS.md", (_, p) => {
+	test.each(all)("%s: el archivo existe y está en CREDITS.md", (_, p) => {
 		expect(p.src.startsWith("/exam/")).toBe(true);
 		expect(existsSync(`${publicDir}${p.src}`)).toBe(true);
 		expect(credits).toContain(`apps/web/public${p.src}`);
@@ -75,5 +77,19 @@ describe("fotos de la orofaringe", () => {
 		expect(spotFor("uvula", photo)).toEqual({ x: 1, y: 2, r: 3 });
 		expect(spotFor("lengua", photo)).toEqual(SCHEMATIC_SPOTS.lengua);
 		expect(spotFor("uvula", null)).toEqual(SCHEMATIC_SPOTS.uvula);
+	});
+});
+
+describe("registro de fotos del oído", () => {
+	test("las claves son conducto-<hallazgo> o timpano-<hallazgo>", () => {
+		const valid = new Set([
+			"conducto-sano",
+			"conducto-eritema",
+			"conducto-secrecion",
+			"timpano-nacarado",
+			"timpano-eritematoso",
+			"timpano-abombado",
+		]);
+		for (const key of Object.keys(EAR_PHOTOS)) expect(valid).toContain(key);
 	});
 });

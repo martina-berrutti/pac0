@@ -170,6 +170,7 @@ export type Extracted = {
 	zonesSeen: string[];
 	// Zonas vistas sobre las zonas del caso, de 0 a 1.
 	zoneCoverage: number;
+	// Primera boca u otoscopia: desde ahí cuenta describir lo que vio.
 	firstExamMs: number | null;
 	// Primer examen (boca no negada, otoscopia o presión) antes del
 	// consentimiento.
@@ -178,7 +179,7 @@ export type Extracted = {
 	// inesperado, el afiche pide repetir, y vale la última); si no marcó
 	// ninguna, la última que empezó.
 	bp: VitalsMeasurement | null;
-	// Otoscopias terminadas (con pasos y errores calculados).
+	// Otoscopias terminadas (con pasos y errores calculados), en orden.
 	otoscopies: ExamAction[];
 	studentInterruptions: SessionEvent[];
 	// Si hubo algún examen o medición que el paciente no negó.
@@ -231,6 +232,9 @@ export function extract(input: EvaluationInput): Extracted {
 		...vitals.map((v) => ({ id: v.id, atMs: v.atMs })),
 	].sort((a, b) => a.atMs - b.atMs);
 	const measured = vitals.filter((v) => v.marked);
+	const otoscopies = examActions
+		.filter((a) => a.maneuver === OTOSCOPY && a.technique !== undefined)
+		.sort((a, b) => a.startMs - b.startMs);
 
 	const ordered = [...turns].sort((a, b) => a.startMs - b.startMs);
 	const studentTurns = ordered.filter((t) => t.speaker === "estudiante");
@@ -266,13 +270,14 @@ export function extract(input: EvaluationInput): Extracted {
 		hotspotMs,
 		zonesSeen,
 		zoneCoverage,
-		firstExamMs: mouth[0]?.startMs ?? null,
+		firstExamMs:
+			[mouth[0]?.startMs, ...otoscopies.map((a) => a.startMs)]
+				.filter((ms): ms is number => ms !== undefined)
+				.sort((a, b) => a - b)[0] ?? null,
 		examWithoutConsent:
 			examined.find((a) => consentAt === null || a.atMs < consentAt) ?? null,
 		bp: measured.at(-1) ?? vitals.at(-1) ?? null,
-		otoscopies: examActions.filter(
-			(a) => a.maneuver === OTOSCOPY && a.technique !== undefined,
-		),
+		otoscopies,
 		studentInterruptions: events.filter(
 			(e) => e.type === "interrupcion_estudiante",
 		),

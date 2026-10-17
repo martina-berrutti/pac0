@@ -14,6 +14,7 @@ import type { Extracted } from "./extractor";
 import {
 	ACTION_ITEMS,
 	DESCRIBE_ITEM,
+	expectedFinding,
 	findTurn,
 	judgeItem,
 	normalize,
@@ -69,8 +70,10 @@ function itemLine(
 	extracted: Extracted,
 ) {
 	if (item.id !== DESCRIBE_ITEM) return `- ${item.id}: ${item.item}`;
-	const zone = extracted.fullExam ?? extracted.partialExam;
-	const expected = zone ? input.clinicalCase.exam[zone.zone]?.expected : null;
+	const partial = extracted.partialExam;
+	const expected =
+		expectedFinding(input, extracted) ??
+		(partial ? input.clinicalCase.exam[partial.zone]?.expected : null);
 	const from = extracted.firstExamMs;
 	return `- ${item.id}: ${item.item}. Solo cuentan turnos desde el segundo ${
 		from === null ? "(no examinó)" : Math.round(from / 1000)

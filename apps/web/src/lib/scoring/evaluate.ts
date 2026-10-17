@@ -10,7 +10,11 @@ import {
 } from "@/lib/contracts/report";
 
 import { MARK_TOLERANCE, TECHNIQUE } from "@/lib/exam/blood-pressure";
-import { OTOSCOPY_TECHNIQUE } from "@/lib/exam/otoscope";
+import {
+	affectedEar,
+	OTOSCOPY_TECHNIQUE,
+	otoscopyScenario,
+} from "@/lib/exam/otoscope";
 
 import {
 	dimensionScore,
@@ -22,7 +26,12 @@ import {
 	verdictFor,
 } from "./engine";
 import { type Extracted, extract } from "./extractor";
-import { DESCRIBE_ITEM, judgeItem, normalize } from "./rule-judge";
+import {
+	DESCRIBE_ITEM,
+	expectedFinding,
+	judgeItem,
+	normalize,
+} from "./rule-judge";
 import type { EvaluationInput, Penalty } from "./types";
 
 const STUDIES = [
@@ -59,6 +68,7 @@ export const SOURCES = {
 	comunicacion: "Lista de cotejo de la facultad: construye una relación",
 	presion: "Afiche HC-01 del Centro de Simulación: presión arterial",
 	otoscopia: "Afiche HC-02 del Centro de Simulación: otoscopia",
+	caso: "Lista de cotejo del caso",
 } as const;
 
 export type Reasoning = { score: number; notes: string[] };
@@ -198,6 +208,51 @@ function otoscopyPenalties({ otoscopies }: Extracted): Penalty[] {
 		nextTime: OTOSCOPY_TECHNIQUE[e].tip,
 		source: SOURCES.otoscopia,
 	}));
+}
+
+// Hallazgos del caso en la otoscopia: examinar los dos oídos (el sano es la
+// referencia) y empezar por el sano. Solo si el caso tiene un oído afectado.
+function earPenalties(
+	{ clinicalCase }: EvaluationInput,
+	{ otoscopies }: Extracted,
+): Penalty[] {
+	if (otoscopies.length === 0) return [];
+	const affected = affectedEar(
+		otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
+	);
+	if (!affected) return [];
+	const ears = otoscopies.map((a) =>
+		a.zone === "oido-izquierdo" ? "izquierdo" : "derecho",
+	);
+	const out: Penalty[] = [];
+	const missing = (["derecho", "izquierdo"] as const).find(
+		(e) => !ears.includes(e),
+	);
+	if (missing) {
+		out.push({
+			dimension: "examen",
+			points: 2,
+			tag: "otoscopia-un-oido",
+			what:
+				missing === affected
+					? `No examinaste el oído que le duele (el ${missing}).`
+					: `Examinaste solo el oído ${affected}, sin compararlo con el sano.`,
+			why: "Se examinan los dos oídos: el sano es la referencia para reconocer lo anormal.",
+			nextTime: "Examiná los dos oídos, empezando por el sano.",
+			source: SOURCES.caso,
+		});
+	} else if (ears[0] === affected) {
+		out.push({
+			dimension: "examen",
+			points: 1,
+			tag: "otoscopia-orden",
+			what: `Empezaste por el oído que le duele (el ${affected}).`,
+			why: "Empezar por el sano evita llevar secreción al otro oído y te da la referencia de lo normal.",
+			nextTime: "Empezá la otoscopia por el oído sano.",
+			source: SOURCES.caso,
+		});
+	}
+	return out;
 }
 
 // Tensiómetro: 2 puntos de examen por cada error de técnica y por cada valor
@@ -350,18 +405,17 @@ function isAlarm(i: ItemResult) {
 }
 
 // Lo que el estudiante dijo que vio contra el hallazgo esperado del caso.
-// Solo si hubo apertura completa: sin ella no había nada que describir.
+// Solo si hubo apertura completa u otoscopia: sin eso no había nada que
+// describir.
 function describeMistake(
 	items: ItemResult[],
 	extracted: Extracted,
-	clinicalCase: EvaluationInput["clinicalCase"],
+	input: EvaluationInput,
 ): Mistake | null {
 	const item = items.find(
 		(i) => i.itemId === DESCRIBE_ITEM && i.status !== "si",
 	);
-	const expected = extracted.fullExam
-		? clinicalCase.exam[extracted.fullExam.zone]?.expected
-		: undefined;
+	const expected = expectedFinding(input, extracted);
 	if (!item || !expected) return null;
 	const sawOnly = item.evidence.some((e) => e.examActionId);
 	const what = sawOnly
@@ -391,6 +445,7 @@ export function assembleReport(
 	const { clinicalCase } = input;
 	const pens = [
 		...penalties(extracted),
+		...earPenalties(input, extracted),
 		...jumpedToDiagnosis(input, items, extracted),
 	];
 	const turnText = new Map(extracted.studentTurns.map((t) => [t.id, t.text]));
@@ -421,7 +476,7 @@ export function assembleReport(
 	}
 
 	const mistakes: Mistake[] = criticalMistakes(items, extracted);
-	const description = describeMistake(items, extracted, clinicalCase);
+	const description = describeMistake(items, extracted, input);
 	if (description) mistakes.push(description);
 	for (const i of items.filter(
 		(x) =>

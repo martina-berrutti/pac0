@@ -132,6 +132,50 @@ export function otoscopyScenario(
 	};
 }
 
+const EARS: Ear[] = ["derecho", "izquierdo"];
+
+function isNormal(a: EarAppearance) {
+	return a.canal === NORMAL.canal && a.tympanum === NORMAL.tympanum;
+}
+
+// El oído con hallazgos, si hay uno solo. Con los dos afectados (o ninguno),
+// no hay un oído sano por donde empezar.
+export function affectedEar(scenario: OtoscopyScenario): Ear | null {
+	const affected = EARS.filter((e) => !isNormal(scenario.appearance[e]));
+	return affected.length === 1 ? (affected[0] ?? null) : null;
+}
+
+const CANAL_TEXT: Record<EarAppearance["canal"], string> = {
+	sano: "conducto sano",
+	eritema: "conducto enrojecido",
+	secrecion: "conducto enrojecido con secreción",
+};
+const TYMPANUM_TEXT: Record<EarAppearance["tympanum"], string> = {
+	nacarado: "tímpano nacarado con triángulo luminoso",
+	eritematoso: "tímpano enrojecido",
+	abombado: "tímpano abombado",
+};
+
+// El hallazgo esperado en palabras, para el informe y el juez con IA.
+export function describeEars(scenario: OtoscopyScenario) {
+	return EARS.map((e) => {
+		const a = scenario.appearance[e];
+		return `oído ${e}: ${isNormal(a) ? "normal" : `${CANAL_TEXT[a.canal]}, ${TYMPANUM_TEXT[a.tympanum]}`}`;
+	}).join("; ");
+}
+
+export type EarPhoto = { src: string; alt: string; credit: string };
+
+// Fotos por hallazgo: "conducto-<canal>" y "timpano-<tímpano>" (EarAppearance).
+// Mismas reglas que las de la orofaringe (lib/exam/oropharynx.ts): archivo en
+// apps/web/public/exam/, registrado en CREDITS.md, nunca generado con IA. Sin
+// foto, la vista del otoscopio dibuja el esquema.
+export const EAR_PHOTOS: Record<string, EarPhoto> = {};
+
+export function earPhoto(part: "conducto" | "timpano", value: string) {
+	return EAR_PHOTOS[`${part}-${value}`] ?? null;
+}
+
 const EXPLAIN_WORDS = ["oido", "otoscop", "orejas", "la oreja"];
 const PREP_ERRORS: Record<OtoscopyPrep, OtoscopyError> = {
 	higiene: "sin-higiene",

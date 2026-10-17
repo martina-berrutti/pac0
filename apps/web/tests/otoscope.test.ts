@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { caseBank } from "@/cases";
 import type { ClinicalCase } from "@/cases/schema";
 import {
 	type ExamAction,
@@ -7,7 +8,12 @@ import {
 	type OtoscopyRecord,
 } from "@/lib/contracts/exam";
 import type { Turn } from "@/lib/contracts/session";
-import { assessOtoscopy, otoscopyScenario } from "@/lib/exam/otoscope";
+import {
+	affectedEar,
+	assessOtoscopy,
+	describeEars,
+	otoscopyScenario,
+} from "@/lib/exam/otoscope";
 import { evaluate } from "@/lib/scoring/evaluate";
 
 import { goodStudent, lucia } from "./helpers";
@@ -169,5 +175,116 @@ describe("evaluación de la otoscopia", () => {
 		expect(status([otoscopy({ steps: [], errors: ["sin-higiene"] })])).toBe(
 			"parcial",
 		);
+	});
+});
+
+describe("hallazgos de oído por caso", () => {
+	const diego = caseBank.find((c) => c.id === "oido-01") as ClinicalCase;
+	const ear = (zone: "oido-derecho" | "oido-izquierdo", startMs: number) => ({
+		...otoscopy({ steps: [], errors: [] }),
+		id: `oto-${zone}`,
+		zone,
+		startMs,
+	});
+	// El buen estudiante con el caso de Diego y solo estas otoscopias.
+	function withDiego(actions: ExamAction[], c: ClinicalCase = diego) {
+		const input = goodStudent();
+		return { ...input, clinicalCase: c, examActions: actions };
+	}
+	const tags = (actions: ExamAction[]) =>
+		evaluate(withDiego(actions)).mistakes.map((m) => m.tag);
+
+	test("Diego tiene el oído derecho afectado; Lucía, ninguno", () => {
+		const s = otoscopyScenario("oido-01", diego.patient.age);
+		expect(affectedEar(s)).toBe("derecho");
+		expect(describeEars(s)).toBe(
+			"oído derecho: conducto enrojecido con secreción, tímpano nacarado con triángulo luminoso; oído izquierdo: normal",
+		);
+		expect(affectedEar(adult)).toBeNull();
+	});
+
+	test("examinar los dos oídos empezando por el sano no resta", () => {
+		const t = tags([
+			ear("oido-izquierdo", 100_000),
+			ear("oido-derecho", 120_000),
+		]);
+		expect(t).not.toContain("otoscopia-un-oido");
+		expect(t).not.toContain("otoscopia-orden");
+	});
+
+	test("empezar por el oído que le duele resta 1", () => {
+		const report = evaluate(
+			withDiego([ear("oido-derecho", 100_000), ear("oido-izquierdo", 120_000)]),
+		);
+		const m = report.mistakes.find((x) => x.tag === "otoscopia-orden");
+		expect(m?.what).toContain("derecho");
+		expect(m?.source).toBe("Lista de cotejo del caso");
+	});
+
+	test("un solo oído resta 2, y dice cuál faltó", () => {
+		const onlySick = evaluate(withDiego([ear("oido-derecho", 100_000)]));
+		expect(
+			onlySick.mistakes.find((m) => m.tag === "otoscopia-un-oido")?.what,
+		).toContain("sin compararlo con el sano");
+		const onlyHealthy = evaluate(withDiego([ear("oido-izquierdo", 100_000)]));
+		expect(
+			onlyHealthy.mistakes.find((m) => m.tag === "otoscopia-un-oido")?.what,
+		).toContain("No examinaste el oído que le duele");
+	});
+
+	test("sin oído afectado en el caso, un solo oído no resta", () => {
+		expect(
+			evaluate(withDiego([ear("oido-derecho", 100_000)], lucia)).mistakes.map(
+				(m) => m.tag,
+			),
+		).not.toContain("otoscopia-un-oido");
+	});
+
+	describe("describir lo que vio en el oído", () => {
+		const withDescribe: ClinicalCase = {
+			...diego,
+			expectedChecklist: [
+				...diego.expectedChecklist,
+				{
+					id: "describe-hallazgo",
+					item: "describe lo que vio en el oído",
+					dimension: "examen",
+					weight: 2,
+					keywords: ["secreción", "rojo", "enrojecido"],
+				},
+			],
+		};
+		const both = [ear("oido-izquierdo", 100_000), ear("oido-derecho", 120_000)];
+		const turn = (text: string): Turn => ({
+			id: "d1",
+			sessionId: "s1",
+			speaker: "estudiante",
+			text,
+			startMs: 125_000,
+			endMs: 125_000,
+			overlap: false,
+		});
+
+		test("miró sin describir: parcial y muestra lo esperado", () => {
+			const report = evaluate(withDiego(both, withDescribe));
+			expect(
+				report.items.find((i) => i.itemId === "describe-hallazgo")?.status,
+			).toBe("parcial");
+			expect(
+				report.mistakes.find((m) => m.tag === "describe-hallazgo")?.what,
+			).toContain("conducto enrojecido con secreción");
+		});
+
+		test("lo describió: cumplido", () => {
+			const input = withDiego(both, withDescribe);
+			input.turns = [
+				...input.turns,
+				turn("Veo el conducto derecho rojo con secreción."),
+			];
+			expect(
+				evaluate(input).items.find((i) => i.itemId === "describe-hallazgo")
+					?.status,
+			).toBe("si");
+		});
 	});
 });
