@@ -15,6 +15,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Turn } from "@/lib/contracts/session";
+import { timeoutSignal } from "@/lib/timeout-signal";
 import { createWriteQueue } from "@/lib/voice/queue";
 import type { ToolRun, ToolUi } from "@/server/voice";
 
@@ -51,6 +52,9 @@ type Options = {
 	onTool: (ui: ToolUi) => void;
 	onEnd: () => void;
 	onError: (message: string) => void;
+	// Hay un examen abierto (linterna, tensiómetro, otoscopio): el estudiante
+	// está callado porque examina, no es un silencio largo.
+	examOpen?: boolean;
 };
 
 // Las escrituras van en fila: un pedido colgado trabaría todos los que
@@ -64,7 +68,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify(body),
-			signal: AbortSignal.timeout(POST_TIMEOUT_MS),
+			signal: timeoutSignal(POST_TIMEOUT_MS),
 		});
 	} catch {
 		throw new Error("El servidor no respondió. Revisá la conexión.");
@@ -142,6 +146,7 @@ export function useVoice({
 	onTool,
 	onEnd,
 	onError,
+	examOpen = false,
 }: Options) {
 	const [status, setStatus] = useState<VoiceStatus>("idle");
 	const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -173,6 +178,11 @@ export function useVoice({
 	});
 	const callbacks = useRef({ onTurn, onTool, onEnd, onError });
 	callbacks.current = { onTurn, onTool, onEnd, onError };
+	const examOpenRef = useRef(examOpen);
+	// Llamadas a herramientas que Gemini canceló (el estudiante interrumpió):
+	// si todavía no se ejecutaron, no se ejecutan ni se responden.
+	const cancelledCalls = useRef(new Set<string>());
+	examOpenRef.current = examOpen;
 
 	// Todo lo que se manda al servidor va en fila (lib/voice/queue.ts): los
 	// turnos quedan en el orden en que se dijeron, el permiso se anota antes de
@@ -318,7 +328,8 @@ export function useVoice({
 		const o = out.current;
 		if (!o) return;
 		// Si el navegador dejó el audio suspendido al conectar, otro intento.
-		if (o.ctx.state === "suspended") o.ctx.resume().catch(() => {});
+		// Safari también lo deja "interrupted" al volver de segundo plano.
+		if (o.ctx.state !== "running") o.ctx.resume().catch(() => {});
 		const samples = pcm16ToFloat(base64);
 		const buffer = o.ctx.createBuffer(1, samples.length, OUTPUT_RATE);
 		buffer.copyToChannel(samples, 0);
@@ -351,10 +362,15 @@ export function useVoice({
 			const functionResponses: FunctionResponse[] = [];
 			for (const call of calls) {
 				let output: Record<string, unknown>;
+				let skipped = false;
 				try {
 					const run = await enqueue(() => {
 						if (conn.current !== gen)
 							return Promise.reject(new Error("La voz se cortó"));
+						if (call.id && cancelledCalls.current.has(call.id)) {
+							skipped = true;
+							return Promise.reject(new Error("Llamada cancelada"));
+						}
 						return post<ToolRun>(`/api/sessions/${sessionId}/tools`, {
 							name: call.name,
 							arguments: call.args ?? {},
@@ -367,13 +383,19 @@ export function useVoice({
 						error: e instanceof Error ? e.message : "falló la herramienta",
 					};
 				}
+				if (skipped) continue;
 				functionResponses.push({
 					id: call.id,
 					name: call.name,
 					response: output,
 				});
 			}
-			if (target && live.current === target && openSession(target))
+			if (
+				functionResponses.length > 0 &&
+				target &&
+				live.current === target &&
+				openSession(target)
+			)
 				safeSend(() => target.sendToolResponse({ functionResponses }));
 		},
 		[sessionId, enqueue],
@@ -424,6 +446,8 @@ export function useVoice({
 				flushStudent();
 				flushPatient(false);
 			}
+			for (const id of m.toolCallCancellation?.ids ?? [])
+				cancelledCalls.current.add(id);
 			if (m.toolCall?.functionCalls?.length) {
 				flushStudent();
 				runTools(m.toolCall.functionCalls);
@@ -633,6 +657,8 @@ export function useVoice({
 			);
 			await ctx.audioWorklet.addModule(url);
 			URL.revokeObjectURL(url);
+			// Se cortó mientras cargaba el procesador: no se marca "en línea".
+			if (cancelled()) return;
 			const node = new AudioWorkletNode(ctx, "p0-capture");
 			ctx.createMediaStreamSource(stream).connect(node);
 			const rate = ctx.sampleRate;
@@ -684,6 +710,9 @@ export function useVoice({
 			}
 			const patientPlaying = (out.current?.sources.size ?? 0) > 0;
 			const studentActive = now - s.lastStudentChunk < SPEAKING_WINDOW_MS;
+			// Examinando en silencio no cuenta: el reloj del silencio arranca de
+			// nuevo al cerrar el examen.
+			if (examOpenRef.current) s.lastActivity = now;
 			const quietFor = now - s.lastActivity;
 			if (
 				!patientPlaying &&

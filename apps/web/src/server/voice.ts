@@ -15,6 +15,7 @@ import {
 } from "@/lib/contracts/session";
 import { buildPatientPrompt, type PatientBrief } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
+import { asciiKey } from "@/lib/patient/keys";
 import { applyDelta } from "@/lib/patient/state";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
 import { pickVoice } from "@/lib/patient/voices";
@@ -270,15 +271,8 @@ export async function runTool(
 			// El oído se examina con el otoscopio de la pantalla (Persona 2): la
 			// herramienta lo abre y el paciente se queda quieto.
 			if (/o[ií]do|oreja/i.test(args.zona)) {
-				if (args.consentimiento && !session.consentGiven) {
-					await store.addEvent({
-						id: newId("evt"),
-						sessionId,
-						type: "consentimiento",
-						atMs: elapsed,
-					});
-					await store.updateSession(sessionId, { consentGiven: true });
-				}
+				// Igual que la garganta: registra el permiso y sube la confianza.
+				if (args.consentimiento) await giveConsent(session, elapsed);
 				return {
 					output: {
 						disponible: true,
@@ -384,16 +378,19 @@ export async function runTool(
 		}
 		case "anotar_dato": {
 			const args = toolArgs.anotar_dato.parse(rawArgs);
+			// La clave la inventa el modelo ("año de nacimiento"): en ASCII, o
+			// Convex rechaza la sesión entera.
+			const clave = asciiKey(args.clave);
 			const facts = { ...session.inventedFacts };
 			// Solo datos nuevos: lo que ya estaba en la historia no se pisa.
 			const known =
-				Object.hasOwn(clinicalCase.hiddenHistory, args.clave) ||
-				Object.hasOwn(clinicalCase.profile, args.clave) ||
-				Object.hasOwn(session.historyOverrides, args.clave);
+				Object.hasOwn(clinicalCase.hiddenHistory, clave) ||
+				Object.hasOwn(clinicalCase.profile, clave) ||
+				Object.hasOwn(session.historyOverrides, clave);
 			const room =
-				Object.hasOwn(facts, args.clave) || Object.keys(facts).length < 40;
+				Object.hasOwn(facts, clave) || Object.keys(facts).length < 40;
 			if (!known && room) {
-				facts[args.clave] = args.valor;
+				facts[clave] = args.valor;
 				await store.updateSession(sessionId, { inventedFacts: facts });
 			}
 			return { output: { ok: true }, ui: { kind: "none" } };

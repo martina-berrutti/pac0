@@ -705,3 +705,61 @@ describe("repetir cuando el paciente lo pide no es una pregunta repetida", () =>
 		expect(r.stateRepeat).toBe(true);
 	});
 });
+
+describe("revisión independiente", () => {
+	test("el id de un caso generado no revela la plantilla y el otoscopio sigue andando", async () => {
+		const { generateCase } = await import("@/lib/patient/generator");
+		const { startOtoscopy } = await import("@/server/otoscopy");
+		const { toSummary } = await import("@/cases/schema");
+		const { clinicalCase } = await generateCase({
+			text: "un paciente con dolor de oído",
+		});
+		expect(clinicalCase.id).not.toContain("otitis");
+		expect(JSON.stringify(toSummary(clinicalCase))).not.toContain("otitis");
+		await store.addGeneratedCase(ana.uid, clinicalCase);
+		const id = await startSession(ana, clinicalCase.id, "caso");
+		const { appearance } = await startOtoscopy(ana, id, "derecho");
+		expect(appearance.canal).toBe("secrecion");
+	});
+
+	test("las claves que inventa el modelo quedan en ASCII (Convex no acepta otras)", async () => {
+		const { asciiKey } = await import("@/lib/patient/keys");
+		expect(asciiKey("Año de nacimiento")).toBe("ano_de_nacimiento");
+		expect(asciiKey("$ocupación")).toBe("ocupacion");
+		expect(asciiKey("¿?")).toBe("dato");
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "anotar_dato", {
+			clave: "con quién vive",
+			valor: "con mi hermana",
+		});
+		const keys = Object.keys((await store.getSession(id))?.inventedFacts ?? {});
+		expect(keys).toEqual(["con_quien_vive"]);
+		const { personaSchema } = await import("@/lib/patient/generator");
+		const persona = personaSchema.parse({
+			name: "Ana",
+			occupation: "docente",
+			chiefComplaint: "Me duele la garganta",
+			profile: { "situación laboral": "docente" },
+		});
+		expect(Object.keys(persona.profile)).toEqual(["situacion_laboral"]);
+	});
+
+	test("si se corta después de guardar el informe, el reintento suma los errores una vez", async () => {
+		const mistakes = await import("@/server/mistakes");
+		const { finishSession } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "caso");
+		const spy = vi
+			.spyOn(mistakes, "recordMistakes")
+			.mockRejectedValueOnce(new Error("Convex caído"));
+		await expect(finishSession(ana, id, "faringitis", [])).rejects.toThrow(
+			"Convex caído",
+		);
+		spy.mockRestore();
+		const record = vi.spyOn(mistakes, "recordMistakes");
+		await finishSession(ana, id, "faringitis", []);
+		await finishSession(ana, id, "faringitis", []);
+		expect(record).toHaveBeenCalledTimes(1);
+		expect((await store.getSession(id))?.status).toBe("evaluada");
+		record.mockRestore();
+	});
+});

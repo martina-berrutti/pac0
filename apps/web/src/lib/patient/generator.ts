@@ -13,6 +13,8 @@ import {
 } from "@/cases/templates";
 import { completeJson } from "@/server/ai";
 
+import { asciiKey } from "./keys";
+
 import {
 	ARCHETYPES,
 	type Archetype,
@@ -144,7 +146,15 @@ export const personaSchema = z.object({
 	// La historia clínica de la plantilla igual gana (brief.ts la mezcla después).
 	profile: z
 		.record(z.string().max(30), z.string().max(120))
-		.transform((p) => Object.fromEntries(Object.entries(p).slice(0, 6))),
+		// Claves en ASCII ("con quién vive" → "con_quien_vive"): Convex no acepta
+		// otras como nombre de campo.
+		.transform((p) =>
+			Object.fromEntries(
+				Object.entries(p)
+					.slice(0, 6)
+					.map(([k, v]) => [asciiKey(k), v]),
+			),
+		),
 });
 
 // Sin IA (o si falla): persona al azar, con datos inventados.
@@ -204,11 +214,14 @@ export async function generateCase(
 		archetype.personality,
 	);
 
-	const id = `gen-${tpl.id}-${Date.now().toString(36)}${Math.floor(rand() * 1e4).toString(36)}`;
+	// El id llega al navegador: no puede llevar el nombre de la plantilla (es
+	// el diagnóstico). La plantilla queda en templateId, solo en el servidor.
+	const id = `gen-${Date.now().toString(36)}${Math.floor(rand() * 1e6).toString(36)}`;
 	const clinicalCase = caseSchema.parse({
 		id,
 		title: tpl.title,
 		origin: "generado",
+		templateId: tpl.id,
 		reviewedBy: null,
 		patient: { name: persona.name, age, occupation: persona.occupation, sex },
 		personality,

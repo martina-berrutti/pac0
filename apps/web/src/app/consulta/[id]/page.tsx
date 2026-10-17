@@ -50,6 +50,7 @@ export default function ConsultationPage() {
 
 	const voice = useVoice({
 		sessionId: id,
+		examOpen: tool,
 		onTurn: (turn: Turn) =>
 			setView((v) => (v ? { ...v, turns: [...v.turns, turn] } : v)),
 		onTool: (ui: ToolUi) => {

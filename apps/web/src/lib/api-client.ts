@@ -10,6 +10,7 @@ import type {
 } from "@/lib/contracts/exam";
 import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
+import { timeoutSignal } from "@/lib/timeout-signal";
 import type { SessionView, TurnResult } from "@/server/consultation";
 import type { OtoscopyStart } from "@/server/otoscopy";
 import type { BpGauge, BpStart } from "@/server/vitals";
@@ -40,7 +41,7 @@ async function request<T>(
 					? undefined
 					: { "Content-Type": "application/json" },
 			body: init?.body === undefined ? undefined : JSON.stringify(init.body),
-			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+			signal: timeoutSignal(REQUEST_TIMEOUT_MS),
 		});
 	} catch {
 		throw new ApiError(

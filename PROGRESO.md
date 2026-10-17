@@ -49,6 +49,17 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
   - Consentimiento: "hola, con permiso" (saludo al entrar) contaba como permiso para examinar, y el paciente hostil después abría la boca sin que se lo pidieran. Ahora "permiso" vale solo pedido o nombrado ("me das permiso", "con tu permiso", "permiso para…") o junto con un pedido de examen.
   - Batería de 33 frases de entrevista contra todos los detectores (pedido de examen, apertura, permiso, sugestiva, clasificador): "¿querés que te revise?" y "me dejás revisarte" (sin signos, como transcribe la voz) no contaban como permiso; "¿abriste la ventana?" contaba como pedido de examen; "¿hay algo más que te preocupe?" no contaba como pregunta abierta. Arreglados, con test. El resto dio bien.
   - Quinta integración con `main` (plan B por texto, `openSession`): cada envío al socket combina `openSession` (no manda a un socket que se cierra) y `safeSend` (atrapa si igual falla); la nota de los eventos va en la fila. Plan B por texto: el reloj "quedan X min" estaba congelado (solo lo movía la voz) y al vencer los 8 minutos cada mensaje daba 409 sin pasar a la hipótesis. Ahora hay reloj local y, al llegar a cero o con un 409, se pasa a la hipótesis. El modo texto se oculta en la vista de solo lectura del docente.
+  - Revisión independiente (un agente que no había visto el código) de todo lo de la Persona 1. Arreglado:
+    - El id de los casos generados llevaba el nombre de la plantilla, que es el diagnóstico (`gen-faringitis-viral-…`), y llegaba al navegador. Ahora es neutro; la plantilla va en `templateId`, solo en el servidor (el otoscopio la usa).
+    - Convex solo acepta claves ASCII: si la IA inventaba "año de nacimiento" en `anotar_dato` o "con quién vive" en el perfil del generador, fallaba solo en producción. Las claves pasan por `asciiKey`.
+    - El "silencio largo" se disparaba mientras el estudiante examinaba callado y hacía hablar al paciente en medio de la toma de presión. Con un examen abierto ya no cuenta.
+    - `AbortSignal.timeout` no existe en Safari 15 (iOS 15): ningún pedido funcionaba. Reemplazo en `lib/timeout-signal.ts`.
+    - Cortar la voz mientras cargaba el procesador de audio la dejaba en "En línea" sin conexión.
+    - Si fallaba sumar los errores al perfil después de guardar el informe, no se sumaban nunca; ahora el reintento lo completa (una sola vez).
+    - El permiso por voz para el oído no subía la confianza como el de la garganta.
+    - Llamadas a herramientas canceladas por Gemini (el estudiante interrumpió) se ejecutaban igual.
+    - En Safari el audio puede quedar "interrupted" (no solo "suspended") al volver de segundo plano.
+  - **Sin arreglar, conocido:** con la misma consulta abierta en dos pestañas, las escrituras de Convex se pueden pisar (se pierden cambios de ánimo) y el tope de conexiones de voz se puede saltear pidiendo tokens en paralelo. La fila del cliente lo evita en una pestaña; arreglarlo del todo pide mutaciones atómicas en Convex (`records.patch`), que hay que desplegar.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).

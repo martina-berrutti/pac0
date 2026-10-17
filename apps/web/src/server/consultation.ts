@@ -508,9 +508,18 @@ export async function finishSession(
 	const { session, clinicalCase } = await ownSession(viewer, sessionId);
 	const existing = await store.getReport(sessionId);
 	if (existing) {
-		// Un cierre anterior se cortó después de guardar el informe.
-		if (session.status !== "evaluada")
-			await store.updateSession(sessionId, { status: "evaluada" });
+		// Un cierre anterior se cortó después de guardar el informe: se
+		// termina lo que faltó. La sesión queda "evaluada" recién después de
+		// sumar los errores al perfil, así que si no lo está, faltan (y las
+		// consultas ya evaluadas no los vuelven a sumar).
+		if (session.status !== "evaluada") {
+			if (!session.mistakesRecorded)
+				await recordMistakes(session.userId, existing);
+			await store.updateSession(sessionId, {
+				status: "evaluada",
+				mistakesRecorded: true,
+			});
+		}
 		return existing;
 	}
 	const patch = {
@@ -544,9 +553,10 @@ export async function finishSession(
 	// El informe va antes que el estado: si se corta en el medio, el próximo
 	// intento encuentra el informe y lo devuelve.
 	await store.saveReport(report);
-	await store.updateSession(sessionId, patch);
-	// Suma los errores al perfil del usuario (una vez por consulta).
-	await recordMistakes(viewer.uid, report);
+	// Suma los errores al perfil del usuario (una vez por consulta) y recién
+	// después marca la sesión: si algo se corta, el reintento lo completa.
+	await recordMistakes(session.userId, report);
+	await store.updateSession(sessionId, { ...patch, mistakesRecorded: true });
 	return report;
 }
 

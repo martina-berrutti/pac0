@@ -468,4 +468,44 @@ describe("cliente de voz", () => {
 		live.failSends = true;
 		expect(() => voice.sendNote("terminó de revisarte")).not.toThrow();
 	});
+
+	test("una herramienta cancelada por Gemini antes de correr no se ejecuta ni se responde", async () => {
+		const { voice } = mount();
+		await voice.start();
+		// Algo lento en la fila delante de la herramienta.
+		delays["/voice-turns:estudiante"] = 30;
+		const on = live.callbacks?.onmessage;
+		on?.(msg({ inputTranscription: { text: "abrí la boca" } }));
+		on?.({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c9",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		on?.({ toolCallCancellation: { ids: ["c9"] } });
+		await voice.drain();
+		await new Promise((r) => setTimeout(r, 20));
+		expect(paths()).not.toContain("/tools:examinar");
+		expect(live.sent).not.toContain("toolResponse");
+	});
+
+	test("timeoutSignal anda sin AbortSignal.timeout (Safari 15)", async () => {
+		const { timeoutSignal } = await import("@/lib/timeout-signal");
+		const original = AbortSignal.timeout;
+		// @ts-expect-error: simula un navegador viejo
+		AbortSignal.timeout = undefined;
+		try {
+			const signal = timeoutSignal(10);
+			expect(signal.aborted).toBe(false);
+			await new Promise((r) => setTimeout(r, 30));
+			expect(signal.aborted).toBe(true);
+		} finally {
+			AbortSignal.timeout = original;
+		}
+	});
 });

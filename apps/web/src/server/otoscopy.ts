@@ -37,7 +37,10 @@ export async function startOtoscopy(
 		endMs: null,
 	};
 	await store.addExamAction(action);
-	const scenario = otoscopyScenario(clinicalCase.id, clinicalCase.patient.age);
+	const scenario = otoscopyScenario(
+		clinicalCase.templateId ?? clinicalCase.id,
+		clinicalCase.patient.age,
+	);
 	// Solo lo que se ve en ese oído; la técnica correcta no sale del servidor.
 	return { actionId: action.id, appearance: scenario.appearance[ear] };
 }
@@ -67,7 +70,10 @@ export async function finishOtoscopy(
 		ear,
 		record,
 		before,
-		otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
+		otoscopyScenario(
+			clinicalCase.templateId ?? clinicalCase.id,
+			clinicalCase.patient.age,
+		),
 	);
 	await store.updateExamAction(actionId, {
 		hotspotTimesMs: { conducto: record.canalMs, timpano: record.tympanumMs },

@@ -106,7 +106,8 @@ const APPEARANCE: Record<string, Partial<Record<Ear, EarAppearance>>> = {
 	"otitis-externa": { derecho: { canal: "secrecion", tympanum: "nacarado" } },
 };
 
-// Por id del caso, o por plantilla en los generados (gen-<plantilla>-…).
+// Por id del caso o por plantilla (templateId de los generados). Los
+// generados viejos llevaban la plantilla en el id (gen-<plantilla>-…).
 function appearanceFor(caseId: string) {
 	return (
 		APPEARANCE[caseId] ??
