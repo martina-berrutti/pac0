@@ -84,6 +84,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
 - [ ] Probar con micrófono en el navegador (computadora y celular) (la lógica del cliente ya tiene tests con el navegador simulado en `tests/use-voice.test.ts`; falta el micrófono real)
+  - A cargo: Martina. Qué mirar: se escucha al paciente en Safari del iPhone; el permiso del micrófono (y el mensaje si se niega); eco por los parlantes de la compu (que el paciente no se "escuche" a sí mismo); cortar el wifi a mitad de frase y ver que reconecte y siga; "Ver mi informe" con la voz todavía hablando.
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
 - [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
