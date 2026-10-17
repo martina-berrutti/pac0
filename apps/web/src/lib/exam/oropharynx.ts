@@ -18,3 +18,51 @@ export const HIDDEN_RATE = 0.5;
 export function lightRate(zone: string, depressor: boolean) {
 	return !depressor && DEPRESSOR_ZONES.has(zone) ? HIDDEN_RATE : 1;
 }
+
+// Posición del centro y radio de una zona, en % del ancho y alto de la vista
+// (que es 4:3).
+export type ZoneSpot = { x: number; y: number; r: number };
+
+export const ZONE_LABELS: Record<string, string> = {
+	"amigdala-izq": "Amígdala izquierda",
+	"amigdala-der": "Amígdala derecha",
+	uvula: "Úvula",
+	paladar: "Paladar",
+	lengua: "Lengua",
+	"pared-posterior": "Pared posterior",
+};
+
+// Zonas sobre el esquema dibujado (sin foto).
+export const SCHEMATIC_SPOTS: Record<string, ZoneSpot> = {
+	"amigdala-izq": { x: 32, y: 52, r: 9 },
+	"amigdala-der": { x: 68, y: 52, r: 9 },
+	uvula: { x: 50, y: 44, r: 6 },
+	paladar: { x: 50, y: 24, r: 11 },
+	lengua: { x: 50, y: 82, r: 13 },
+	"pared-posterior": { x: 50, y: 58, r: 8 },
+};
+
+export type OropharynxPhoto = {
+	// Ruta pública: el archivo va en apps/web/public/exam/.
+	src: string;
+	alt: string;
+	// Atribución que pide la licencia; se muestra sobre la foto.
+	credit: string;
+	// Zonas ubicadas sobre esta foto. Las que falten usan el esquema.
+	spots: Partial<Record<string, ZoneSpot>>;
+};
+
+// Fotos por clave de asset (cases/*.json: exam.<zona>.variants). Cada una
+// tiene que estar en CREDITS.md con fuente, licencia, atribución y quién la
+// validó (AGENTS.md); tests/oropharynx.test.ts lo controla. Ninguna imagen
+// clínica generada con IA. Para ubicar las zonas: en desarrollo, la tecla Z
+// en la vista muestra las zonas y las coordenadas del puntero.
+export const OROPHARYNX_PHOTOS: Record<string, OropharynxPhoto> = {};
+
+export function photoFor(assetKey: string | null) {
+	return assetKey ? (OROPHARYNX_PHOTOS[assetKey] ?? null) : null;
+}
+
+export function spotFor(zone: string, photo: OropharynxPhoto | null) {
+	return photo?.spots[zone] ?? SCHEMATIC_SPOTS[zone];
+}
