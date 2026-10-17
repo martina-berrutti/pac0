@@ -46,7 +46,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Rutas protegidas (`proxy.ts`) y cada ruta de la API valida al usuario
 - [x] Una sesión y su informe solo los ve su dueño
 - [x] Cerrar sesión
-- [ ] Probar el login desde un celular en la URL pública
+- [-] ~~Probar el login desde un celular en la URL pública~~ (descartado 17/10: no se va a probar en celular)
 - [x] Login con Google por OAuth propio (`/api/auth/google`): solo `openid`, id con hash, perfil guardado en Convex
 - [ ] Crear las credenciales OAuth en Google Cloud y cargarlas en Vercel (`/api/health` en producción dice `google: false`)
 - [ ] Probar el login con Google en la URL pública
@@ -88,7 +88,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Plan B si falla la voz o el wifi: si la voz no arranca o se cae, aparece «Seguir por texto» y la consulta sigue escribiendo, con el mismo paciente; pedir examinar abre el examen igual. Probado en Chrome a 390 px
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
 - [x] Probar con micrófono en la computadora (URL pública, 17/10)
-- [ ] Probar con micrófono en el celular
+- [-] ~~Probar con micrófono en el celular~~ (descartado 17/10)
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
 - [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
