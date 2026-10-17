@@ -447,4 +447,18 @@ describe("cliente de voz", () => {
 		expect(live.connects).toBe(1);
 		vi.useRealTimers();
 	});
+
+	test("un 200 con el cuerpo cortado es un error, no un turno vacío", async () => {
+		const { voice, events } = mount();
+		await voice.start();
+		vi.stubGlobal(
+			"fetch",
+			async () => new Response("{cortado", { status: 200 }),
+		);
+		live.callbacks?.onmessage(msg({ inputTranscription: { text: "hola" } }));
+		live.callbacks?.onmessage(msg({ turnComplete: true }));
+		await voice.drain();
+		expect(events.turns).toEqual([]);
+		expect(events.errors.at(-1)).toContain("cortada");
+	});
 });

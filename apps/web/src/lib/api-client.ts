@@ -48,11 +48,20 @@ async function request<T>(
 			"No pudimos comunicarnos con el servidor. Revisá la conexión y probá de nuevo.",
 		);
 	}
-	const data = (await res.json().catch(() => ({}))) as { error?: string };
+	const data = (await res.json().catch(() => null)) as {
+		error?: string;
+	} | null;
 	if (!res.ok)
 		throw new ApiError(
 			res.status,
-			data.error ?? "Algo salió mal. Probá de nuevo.",
+			data?.error ?? "Algo salió mal. Probá de nuevo.",
+		);
+	// Un 200 con el cuerpo cortado no es una respuesta: la pantalla se rompería
+	// al leer campos que no están.
+	if (data === null)
+		throw new ApiError(
+			res.status,
+			"La respuesta del servidor llegó cortada. Probá de nuevo.",
 		);
 	return data as T;
 }

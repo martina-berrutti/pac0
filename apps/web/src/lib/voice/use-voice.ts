@@ -69,8 +69,14 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 	} catch {
 		throw new Error("El servidor no respondió. Revisá la conexión.");
 	}
-	const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-	if (!res.ok) throw new Error(data.error ?? "Error de la API");
+	const data = (await res.json().catch(() => null)) as
+		| (T & { error?: string })
+		| null;
+	if (!res.ok) throw new Error(data?.error ?? "Error de la API");
+	// Un 200 con el cuerpo cortado no es una respuesta: devolver {} haría que
+	// la pantalla reciba un turno vacío y se rompa.
+	if (data === null)
+		throw new Error("La respuesta del servidor llegó cortada.");
 	return data;
 }
 
