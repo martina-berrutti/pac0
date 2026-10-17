@@ -3,18 +3,18 @@
 import type { Personality } from "@/cases/schema";
 import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
 
-const EXAM_WORDS = [
-	"abr",
-	"boca",
-	"garganta",
-	"decí a",
-	"deci a",
-	"aaa",
-	"lengua",
-	"examin",
-	"revis",
-	"mirar",
-	"linterna",
+// Pedidos de examen: hace falta una acción, no alcanza con nombrar la zona.
+// "¿Desde cuándo te duele la garganta?" es anamnesis, no examen. Se comparan
+// sin tildes.
+const EXAM_PATTERNS = [
+	/\babr(i|a|ime|ame|ila|is)\b/,
+	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir\b/,
+	/\b(deci|diga|decime|digame)\s+a{2,}/,
+	/\ba{3,}\b/,
+	/\bsac(a|ate|que)\s+(la\s+)?lengua\b/,
+	/\b(revisar|examinar|mirar)(te|le|lo|la)\b/,
+	/\b(puedo|podemos|dejas|deja)\s+(revisar|examinar|mirar)\b/,
+	/\blinterna\b/,
 ];
 const FULL_OPEN_WORDS = [
 	"más",
@@ -46,8 +46,15 @@ function includesAny(text: string, words: string[]) {
 	return words.some((w) => t.includes(w));
 }
 
+// "Te reviso" es un pedido; "te revisó" (alguien, antes) no. Estos se comparan
+// con las tildes puestas.
+const FIRST_PERSON =
+	/(^|[^\p{L}])(te|le|lo|la)\s+(voy\s+a\s+)?(reviso|revisar|examino|examinar|miro|mirar)(?!\p{L})/u;
+
 export function isExamRequest(text: string) {
-	return includesAny(text, EXAM_WORDS);
+	const lower = text.toLowerCase();
+	const plain = lower.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+	return FIRST_PERSON.test(lower) || EXAM_PATTERNS.some((p) => p.test(plain));
 }
 
 export function asksConsent(text: string) {
