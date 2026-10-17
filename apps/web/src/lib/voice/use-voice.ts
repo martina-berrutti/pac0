@@ -33,6 +33,8 @@ const SPEAKING_WINDOW_MS = 900;
 const OUTPUT_RATE = 24_000;
 // Si se corta la conexión, se reintenta con un token nuevo que lleva lo hablado.
 const MAX_RECONNECTS = 3;
+// Tope para que Google abra la conexión de voz.
+const CONNECT_TIMEOUT_MS = 15_000;
 
 type LiveToken = {
 	token: string;
@@ -407,7 +409,7 @@ export function useVoice({
 			apiKey: token.token,
 			httpOptions: { apiVersion: token.apiVersion },
 		});
-		const session = await ai.live.connect({
+		const opening = ai.live.connect({
 			model: token.model,
 			// La configuración real va fijada en el token.
 			config: { responseModalities: [Modality.AUDIO] },
@@ -421,6 +423,19 @@ export function useVoice({
 				},
 			},
 		});
+		// Si Google no abre la conexión, la pantalla quedaría "conectando" para
+		// siempre (el reloj de 8 minutos solo corre en vivo). Una conexión que
+		// llega tarde se cierra sola.
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const session = await Promise.race([
+			opening,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(() => {
+					opening.then((late) => late.close()).catch(() => {});
+					reject(new Error("El paciente no responde. Probá de nuevo."));
+				}, CONNECT_TIMEOUT_MS);
+			}),
+		]).finally(() => clearTimeout(timer));
 		if (gen !== conn.current) {
 			session.close();
 			throw new Error("Conexión de voz descartada");

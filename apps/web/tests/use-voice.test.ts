@@ -18,6 +18,9 @@ const live = vi.hoisted(() => ({
 	sent: [] as string[],
 	closed: 0,
 	failSends: false,
+	// Si es true, connect no termina hasta llamar a release.
+	hang: false,
+	release: () => {},
 }));
 
 vi.mock("@google/genai", () => ({
@@ -31,7 +34,7 @@ vi.mock("@google/genai", () => ({
 					if (live.failSends) throw new Error("WebSocket is not open");
 					live.sent.push(kind);
 				};
-				return {
+				const session = {
 					sendRealtimeInput: send("audio"),
 					sendToolResponse: send("toolResponse"),
 					sendClientContent: send("clientContent"),
@@ -39,6 +42,10 @@ vi.mock("@google/genai", () => ({
 						live.closed++;
 					},
 				};
+				if (!live.hang) return session;
+				return new Promise((resolve) => {
+					live.release = () => resolve(session);
+				});
 			},
 		};
 	},
@@ -155,6 +162,8 @@ beforeEach(() => {
 		sent: [],
 		closed: 0,
 		failSends: false,
+		hang: false,
+		release: () => {},
 	});
 	calls = [];
 	delays = {};
@@ -407,5 +416,20 @@ describe("cliente de voz", () => {
 		live.callbacks?.onclose();
 		await vi.waitFor(() => expect(events.errors.at(-1)).toContain("Se cortó"));
 		expect(live.connects).toBe(4);
+	});
+
+	test("si Google no abre la conexión, a los 15 s avisa y no queda conectando", async () => {
+		vi.useFakeTimers();
+		live.hang = true;
+		const { voice, events } = mount();
+		const started = voice.start();
+		await vi.advanceTimersByTimeAsync(15_001);
+		await started;
+		expect(events.errors.at(-1)).toContain("no responde");
+		// La conexión que llega tarde se cierra sola.
+		live.release();
+		await vi.advanceTimersByTimeAsync(1);
+		expect(live.closed).toBe(1);
+		vi.useRealTimers();
 	});
 });
