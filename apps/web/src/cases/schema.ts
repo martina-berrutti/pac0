@@ -66,6 +66,8 @@ export const caseSchema = z.object({
 	// Plantilla de la que salió un caso generado. Solo en el servidor: el nombre
 	// de la plantilla es el diagnóstico, así que no va en el id ni en el resumen.
 	templateId: z.string().optional(),
+	// Cuándo se generó (ms): el tope de pacientes generados es por día.
+	createdAt: z.number().optional(),
 	// Nadie lo revisó todavía si es null (AGENTS.md: lo valida un médico o un
 	// estudiante avanzado).
 	reviewedBy: z.string().nullable().default(null),

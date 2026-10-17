@@ -3,11 +3,12 @@
 import "server-only";
 
 import { type CaseSummary, type ClinicalCase, toSummary } from "@/cases/schema";
-import type {
-	ExamAction,
-	ExamResult,
-	ExamVariant,
-	InstructionClarity,
+import {
+	type ExamAction,
+	type ExamResult,
+	type ExamVariant,
+	type InstructionClarity,
+	OTOSCOPY,
 } from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import {
@@ -170,6 +171,18 @@ export async function startSession(
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
 	await checkSessionLimits(viewer);
 	await beforeCreate();
+	// El chequeo de arriba lee y después se crea: con muchos pedidos a la vez
+	// pasaban todos. El contador atómico es la última palabra (si Convex no lo
+	// tiene desplegado, queda el chequeo de arriba).
+	const { perUser } = sessionLimits();
+	const allowed = await store
+		.hitRate(`user-sessions:${viewer.uid}`, DAY_MS, perUser)
+		.catch(() => true);
+	if (!allowed)
+		throw new HttpError(
+			429,
+			`Llegaste al tope de ${perUser} consultas por día. Probá de nuevo mañana.`,
+		);
 	const { key, personality } = resolvePersonality(
 		personalityKey,
 		clinicalCase.personality,
@@ -231,7 +244,9 @@ export async function getSessionView(
 		session: toPublicSession(session),
 		case: toSummary(clinicalCase),
 		turns,
-		examActions,
+		// Sin la evaluación de técnica (otoscopia): es parte del informe, y verla
+		// antes de cerrar dejaba corregir sabiendo qué se iba a puntuar.
+		examActions: examActions.map(({ technique: _technique, ...a }) => a),
 		remainingMs: Math.max(0, MAX_SESSION_MS - (Date.now() - session.startedAt)),
 		hasReport: report !== undefined,
 		readOnly: session.userId !== viewer.uid,
@@ -531,9 +546,19 @@ export async function saveExamTimes(
 	actionId: string,
 	hotspotTimesMs: Record<string, number>,
 ) {
-	const { session, clinicalCase } = await ownSession(viewer, sessionId);
+	// Consulta activa (con margen para terminar el examen): pasados los 8
+	// minutos o durante el cierre ya no se cambia lo que lee el evaluador.
+	const { session, clinicalCase } = await activeSession(
+		viewer,
+		sessionId,
+		FINISH_EXAM_GRACE_MS,
+	);
 	const actions = await store.listExamActions(sessionId);
-	const action = actions.find((a) => a.id === actionId);
+	// La otoscopia se termina por su propia ruta: tocarla acá la dejaba sin
+	// evaluar.
+	const action = actions.find(
+		(a) => a.id === actionId && a.maneuver !== OTOSCOPY,
+	);
 	if (!action) throw new HttpError(404, "Acción de examen no encontrada");
 	// Solo las zonas que existen en el caso: nada inventado llega al evaluador.
 	const known = new Set(clinicalCase.exam[action.zone]?.hotspots ?? []);
@@ -559,7 +584,9 @@ export async function finishSession(
 	if (existing) {
 		// Un cierre anterior se cortó después de guardar el informe: se
 		// completa lo que faltó (el estado y los errores, una sola vez).
-		if (session.status === "finalizada")
+		// También "activa": un cierre retomado puede haber guardado el informe
+		// después de que otro devolviera la sesión a activa.
+		if (session.status !== "evaluada")
 			await completeClosing(sessionId, session.userId, existing);
 		return existing;
 	}
@@ -644,10 +671,15 @@ async function completeClosing(
 	userId: string,
 	report: Report,
 ) {
-	const won = await store.changeSession(sessionId, {
+	let won = await store.changeSession(sessionId, {
 		ifStatus: "finalizada",
 		set: { status: "evaluada", mistakesRecorded: true },
 	});
+	if (!won)
+		won = await store.changeSession(sessionId, {
+			ifStatus: "activa",
+			set: { status: "evaluada", mistakesRecorded: true },
+		});
 	if (!won) return;
 	await recordMistakes(userId, report).catch((error) =>
 		console.error("No se pudo sumar los errores al perfil", error),
@@ -664,7 +696,7 @@ export async function getReport(viewer: Viewer, sessionId: string) {
 	// Un cierre que se cortó después de guardar el informe se completa acá:
 	// al recargar, la pantalla va directo al informe y nadie vuelve a cerrar.
 	// Solo la dueña (un docente puede leer, no cerrar).
-	if (session.status === "finalizada" && session.userId === viewer.uid)
+	if (session.status !== "evaluada" && session.userId === viewer.uid)
 		await completeClosing(sessionId, session.userId, report).catch((error) =>
 			console.error("No se pudo completar el cierre", error),
 		);

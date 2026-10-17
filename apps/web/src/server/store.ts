@@ -20,12 +20,46 @@ import {
 // Perfil de un usuario con cuenta (Google): solo alias y año de carrera.
 export type Profile = { alias: string; careerYear: string };
 
+// Los campos de `want` siguen valiendo eso (un campo que falta cuenta como
+// null). Misma regla que patchIf en packages/backend/convex/records.ts.
+function fieldsMatch(value: object, want: object) {
+	return Object.entries(want).every(
+		([k, v]) =>
+			JSON.stringify((value as Record<string, unknown>)[k] ?? null) ===
+			JSON.stringify(v ?? null),
+	);
+}
+
+// Una función de Convex que todavía no está desplegada.
+function missingFunction(error: unknown) {
+	return /Could not find (public )?function/i.test(String(error));
+}
+
 export interface Store {
 	getProfile(uid: string): Promise<Profile | undefined>;
 	saveProfile(uid: string, profile: Profile): Promise<void>;
 	// Perfil de errores entre consultas (server/mistakes.ts).
 	getMistakes(uid: string): Promise<MistakeEntry[]>;
 	saveMistakes(uid: string, entries: MistakeEntry[]): Promise<void>;
+	// Guarda el perfil solo si sigue igual a `expected` (atómico; si no existe
+	// cuenta como []); false si otro pedido lo cambió en el medio.
+	replaceMistakesIf(
+		uid: string,
+		expected: MistakeEntry[],
+		next: MistakeEntry[],
+	): Promise<boolean>;
+	// Actualiza solo si los campos de ifEquals siguen valiendo eso (atómico);
+	// null si no.
+	patchExamActionIf(
+		id: string,
+		patch: Partial<ExamAction>,
+		ifEquals: Partial<ExamAction>,
+	): Promise<ExamAction | null>;
+	patchVitalsIf(
+		id: string,
+		patch: Partial<VitalsMeasurement>,
+		ifEquals: Partial<VitalsMeasurement>,
+	): Promise<VitalsMeasurement | null>;
 	listCases(ownerId: string): Promise<ClinicalCase[]>;
 	getCase(id: string): Promise<ClinicalCase | undefined>;
 	// Casos generados: solo los ve quien los pidió.
@@ -88,6 +122,43 @@ class MemoryStore implements Store {
 	}
 	async saveMistakes(uid: string, entries: MistakeEntry[]) {
 		this.mistakes.set(uid, entries);
+	}
+	async replaceMistakesIf(
+		uid: string,
+		expected: MistakeEntry[],
+		next: MistakeEntry[],
+	) {
+		const current = this.mistakes.get(uid) ?? [];
+		if (JSON.stringify(current) !== JSON.stringify(expected)) return false;
+		this.mistakes.set(uid, next);
+		return true;
+	}
+	async patchExamActionIf(
+		id: string,
+		patch: Partial<ExamAction>,
+		ifEquals: Partial<ExamAction>,
+	) {
+		const current = this.exams.get(id);
+		if (!current || !fieldsMatch(current, ifEquals)) return null;
+		const next = { ...current, ...patch };
+		this.exams.set(id, next);
+		return next;
+	}
+	async patchVitalsIf(
+		id: string,
+		patch: Partial<VitalsMeasurement>,
+		ifEquals: Partial<VitalsMeasurement>,
+	) {
+		for (const list of this.vitals.values()) {
+			const i = list.findIndex((v) => v.id === id);
+			if (i < 0) continue;
+			const current = list[i] as VitalsMeasurement;
+			if (!fieldsMatch(current, ifEquals)) return null;
+			const next = { ...current, ...patch };
+			list[i] = next;
+			return next;
+		}
+		return null;
 	}
 	async listCases(ownerId: string) {
 		const own = [...this.generated.values()]
@@ -286,6 +357,69 @@ class ConvexStore implements Store {
 	}
 	async saveMistakes(uid: string, entries: MistakeEntry[]) {
 		await this.put("mistakes", uid, entries, { ownerId: uid });
+	}
+	async replaceMistakesIf(
+		uid: string,
+		expected: MistakeEntry[],
+		next: MistakeEntry[],
+	) {
+		try {
+			return (await this.client.mutation(anyApi.records.replaceIf, {
+				secret: this.secret,
+				kind: "mistakes",
+				appId: uid,
+				ownerId: uid,
+				expected,
+				data: next,
+			})) as boolean;
+		} catch (error) {
+			// Convex sin desplegar: se guarda como antes (sin atomicidad).
+			if (!missingFunction(error)) throw error;
+			await this.saveMistakes(uid, next);
+			return true;
+		}
+	}
+	async patchExamActionIf(
+		id: string,
+		patch: Partial<ExamAction>,
+		ifEquals: Partial<ExamAction>,
+	) {
+		return this.patchIf<ExamAction>("exam", id, patch, ifEquals);
+	}
+	async patchVitalsIf(
+		id: string,
+		patch: Partial<VitalsMeasurement>,
+		ifEquals: Partial<VitalsMeasurement>,
+	) {
+		return this.patchIf<VitalsMeasurement>("vitals", id, patch, ifEquals);
+	}
+	private async patchIf<T extends { sessionId: string }>(
+		kind: Kind,
+		id: string,
+		patch: Partial<T>,
+		ifEquals: Partial<T>,
+	): Promise<T | null> {
+		// null en vez de undefined: Convex descarta los undefined al enviar.
+		const want = Object.fromEntries(
+			Object.entries(ifEquals).map(([k, v]) => [k, v ?? null]),
+		);
+		try {
+			return (await this.client.mutation(anyApi.records.patchIf, {
+				secret: this.secret,
+				kind,
+				appId: id,
+				patch,
+				ifEquals: want,
+			})) as T | null;
+		} catch (error) {
+			// Convex sin desplegar: leer, chequear y escribir (como antes).
+			if (!missingFunction(error)) throw error;
+			const current = await this.get<T>(kind, id);
+			if (!current || !fieldsMatch(current, ifEquals)) return null;
+			const next = { ...current, ...patch };
+			await this.put(kind, id, next, { sessionId: next.sessionId });
+			return next;
+		}
 	}
 	async listCases(ownerId: string) {
 		return [
