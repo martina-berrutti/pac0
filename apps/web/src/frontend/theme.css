@@ -78,6 +78,18 @@
 	--color-tape: var(--tape);
 	--color-success: var(--success);
 	--animate-draw: pac0-draw 1.1s ease-out 0.2s both;
+	--animate-breathe: pac0-breathe 4.5s ease-in-out infinite;
+}
+
+/* Paco respira. */
+@keyframes pac0-breathe {
+	0%,
+	100% {
+		transform: rotate(-4deg) scale(1);
+	}
+	50% {
+		transform: rotate(-2deg) scale(1.035);
+	}
 }
 
 /* Un trazo que se dibuja (subrayados y el círculo de la nota). */

@@ -7,9 +7,12 @@ import { cn } from "@pac0/ui/lib/utils";
 export function PacoFace({
 	className,
 	strokeWidth = 3.2,
+	blush = false,
 }: {
 	className?: string;
 	strokeWidth?: number;
+	// Cachetes colorados, para cuando Paco aparece grande.
+	blush?: boolean;
 }) {
 	return (
 		<svg
@@ -25,6 +28,12 @@ export function PacoFace({
 				d="M25 6.5 C 36.5 6, 43 14, 42.5 25 C 42 36.5, 34.5 43, 23.5 42.8 C 12.5 42.5, 5.8 35, 6.2 24 C 6.6 13.5, 13.5 6.2, 26.5 7.6"
 				strokeWidth={strokeWidth}
 			/>
+			{blush && (
+				<g stroke="none" fill="var(--pen)" opacity="0.22">
+					<ellipse cx="13.6" cy="28.4" rx="3.6" ry="2.4" />
+					<ellipse cx="34.6" cy="28" rx="3.6" ry="2.4" />
+				</g>
+			)}
 			<path d="M18.2 21.6 l0.2 0.4" strokeWidth={strokeWidth + 0.6} />
 			<path d="M29.4 21.2 l0.2 0.4" strokeWidth={strokeWidth + 0.6} />
 			<path
