@@ -269,5 +269,5 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 ## Puertas (plan.md, sección 13)
 
 - [x] **Puerta 1:** URL pública con invitado y voz probada con micrófono (17/10). El login con Google espera las credenciales
-- [ ] **Puerta 2:** una consulta pasa por voz, examen e informe con puntaje y evidencia en la URL pública. Por texto ya pasa (17/10, `node apps/web/scripts/probar-consulta.mjs`: 13 chequeos en verde, 90%, «Lo hiciste bien»); falta una consulta completa por voz con una persona
+- [ ] **Puerta 2:** una consulta pasa por voz, examen e informe con puntaje y evidencia en la URL pública. Por texto ya pasa (17/10, `node apps/web/scripts/probar-consulta.mjs`: 13 chequeos en verde, 90%, «Lo hiciste bien»; repetido después del merge de la Persona 2: 87%, «Lo hiciste bien», juez con IA). Falta una consulta completa por voz con una persona: la hace la estudiante de la guía de prueba (garganta y oído)
 - [ ] **Puerta 3:** funciones congeladas; solo arreglos, ensayo y video

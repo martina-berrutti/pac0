@@ -423,7 +423,7 @@ function criticalMistakes(
 	for (const i of items.filter((x) => x.status === "no" && isAlarm(x))) {
 		out.push({
 			tag: `alarma-${i.itemId}`,
-			what: `No ${i.item}.`,
+			what: `Faltó: ${i.item}.`,
 			why: "Es un error crítico: pasar por alto una señal de alarma puede demorar una urgencia.",
 			nextTime: "Antes de cerrar, preguntá siempre por los signos de alarma.",
 			source: SOURCES.anamnesis,
@@ -537,7 +537,7 @@ export function assembleReport(
 	)) {
 		mistakes.push({
 			tag: i.itemId,
-			what: `No ${i.item} (no aparece en ningún turno).`,
+			what: `Faltó: ${i.item} (no aparece en ningún turno).`,
 			why:
 				i.weight === 3
 					? "Es un ítem esencial de la lista de cotejo."
