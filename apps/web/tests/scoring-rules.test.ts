@@ -7,7 +7,7 @@ import type { Turn } from "@/lib/contracts/session";
 import { evaluate } from "@/lib/scoring/evaluate";
 import type { EvaluationInput } from "@/lib/scoring/types";
 
-import { goodStudent } from "./helpers";
+import { averageStudent, badStudent, goodStudent } from "./helpers";
 
 const jorge = caseBank.find((c) => c.id === "garganta-02") as ClinicalCase;
 
@@ -244,5 +244,64 @@ describe("confianza de un paciente difícil", () => {
 		expect(report.strengths.some((s) => s.text.includes("confianza"))).toBe(
 			false,
 		);
+	});
+});
+
+describe("fuente de cada error", () => {
+	test("todos los errores nombran su fuente", () => {
+		for (const input of [goodStudent(), badStudent()]) {
+			for (const m of evaluate(input).mistakes) {
+				expect(m.source, m.tag).toBeTruthy();
+			}
+		}
+		const consent = evaluate(badStudent()).mistakes.find(
+			(m) => m.tag === "examen-sin-consentimiento",
+		);
+		expect(consent?.source).toContain("examen físico general");
+	});
+});
+
+describe("describir lo que vio", () => {
+	const SAID = "Veo las amígdalas rojas con exudado.";
+	function describing(text: string | null): EvaluationInput {
+		const input = goodStudent();
+		const turns = input.turns.filter((t) => t.text !== SAID);
+		const at = input.turns.find((t) => t.text === SAID)?.startMs ?? 0;
+		return {
+			...input,
+			turns: text ? [...turns, say("d1", "estudiante", text, at)] : turns,
+		};
+	}
+	const item = (input: EvaluationInput) =>
+		evaluate(input).items.find((i) => i.itemId === "describe-hallazgo");
+	const mistake = (input: EvaluationInput) =>
+		evaluate(input).mistakes.find((m) => m.tag === "describe-hallazgo");
+
+	test("describirlo con las palabras del caso da el ítem", () => {
+		expect(item(describing(SAID))?.status).toBe("si");
+		expect(mistake(describing(SAID))).toBeUndefined();
+	});
+
+	test("ver sin describir da crédito parcial y muestra lo esperado", () => {
+		const input = describing(null);
+		expect(item(input)?.status).toBe("parcial");
+		expect(item(input)?.evidence[0]?.examActionId).toBe("e1");
+		expect(mistake(input)?.what).toContain("no dijiste qué viste");
+		expect(mistake(input)?.what).toContain("exudado blanquecino");
+	});
+
+	test("negar el hallazgo no cuenta como describirlo", () => {
+		const input = describing("No veo placas ni exudado.");
+		expect(item(input)?.status).toBe("parcial");
+	});
+
+	test("sin apertura completa no hay crédito parcial", () => {
+		const report = evaluate(averageStudent());
+		expect(
+			report.items.find((i) => i.itemId === "describe-hallazgo")?.status,
+		).toBe("no");
+		expect(
+			report.mistakes.find((m) => m.tag === "describe-hallazgo")?.what,
+		).not.toContain("Lo esperado");
 	});
 });

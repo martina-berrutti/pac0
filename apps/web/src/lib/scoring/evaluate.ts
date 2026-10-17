@@ -22,7 +22,7 @@ import {
 	verdictFor,
 } from "./engine";
 import { type Extracted, extract } from "./extractor";
-import { judgeItem, normalize } from "./rule-judge";
+import { DESCRIBE_ITEM, judgeItem, normalize } from "./rule-judge";
 import type { EvaluationInput, Penalty } from "./types";
 
 const STUDIES = [
@@ -46,6 +46,18 @@ const JUSTIFICATION_WORDS = [
 	"mocos",
 ];
 const LEADING_QUESTION = /,?\s*(no|verdad|cierto)\s*\?\s*$/i;
+
+// De dónde sale cada "por qué importa" (plan.md, sección 8: dimensiones y
+// fuentes; sección 6: afiches). Solo se nombra la fuente.
+export const SOURCES = {
+	anamnesis:
+		"Lista de cotejo de la facultad: introducción a la entrevista clínica",
+	examen: "Lista de cotejo de la facultad: examen físico general",
+	razonamiento: "Diagnóstico y diferenciales del caso",
+	comunicacion: "Lista de cotejo de la facultad: construye una relación",
+	presion: "Afiche HC-01 del Centro de Simulación: presión arterial",
+	otoscopia: "Afiche HC-02 del Centro de Simulación: otoscopia",
+} as const;
 
 export type Reasoning = { score: number; notes: string[] };
 
@@ -182,6 +194,7 @@ function otoscopyPenalties({ otoscopies }: Extracted): Penalty[] {
 		what: OTOSCOPY_TECHNIQUE[e].label,
 		why: OTOSCOPY_TECHNIQUE[e].why,
 		nextTime: OTOSCOPY_TECHNIQUE[e].tip,
+		source: SOURCES.otoscopia,
 	}));
 }
 
@@ -197,6 +210,7 @@ function bloodPressurePenalties({ bp }: Extracted): Penalty[] {
 		what: `Tomaste la presión con ${TECHNIQUE[e].label}.`,
 		why: TECHNIQUE[e].effect,
 		nextTime: TECHNIQUE[e].tip,
+		source: SOURCES.presion,
 	}));
 	if (!bp.marked) return out;
 	const marks = [
@@ -225,6 +239,7 @@ function bloodPressurePenalties({ bp }: Extracted): Penalty[] {
 			why: m.why,
 			nextTime:
 				"Desinflá despacio, de 2 a 3 mmHg por segundo, y marcá en el momento justo.",
+			source: SOURCES.presion,
 		});
 	}
 	return out;
@@ -278,6 +293,7 @@ function criticalMistakes(
 			why: "Es un error crítico: el consentimiento va antes de cualquier examen.",
 			nextTime:
 				"Explicá qué vas a hacer y preguntá si podés antes de examinar.",
+			source: SOURCES.examen,
 			critical: true,
 			evidence: [{ examActionId: extracted.examWithoutConsent.id }],
 		});
@@ -290,6 +306,7 @@ function criticalMistakes(
 			why: "Es un error crítico: ante una negativa no se presiona; se reconoce la emoción, se explica y se pide permiso.",
 			nextTime:
 				'"Entiendo que no quieras. Es para ver cómo están las amígdalas; si querés que pare, me avisás. ¿Te parece?"',
+			source: SOURCES.comunicacion,
 			critical: true,
 			evidence: insisted.turn
 				? [{ turnId: insisted.turn.id, quote: insisted.turn.text }]
@@ -302,6 +319,7 @@ function criticalMistakes(
 			what: `No ${i.item}.`,
 			why: "Es un error crítico: pasar por alto una señal de alarma puede demorar una urgencia.",
 			nextTime: "Antes de cerrar, preguntá siempre por los signos de alarma.",
+			source: SOURCES.anamnesis,
 			critical: true,
 			evidence: [],
 		});
@@ -313,6 +331,7 @@ function criticalMistakes(
 			why: "Es un error crítico: el trato respetuoso es la base de la consulta.",
 			nextTime:
 				"Aunque el paciente esté difícil, mantené un tono calmo y amable.",
+			source: SOURCES.comunicacion,
 			critical: true,
 			evidence: extracted.disrespectfulTurns.map((t) => ({
 				turnId: t.id,
@@ -326,6 +345,38 @@ function criticalMistakes(
 // Los ítems de signos de alarma del caso (por ejemplo "sintomas-alarma").
 function isAlarm(i: ItemResult) {
 	return normalize(`${i.itemId} ${i.item}`).includes("alarma");
+}
+
+// Lo que el estudiante dijo que vio contra el hallazgo esperado del caso.
+// Solo si hubo apertura completa: sin ella no había nada que describir.
+function describeMistake(
+	items: ItemResult[],
+	extracted: Extracted,
+	clinicalCase: EvaluationInput["clinicalCase"],
+): Mistake | null {
+	const item = items.find(
+		(i) => i.itemId === DESCRIBE_ITEM && i.status !== "si",
+	);
+	const expected = extracted.fullExam
+		? clinicalCase.exam[extracted.fullExam.zone]?.expected
+		: undefined;
+	if (!item || !expected) return null;
+	const sawOnly = item.evidence.some((e) => e.examActionId);
+	const what = sawOnly
+		? `Miraste la zona pero no dijiste qué viste. Lo esperado: ${expected}.`
+		: item.status === "parcial"
+			? `Tu descripción no coincide del todo con el hallazgo. Lo esperado: ${expected}.`
+			: `No describiste lo que viste. Lo esperado: ${expected}.`;
+	return {
+		tag: DESCRIBE_ITEM,
+		what,
+		why: "Describir el hallazgo en voz alta es parte del examen y es lo que después sostiene la hipótesis.",
+		nextTime:
+			"Después de mirar, decí qué ves: color, tamaño de las amígdalas, placas o exudado.",
+		source: SOURCES.examen,
+		critical: false,
+		evidence: item.evidence,
+	};
 }
 
 export function assembleReport(
@@ -368,8 +419,14 @@ export function assembleReport(
 	}
 
 	const mistakes: Mistake[] = criticalMistakes(items, extracted);
+	const description = describeMistake(items, extracted, clinicalCase);
+	if (description) mistakes.push(description);
 	for (const i of items.filter(
-		(x) => x.status === "no" && x.weight >= 2 && !isAlarm(x),
+		(x) =>
+			x.status === "no" &&
+			x.weight >= 2 &&
+			!isAlarm(x) &&
+			!(description && x.itemId === DESCRIBE_ITEM),
 	)) {
 		mistakes.push({
 			tag: i.itemId,
@@ -379,6 +436,7 @@ export function assembleReport(
 					? "Es un ítem esencial de la lista de cotejo."
 					: "Es un ítem importante de la lista de cotejo.",
 			nextTime: `La próxima vez: ${i.item}.`,
+			source: SOURCES[i.dimension],
 			critical: false,
 			evidence: [],
 		});
@@ -390,6 +448,7 @@ export function assembleReport(
 			what: p.what,
 			why: p.why ?? "Resta puntos de la dimensión.",
 			nextTime: p.nextTime ?? "Dejá hablar y preguntá de forma abierta.",
+			source: p.source ?? SOURCES[p.dimension],
 			critical: false,
 			evidence: p.turnId ? [{ turnId: p.turnId, quote }] : [],
 		});
@@ -403,6 +462,7 @@ export function assembleReport(
 			what: `El manómetro marcó ${bp.shown.pas}/${bp.shown.pad}; con buena técnica hubiera marcado ${sys}/${dia}.`,
 			why: "Los errores de técnica cambian la lectura y pueden llevar a un diagnóstico equivocado de hipertensión.",
 			nextTime: "Prepará al paciente y revisá la posición antes de inflar.",
+			source: SOURCES.presion,
 			critical: false,
 			evidence: [{ examActionId: bp.id }],
 		});
@@ -413,6 +473,7 @@ export function assembleReport(
 			what: note,
 			why: "Parte de la dimensión de razonamiento.",
 			nextTime: note,
+			source: SOURCES.razonamiento,
 			critical: false,
 			evidence: [],
 		});

@@ -23,6 +23,8 @@ export function normalize(s: string) {
 		.replace(/\p{Diacritic}/gu, "");
 }
 
+export const DESCRIBE_ITEM = "describe-hallazgo";
+
 export function findTurn(turns: Turn[], keywords: string[]) {
 	const keys = keywords.map(normalize);
 	return turns.find((t) => keys.some((k) => normalize(t.text).includes(k)));
@@ -31,11 +33,73 @@ export function findTurn(turns: Turn[], keywords: string[]) {
 // Turnos del estudiante que pueden probar el ítem. Describir el hallazgo solo
 // cuenta después de examinar.
 export function turnsForItem(item: ChecklistItem, extracted: Extracted) {
-	if (item.id !== "describe-hallazgo") return extracted.studentTurns;
+	if (item.id !== DESCRIBE_ITEM) return extracted.studentTurns;
 	const from = extracted.firstExamMs;
 	return from === null
 		? []
 		: extracted.studentTurns.filter((t) => t.startMs >= from);
+}
+
+// La palabra clave aparece sin negar en su frase: "no veo placas" no prueba
+// "placas". Las claves que ya traen la negación ("sin placas") valen tal cual.
+function affirms(text: string, keyword: string) {
+	const t = normalize(text);
+	const k = normalize(keyword);
+	if (/^(no|sin) /.test(k)) return t.includes(k);
+	for (let at = t.indexOf(k); at >= 0; at = t.indexOf(k, at + 1)) {
+		const clause =
+			t
+				.slice(0, at)
+				.split(/[.,;:!?]/)
+				.at(-1) ?? "";
+		if (!/(^|\s)(no|sin|ni)\s/.test(clause)) return true;
+	}
+	return false;
+}
+
+// Describir el hallazgo (plan.md, sección 6): sí si lo describe con las
+// palabras del caso; si iluminó las zonas pero no dijo qué vio, parcial.
+function judgeDescription(
+	item: ChecklistItem,
+	base: Omit<ItemResult, "status" | "evidence">,
+	extracted: Extracted,
+): ItemResult {
+	const turn = turnsForItem(item, extracted).find((t) =>
+		item.keywords.some((k) => affirms(t.text, k)),
+	);
+	if (turn)
+		return {
+			...base,
+			status: "si",
+			evidence: [{ turnId: turn.id, quote: turn.text }],
+		};
+	return creditSeenZones({ ...base, status: "no", evidence: [] }, extracted);
+}
+
+// Crédito parcial por ver sin describir. Lo usan los dos jueces: el de IA
+// deja en "no" lo que no tiene un turno que lo pruebe.
+export function creditSeenZones(
+	result: ItemResult,
+	extracted: Extracted,
+): ItemResult {
+	const { fullExam, zonesSeen } = extracted;
+	if (
+		result.itemId !== DESCRIBE_ITEM ||
+		result.status !== "no" ||
+		!fullExam ||
+		zonesSeen.length === 0
+	)
+		return result;
+	return {
+		...result,
+		status: "parcial",
+		evidence: [
+			{
+				examActionId: fullExam.id,
+				quote: `viste ${zonesSeen.join(", ")} pero no lo describiste`,
+			},
+		],
+	};
 }
 
 function judgeExamAction(
@@ -128,6 +192,7 @@ export function judgeItem(
 		return judgeBloodPressure(base, extracted);
 	if (item.id === "otoscopia") return judgeOtoscopy(base, extracted);
 	if (ACTION_ITEMS.has(item.id)) return judgeExamAction(base, extracted);
+	if (item.id === DESCRIBE_ITEM) return judgeDescription(item, base, extracted);
 
 	const turn = findTurn(turnsForItem(item, extracted), item.keywords);
 	return turn

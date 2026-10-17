@@ -24,6 +24,10 @@ export const mistakeSchema = z.object({
 	what: z.string(),
 	why: z.string(),
 	nextTime: z.string(),
+	// De dónde sale el "por qué importa": la lista de cotejo o el afiche. Solo
+	// se nombra; no se copia el texto (AGENTS.md). Opcional para los informes
+	// guardados antes.
+	source: z.string().optional(),
 	critical: z.boolean(),
 	evidence: z.array(evidenceSchema),
 });

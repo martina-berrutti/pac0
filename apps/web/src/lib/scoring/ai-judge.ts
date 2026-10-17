@@ -13,6 +13,7 @@ import { NO_HYPOTHESIS, type Reasoning, reasoningFromParts } from "./evaluate";
 import type { Extracted } from "./extractor";
 import {
 	ACTION_ITEMS,
+	DESCRIBE_ITEM,
 	findTurn,
 	judgeItem,
 	normalize,
@@ -67,7 +68,7 @@ function itemLine(
 	input: EvaluationInput,
 	extracted: Extracted,
 ) {
-	if (item.id !== "describe-hallazgo") return `- ${item.id}: ${item.item}`;
+	if (item.id !== DESCRIBE_ITEM) return `- ${item.id}: ${item.item}`;
 	const zone = extracted.fullExam ?? extracted.partialExam;
 	const expected = zone ? input.clinicalCase.exam[zone.zone]?.expected : null;
 	const from = extracted.firstExamMs;
