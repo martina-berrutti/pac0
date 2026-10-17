@@ -38,6 +38,11 @@ export default function ConsultationPage() {
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
+	// Plan B si falla la voz o el wifi (plan.md, sección 14): la consulta sigue
+	// por texto con el mismo paciente.
+	const [textMode, setTextMode] = useState(false);
+	const [draft, setDraft] = useState("");
+	const [typing, setTyping] = useState(false);
 	const bottom = useRef<HTMLLIElement>(null);
 
 	const voice = useVoice({
@@ -110,6 +115,29 @@ export default function ConsultationPage() {
 		setExam(null);
 	}
 
+	async function sendText(event: React.FormEvent) {
+		event.preventDefault();
+		const text = draft.trim();
+		if (!text) return;
+		setTyping(true);
+		try {
+			const r = await api.sendTurn(id, text);
+			setDraft("");
+			setView((v) =>
+				v ? { ...v, turns: [...v.turns, r.studentTurn, r.patientTurn] } : v,
+			);
+			if (r.exam) setExam(r.exam);
+		} catch (e) {
+			toast.error(
+				e instanceof ApiError
+					? e.message
+					: "No se pudo enviar. Probá de nuevo.",
+			);
+		} finally {
+			setTyping(false);
+		}
+	}
+
 	async function finish(event: React.FormEvent) {
 		event.preventDefault();
 		setSending(true);
@@ -170,8 +198,15 @@ export default function ConsultationPage() {
 								personales reales.
 							</p>
 							<Button onClick={() => voice.start()}>
-								Acepto: hablar por voz
+								{voice.status === "error"
+									? "Probar la voz de nuevo"
+									: "Acepto: hablar por voz"}
 							</Button>
+							{voice.status === "error" && !textMode && (
+								<Button variant="outline" onClick={() => setTextMode(true)}>
+									Seguir por texto
+								</Button>
+							)}
 						</>
 					)}
 				</section>
@@ -227,6 +262,23 @@ export default function ConsultationPage() {
 						</li>
 					))}
 				</ol>
+			)}
+
+			{textMode && !voiceLive && !tool && !closing && (
+				<form onSubmit={sendText} className="flex gap-2">
+					<Input
+						aria-label={`Escribile a ${view.case.patient.name}`}
+						placeholder="Escribí lo que le dirías…"
+						value={draft}
+						onChange={(e) => setDraft(e.target.value)}
+						maxLength={1000}
+						disabled={typing}
+						autoFocus
+					/>
+					<Button type="submit" disabled={typing || !draft.trim()}>
+						{typing ? "…" : "Enviar"}
+					</Button>
+				</form>
 			)}
 
 			{!tool && !closing && (
