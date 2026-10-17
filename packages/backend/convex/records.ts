@@ -20,6 +20,7 @@ export const recordKind = v.union(
 	v.literal("vitals"),
 	v.literal("report"),
 	v.literal("user"),
+	v.literal("mistakes"),
 );
 
 function checkSecret(secret: string) {
@@ -181,13 +182,14 @@ async function deleteSession(ctx: MutationCtx, doc: Doc<"records">) {
 }
 
 // Borra lo de los invitados de más de 24 horas (plan.md, sección 10): sus
-// sesiones con todo lo que cuelga de ellas y sus casos generados.
+// sesiones con todo lo que cuelga de ellas, sus casos generados y su perfil
+// de errores.
 export const purgeExpiredGuests = internalMutation({
 	args: {},
 	handler: async (ctx) => {
 		const cutoff = Date.now() - GUEST_TTL_MS;
 		let deleted = 0;
-		for (const kind of ["session", "case"] as const) {
+		for (const kind of ["session", "case", "mistakes"] as const) {
 			// Por índice: solo invitados, del más viejo al más nuevo.
 			const old = await ctx.db
 				.query("records")

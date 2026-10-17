@@ -8,6 +8,7 @@ import type {
 	ExamAction,
 	OtoscopyRecord,
 } from "@/lib/contracts/exam";
+import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
 import type { SessionView, TurnResult } from "@/server/consultation";
 import type { OtoscopyStart } from "@/server/otoscopy";
@@ -129,4 +130,6 @@ export const api = {
 		}),
 	report: (id: string) =>
 		request<{ report: Report }>(`/api/sessions/${id}/report`),
+	// Perfil de errores entre consultas (lo más repetido primero).
+	mistakes: () => request<{ mistakes: MistakeEntry[] }>("/api/me/mistakes"),
 };

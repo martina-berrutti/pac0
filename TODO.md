@@ -109,7 +109,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
 - [x] Script con IA: el paciente siguió en personaje ("para eso vine, doc"); por voz también
-- [ ] Repetir el script completo cuando producción guarde en Convex (se cortó por "Sesión no encontrada")
+- [x] Script completo en producción con Convex: 6 de 6 en personaje, sin cortes
 
 ### Generador "pedime un paciente" (feature nueva)
 - [x] `POST /api/cases/generate`: "dame un paciente con algo de garganta, que sea ansioso, de 60 años"
@@ -124,7 +124,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [ ] Persona 3: usar `readPatientLevel()` en el avatar para mover la boca
 
 ### Si la Persona 1 termina antes
-- [ ] Tomar el tensiómetro con la Persona 2
+- [x] Tensiómetro: lo hizo la Persona 2 (PR #2)
 
 ---
 
@@ -230,7 +230,8 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 - [x] `npx convex deploy` con `listRecentSessions`, `countSessionsSince`, `purgeOldSessions` y el cron nuevo (17/10)
 - [x] Usuarios con Google e invitado: resuelto con OAuth propio y `records` (Convex Auth en `packages/backend/convex/auth.ts` queda sin usar)
 - [x] Borrado de invitados a las 24 horas: `records.purgeExpiredGuests` cada hora (`crons.ts`)
-- [ ] `mistakeProfile`: perfil de errores entre sesiones
+- [x] Perfil de errores entre consultas: se suma al cerrar cada consulta; `GET /api/me/mistakes` y `api.mistakes()`
+- [ ] Persona 3: mostrar el perfil de errores en el informe (parte 7) con `api.mistakes()`
 - [ ] Imágenes en Convex storage y tabla `assets`
 - [x] Credenciales de Google: van en Vercel (OAuth propio), no en Convex
 - [x] Conectar Convex como almacenamiento (adelantado el 17/10: en Vercel la consulta fallaba con "Sesión no encontrada")
@@ -238,6 +239,6 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 ## Puertas (plan.md, sección 13)
 
-- [ ] **Puerta 1:** URL pública con login, invitado y una sesión de voz de prueba
+- [ ] **Puerta 1:** URL pública con login, invitado y una sesión de voz de prueba (falta solo probar la voz con micrófono en la URL pública)
 - [ ] **Puerta 2:** una consulta pasa por voz, examen e informe con puntaje y evidencia en la URL pública
 - [ ] **Puerta 3:** funciones congeladas; solo arreglos, ensayo y video

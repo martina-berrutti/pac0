@@ -9,6 +9,7 @@ import { anyApi } from "convex/server";
 import { caseBank } from "@/cases";
 import type { ClinicalCase } from "@/cases/schema";
 import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
+import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
 import type { Session, SessionEvent, Turn } from "@/lib/contracts/session";
 
@@ -18,6 +19,9 @@ export type Profile = { alias: string; careerYear: string };
 export interface Store {
 	getProfile(uid: string): Promise<Profile | undefined>;
 	saveProfile(uid: string, profile: Profile): Promise<void>;
+	// Perfil de errores entre consultas (server/mistakes.ts).
+	getMistakes(uid: string): Promise<MistakeEntry[]>;
+	saveMistakes(uid: string, entries: MistakeEntry[]): Promise<void>;
 	listCases(ownerId: string): Promise<ClinicalCase[]>;
 	getCase(id: string): Promise<ClinicalCase | undefined>;
 	// Casos generados: solo los ve quien los pidió.
@@ -59,12 +63,19 @@ class MemoryStore implements Store {
 	private vitals = new Map<string, VitalsMeasurement[]>();
 	private reports = new Map<string, Report>();
 	private profiles = new Map<string, Profile>();
+	private mistakes = new Map<string, MistakeEntry[]>();
 
 	async getProfile(uid: string) {
 		return this.profiles.get(uid);
 	}
 	async saveProfile(uid: string, profile: Profile) {
 		this.profiles.set(uid, profile);
+	}
+	async getMistakes(uid: string) {
+		return this.mistakes.get(uid) ?? [];
+	}
+	async saveMistakes(uid: string, entries: MistakeEntry[]) {
+		this.mistakes.set(uid, entries);
 	}
 	async listCases(ownerId: string) {
 		const own = [...this.generated.values()]
@@ -161,6 +172,7 @@ export const GUEST_PREFIX = "gst_";
 
 type Kind =
 	| "user"
+	| "mistakes"
 	| "case"
 	| "session"
 	| "turn"
@@ -223,6 +235,12 @@ class ConvexStore implements Store {
 	}
 	async saveProfile(uid: string, profile: Profile) {
 		await this.put("user", uid, profile, { ownerId: uid });
+	}
+	async getMistakes(uid: string) {
+		return (await this.get<MistakeEntry[]>("mistakes", uid)) ?? [];
+	}
+	async saveMistakes(uid: string, entries: MistakeEntry[]) {
+		await this.put("mistakes", uid, entries, { ownerId: uid });
 	}
 	async listCases(ownerId: string) {
 		return [

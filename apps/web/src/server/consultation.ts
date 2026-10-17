@@ -35,6 +35,7 @@ import { evaluate } from "@/lib/scoring/evaluate";
 
 import { aiEnabled, chat, completeJson } from "./ai";
 import { HttpError, roleOf } from "./auth";
+import { recordMistakes } from "./mistakes";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -469,6 +470,8 @@ export async function finishSession(
 		? await evaluateWithAi(input, completeJson)
 		: evaluate(input);
 	await store.saveReport(report);
+	// Suma los errores al perfil del usuario (una vez por consulta).
+	await recordMistakes(viewer.uid, report);
 	return report;
 }
 

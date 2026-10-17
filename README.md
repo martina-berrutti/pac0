@@ -26,7 +26,17 @@ npm install
 npm run dev:web     # web y API en http://localhost:3001
 ```
 
-Hoy no se usa Convex: la API de Next.js guarda todo en memoria (`apps/web/src/server/store.ts`) y se borra al reiniciar. Convex queda para la fase final (`TODO.md`).
+En tu compu no hace falta Convex: sin `CONVEX_URL` y `STORE_SECRET` la API guarda todo en memoria (`apps/web/src/server/store.ts`) y se borra al reiniciar. En Vercel se usa Convex.
+
+### Para usar la voz en tu compu
+
+La voz necesita una clave de Google AI Studio. Las claves no van en el repo, así que cada una usa la suya:
+
+1. Creá la tuya en https://aistudio.google.com/apikey (**Create API key**; es gratis).
+2. Creá el archivo `apps/web/.env.local` con una sola línea: `GEMINI_API_KEY=` y tu clave pegada, sin espacios ni comillas.
+3. Reiniciá con `npm run dev:web`, abrí http://localhost:3001 y en la consulta tocá **Acepto: hablar por voz** (permití el micrófono; mejor con auriculares).
+
+Sin clave la app funciona igual, pero la consulta por voz avisa que falta configurarla. La URL pública ya tiene todo configurado.
 
 ### Variables opcionales (`apps/web/.env.local`)
 
