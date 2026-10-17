@@ -32,18 +32,34 @@ async function callGemini(
 			role: m.role === "assistant" ? "model" : "user",
 			parts: [{ text: m.content }],
 		}));
-	const res = await ai.models.generateContent({
-		model: process.env.AI_MODEL || "gemini-3.8-flash",
-		contents,
-		config: {
-			...(system ? { systemInstruction: system } : {}),
-			temperature: json ? 0.2 : 0.8,
-			...(json ? { responseMimeType: "application/json" } : {}),
-			abortSignal: AbortSignal.timeout(20_000),
-		},
-	});
-	if (!res.text) throw new Error("Gemini no devolvió texto");
-	return res.text;
+	// Si el modelo principal está saturado (503), se prueba el de respaldo.
+	const models = [
+		...new Set([
+			process.env.AI_MODEL || "gemini-3.8-flash",
+			"gemini-3.5-flash-lite",
+		]),
+	];
+	let lastError: unknown;
+	for (const model of models) {
+		try {
+			const res = await ai.models.generateContent({
+				model,
+				contents,
+				config: {
+					...(system ? { systemInstruction: system } : {}),
+					temperature: json ? 0.2 : 0.8,
+					...(json ? { responseMimeType: "application/json" } : {}),
+					abortSignal: AbortSignal.timeout(20_000),
+				},
+			});
+			if (res.text) return res.text;
+			lastError = new Error("Gemini no devolvió texto");
+		} catch (error) {
+			lastError = error;
+			console.error(`Gemini ${model}`, String(error).slice(0, 200));
+		}
+	}
+	throw lastError;
 }
 
 async function callOpenAI(

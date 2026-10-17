@@ -119,8 +119,9 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 					uses: 1,
 					expireTime: new Date(now + 10 * 60 * 1000).toISOString(),
 					newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
+					// Sin lockAdditionalFields el token fija toda la configuración; con
+					// lockAdditionalFields y herramientas Google rechaza el field_mask.
 					liveConnectConstraints: { model, config },
-					lockAdditionalFields: [],
 				},
 			});
 			if (token.name) {

@@ -37,7 +37,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] `AGENTS.md` y `.claude/settings.json` que bloquea los `.env` de todo el repo
 - [x] Deploy en Vercel: https://pac0-l3xi.vercel.app
 - [ ] Cargar `SESSION_SECRET` en Vercel (sin eso no anda el invitado en producción)
-- [ ] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
+- [x] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
 
 ### Usuarios y acceso (plan.md, sección 10)
 - [x] Invitado con alias temporal y cookie firmada, en menos de 10 s
@@ -71,8 +71,9 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Tope de 8 minutos en el servidor y reloj en pantalla
 - [x] Decisión del 17/10: la consulta es **solo por voz**; se sacó el campo para escribir (la transcripción se ve para leer)
 - [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
-- [ ] **Probar la voz de verdad con la clave de Google AI Studio** (todavía no se probó en vivo)
-- [ ] Verificar en vivo qué versión de API acepta el token efímero (`v1beta` o `v1alpha`; el servidor prueba las dos)
+- [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
+- [ ] Probar con micrófono en el navegador (computadora y celular)
+- [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno)
 - [ ] Probar 3 voces de Gemini y elegir la más rioplatense; cargarla en `LIVE_VOICE`
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
