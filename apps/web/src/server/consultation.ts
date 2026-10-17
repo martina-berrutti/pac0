@@ -201,6 +201,10 @@ async function patientReply(
 	}
 }
 
+// Margen para terminar un examen que se empezó antes de los 8 minutos
+// (marcar la presión, cerrar la otoscopia): sin él se pierde la medición.
+export const FINISH_EXAM_GRACE_MS = 60_000;
+
 // Exige una sesión activa y dentro del tope de 8 minutos (más un margen para
 // que lleguen las últimas transcripciones de la voz).
 export async function activeSession(

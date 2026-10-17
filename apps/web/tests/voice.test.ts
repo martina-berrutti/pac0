@@ -600,3 +600,20 @@ describe("consentimiento de punta a punta (voz y evaluador)", () => {
 		expect(critical(await finishFor(id))).toBe(false);
 	});
 });
+
+test("una medición empezada antes de los 8 minutos se puede terminar", async () => {
+	const { markReading, placeCuff, startMeasurement } = await import(
+		"@/server/vitals"
+	);
+	const id = await startSession(ana, lucia.id, "caso");
+	const { measurementId } = await startMeasurement(ana, id);
+	await placeCuff(ana, id, measurementId, "adecuado", false);
+	// Pasaron 8 minutos y 20 segundos: se puede marcar, no empezar otra.
+	await store.updateSession(id, {
+		startedAt: Date.now() - (8 * 60 + 20) * 1000,
+	});
+	await expect(
+		markReading(ana, id, measurementId, { pas: 110, pad: 70 }),
+	).resolves.toEqual({ ok: true });
+	await expect(startMeasurement(ana, id)).rejects.toThrow("8 minutos");
+});

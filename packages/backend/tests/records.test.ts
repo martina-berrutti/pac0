@@ -120,4 +120,35 @@ describe("records (almacenamiento de la app web)", () => {
 		expect(await get("session", "google")).not.toBeNull();
 		expect(await get("session", "nueva")).not.toBeNull();
 	});
+
+	test("una sesión con más registros que el presupuesto se borra en varias corridas", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		vi.useFakeTimers();
+		const t = convexTest(schema, modules);
+		await t.run(async (ctx) => {
+			await ctx.db.insert("records", {
+				kind: "session",
+				appId: "larga",
+				ownerId: "gst_a",
+				guest: true,
+				data: {},
+			});
+			for (let i = 0; i < 1500; i++) {
+				await ctx.db.insert("records", {
+					kind: "turn",
+					appId: `t${i}`,
+					sessionId: "larga",
+					data: {},
+				});
+			}
+		});
+		vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+		const purge = () => t.mutation(internal.records.purgeExpiredGuests, {});
+		expect(await purge()).toBe(1000);
+		const left = await t.run((ctx) => ctx.db.query("records").collect());
+		// La sesión sigue hasta que se borran todos sus registros.
+		expect(left.some((r) => r.kind === "session")).toBe(true);
+		expect(await purge()).toBe(501);
+		expect(await t.run((ctx) => ctx.db.query("records").collect())).toEqual([]);
+	});
 });

@@ -106,7 +106,14 @@ export const listByOwner = query({
 });
 
 const GUEST_TTL_MS = 24 * 60 * 60 * 1000;
-const PER_RUN = 50;
+// Presupuesto de borrados por corrida. Convex limita cuánto lee y escribe una
+// mutación: si una corrida se pasara, fallaría entera y la siguiente volvería
+// a tomar las mismas sesiones viejas, así que la limpieza quedaría trabada.
+// Con presupuesto, una sesión larga se borra en varias corridas.
+const DELETE_BUDGET = 1000;
+const SESSIONS_PER_RUN = 20;
+
+const SESSION_CHILDREN = ["turn", "event", "exam", "vitals", "report"] as const;
 
 // Borra lo de los invitados de más de 24 horas (plan.md, sección 10): sus
 // sesiones con todo lo que cuelga de ellas y sus casos generados.
@@ -123,27 +130,33 @@ export const purgeExpiredGuests = internalMutation({
 					q.eq("guest", true).eq("kind", kind),
 				)
 				.order("asc")
-				.take(PER_RUN);
+				.take(SESSIONS_PER_RUN);
 			for (const doc of old) {
-				if (doc._creationTime > cutoff) break;
+				if (doc._creationTime > cutoff || deleted >= DELETE_BUDGET) break;
+				let pending = false;
 				if (kind === "session") {
-					for (const child of [
-						"turn",
-						"event",
-						"exam",
-						"vitals",
-						"report",
-					] as const) {
+					for (const child of SESSION_CHILDREN) {
+						const room = DELETE_BUDGET - deleted;
+						if (room <= 0) {
+							pending = true;
+							break;
+						}
 						const rows = await ctx.db
 							.query("records")
 							.withIndex("by_kind_and_sessionId", (q) =>
 								q.eq("kind", child).eq("sessionId", doc.appId),
 							)
-							.take(2000);
-						for (const row of rows) await ctx.db.delete(row._id);
-						deleted += rows.length;
+							.take(room + 1);
+						// Si hay más de lo que entra, la sesión queda para la próxima.
+						if (rows.length > room) pending = true;
+						for (const row of rows.slice(0, room)) {
+							await ctx.db.delete(row._id);
+							deleted += 1;
+						}
+						if (pending) break;
 					}
 				}
+				if (pending) break;
 				await ctx.db.delete(doc._id);
 				deleted += 1;
 			}

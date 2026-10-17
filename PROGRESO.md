@@ -22,6 +22,11 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
 - Generador y paciente por reglas: "él" y "varón", "tos" como palabra entera ("datos" elegía la plantilla de catarro), "100 años", JSON de la IA entre ```, respuesta sin género, `cambio_animo` guarda el cambio.
 - Pantalla de consulta: no ofrece la voz si la consulta venció o se cerró; limita la hipótesis a 500 caracteres y 10 diferenciales.
 - Cliente de voz con tests (`tests/use-voice.test.ts`): el hook corre en Node con el micrófono, el `AudioContext`, el socket de Gemini y el servidor simulados. Cubre el orden de los turnos (el estudiante antes que la herramienta aunque su guardado tarde más), cortar a mitad de frase, mensajes después de cortar, cancelar mientras se pide el micrófono, micrófono bloqueado, socket cerrado e interrupciones. Si se sacan la fila o el filtro de mensajes tardíos, los tests fallan.
+- Revisión del código nuevo de `main` en carpetas de la Persona 1 (login con Google, invitados `gst_`, `/api/health`, tensiómetro, otoscopio, `records`):
+  - Tensiómetro y otoscopio: colocar el manguito, marcar la presión y terminar la otoscopia tienen 60 s de margen después de los 8 minutos (`FINISH_EXAM_GRACE_MS`). Antes, un examen empezado cerca del final daba 409 y se perdía. Empezar uno nuevo sigue exigiendo estar dentro de los 8 minutos.
+  - Limpieza de invitados en Convex: cada corrida podía leer y borrar decenas de miles de registros en una sola mutación. Si pasaba el límite de Convex, fallaba siempre con las mismas sesiones y la limpieza quedaba trabada. Ahora tiene un presupuesto de 1000 borrados por corrida (una sesión larga se borra en varias) y corre cada 10 minutos. Test con una sesión de 1500 turnos.
+  - Login con Google (state, emisor, audiencia, vencimiento, hash del id), `/api/health` (solo booleanos) y el perfil de cuentas: sin problemas.
+  - **Falta desplegar Convex** para la limpieza con presupuesto, mejor desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).
 

@@ -13,7 +13,7 @@ import {
 import { assessOtoscopy, otoscopyScenario } from "@/lib/exam/otoscope";
 
 import { HttpError } from "./auth";
-import { activeSession } from "./consultation";
+import { activeSession, FINISH_EXAM_GRACE_MS } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -51,6 +51,7 @@ export async function finishOtoscopy(
 	const { session, clinicalCase, elapsed } = await activeSession(
 		viewer,
 		sessionId,
+		FINISH_EXAM_GRACE_MS,
 	);
 	const action = (await store.listExamActions(sessionId)).find(
 		(a) => a.id === actionId && a.maneuver === OTOSCOPY,
