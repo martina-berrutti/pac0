@@ -84,19 +84,20 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Decisión del 17/10: la consulta es **solo por voz**; se sacó el campo para escribir (la transcripción se ve para leer)
 - [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
-- [ ] Probar con micrófono en el navegador (computadora y celular)
+- [x] Probar con micrófono en la computadora (URL pública, 17/10)
+- [ ] Probar con micrófono en el celular
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
 - [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
 - [x] Voces: cada consulta sortea una acorde al sexo del paciente (Kore, Aoede, Leda, Zephyr; Puck, Charon). `LIVE_VOICE` ya no se usa
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
 - [x] Estimar el costo: US$0,50 a 0,80 por consulta de 8 min (audio entrada US$3/M, salida US$12/M; capa gratuita sin costo)
-- [ ] Confirmar el costo con `voiceUsage` de una consulta real por micrófono
+- [x] Costo real con `voiceUsage`: 2,8 min ≈ US$0,09 y 3,2 min ≈ US$0,14; una de 8 min ≈ US$0,40 a 0,60 (capa gratuita: sin costo)
 - [x] Reconectar la voz si se corta la conexión (o si Google avisa con `goAway`), hasta 3 veces: el token nuevo lleva los últimos 40 turnos y la confianza actual, y la pantalla dice "Reconectando…"
 - [x] Probar la reconexión en el navegador: en producción, con Chrome y micrófono simulado, se cortó la conexión a mano y la pantalla pasó a "Reconectando…" y volvió a "En línea" sola (`voiceStarts` 2)
 - [ ] Probarla con una persona hablando y cortando el wifi de verdad
 - [x] Topes para cuidar los créditos (plan.md, sección 14): 10 consultas por usuario por día (`MAX_SESSIONS_PER_USER_PER_DAY`), 200 en total por día (`MAX_SESSIONS_PER_DAY`, porque un invitado nuevo no cuesta nada). Responden 429 con un mensaje claro; `/api/health` muestra los topes
-- [ ] `/consulta` sin errores de consola a 390 y 1280 px (validación del prompt de la Persona 1, plan.md, sección 12). Arreglado: había un `<div>` dentro de la lista (`<ol>`), que React marca como error, y un fragmento inútil. Revisada con Chrome a 390 y 1280 px: sin desborde horizontal ni errores propios en la consola
+- [x] `/consulta` sin errores de consola a 390 y 1280 px (validación del prompt de la Persona 1, plan.md, sección 12). Arreglado: había un `<div>` dentro de la lista (`<ol>`), que React marca como error, y un fragmento inútil. Revisada con Chrome a 390 y 1280 px: sin desborde horizontal ni errores propios en la consola
 
 ### Herramientas del paciente (plan.md, secciones 4 y 6)
 - [x] `examinar(zona, maniobra, claridad, consentimiento)`: el caso decide la variante; al modelo no le llega el hallazgo
@@ -240,6 +241,6 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 ## Puertas (plan.md, sección 13)
 
-- [ ] **Puerta 1:** URL pública con login, invitado y una sesión de voz de prueba (falta solo probar la voz con micrófono en la URL pública)
+- [x] **Puerta 1:** URL pública con invitado y voz probada con micrófono (17/10). El login con Google espera las credenciales
 - [ ] **Puerta 2:** una consulta pasa por voz, examen e informe con puntaje y evidencia en la URL pública
 - [ ] **Puerta 3:** funciones congeladas; solo arreglos, ensayo y video
