@@ -92,9 +92,10 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Estimar el costo: US$0,50 a 0,80 por consulta de 8 min (audio entrada US$3/M, salida US$12/M; capa gratuita sin costo)
 - [ ] Confirmar el costo con `voiceUsage` de una consulta real por micrófono
 - [x] Reconectar la voz si se corta la conexión (o si Google avisa con `goAway`), hasta 3 veces: el token nuevo lleva los últimos 40 turnos y la confianza actual, y la pantalla dice "Reconectando…"
-- [ ] Probar la reconexión en el navegador cortando el wifi a mitad de la consulta
+- [x] Probar la reconexión en el navegador: en producción, con Chrome y micrófono simulado, se cortó la conexión a mano y la pantalla pasó a "Reconectando…" y volvió a "En línea" sola (`voiceStarts` 2)
+- [ ] Probarla con una persona hablando y cortando el wifi de verdad
 - [x] Topes para cuidar los créditos (plan.md, sección 14): 10 consultas por usuario por día (`MAX_SESSIONS_PER_USER_PER_DAY`), 200 en total por día (`MAX_SESSIONS_PER_DAY`, porque un invitado nuevo no cuesta nada). Responden 429 con un mensaje claro; `/api/health` muestra los topes
-- [ ] `/consulta` sin errores de consola a 390 y 1280 px (validación del prompt de la Persona 1, plan.md, sección 12). Arreglado: había un `<div>` dentro de la lista (`<ol>`), que React marca como error, y un fragmento inútil. Falta mirarla en el navegador a los dos anchos
+- [ ] `/consulta` sin errores de consola a 390 y 1280 px (validación del prompt de la Persona 1, plan.md, sección 12). Arreglado: había un `<div>` dentro de la lista (`<ol>`), que React marca como error, y un fragmento inútil. Revisada con Chrome a 390 y 1280 px: sin desborde horizontal ni errores propios en la consola
 
 ### Herramientas del paciente (plan.md, secciones 4 y 6)
 - [x] `examinar(zona, maniobra, claridad, consentimiento)`: el caso decide la variante; al modelo no le llega el hallazgo
@@ -226,7 +227,7 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 - [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
 - [x] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel: no llegaban porque Varlock borra las variables que no están en `.env.schema` (arreglado en `2becc63`). Desde las 17:15, `/api/health` en producción dice `store: convex`
 - [ ] Declarar en `apps/web/.env.schema` las variables nuevas del servidor: `DOCENTES` y, si se quieren cambiar, `MAX_SESSIONS_PER_USER_PER_DAY` y `MAX_SESSIONS_PER_DAY` (si no, Varlock las borra)
-- [ ] `npx convex deploy` para subir `listRecentSessions`, `countSessionsSince`, `purgeOldSessions` y el cron nuevo. Sin eso, en Convex el panel docente falla y el tope total no se aplica (la consulta igual anda)
+- [x] `npx convex deploy` con `listRecentSessions`, `countSessionsSince`, `purgeOldSessions` y el cron nuevo (17/10)
 - [x] Usuarios con Google e invitado: resuelto con OAuth propio y `records` (Convex Auth en `packages/backend/convex/auth.ts` queda sin usar)
 - [x] Borrado de invitados a las 24 horas: `records.purgeExpiredGuests` cada hora (`crons.ts`)
 - [ ] `mistakeProfile`: perfil de errores entre sesiones

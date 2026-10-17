@@ -12,7 +12,9 @@ Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hiz
 - **`/consulta`:** se sacó un `<div>` que estaba dentro de la lista (React lo marca en la consola) y un fragmento inútil. Lint sin avisos.
 - **`.gitattributes`** con `eol=lf`: `npm run lint` ya pasa en Windows.
 - Validación: 80 tests en web (7 nuevos en `tests/persona1.test.ts`) y 18 en backend (2 nuevos); lint, tipos y build pasan.
-- **Falta:** `npx convex deploy` para las funciones nuevas; declarar `DOCENTES` en `.env.schema` y cargarlo en Vercel. Producción ya usa Convex (`/api/health` dice `store: convex` desde que se declararon las variables en `.env.schema`); probar en el navegador la reconexión y `/consulta` a 390 y 1280 px.
+- **Desplegado:** `npx convex deploy` a producción y push a `main` (Vercel ya muestra los topes en `/api/health`).
+- **Prueba en producción** con Chrome y micrófono simulado: la voz conecta; al cortar la conexión a mano la pantalla pasa a "Reconectando…" y vuelve a "En línea" sola (`voiceStarts` 2). `/consulta` a 390 y 1280 px sin desborde horizontal ni errores propios en la consola.
+- **Falta:** declarar `DOCENTES` en `.env.schema` y cargarlo en Vercel. Producción ya usa Convex (`/api/health` dice `store: convex` desde que se declararon las variables en `.env.schema`).
 
 ## 17/10 · Persona 1 · Revisión del avance contra plan.md
 
