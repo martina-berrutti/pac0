@@ -1,5 +1,5 @@
 import type { ClinicalCase } from "@/cases/schema";
-import type { ExamAction } from "@/lib/contracts/exam";
+import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { Session, SessionEvent, Turn } from "@/lib/contracts/session";
 
 // Todo lo que el evaluador lee de una consulta (plan.md, sección 8).
@@ -9,6 +9,7 @@ export type EvaluationInput = {
 	turns: Turn[];
 	events: SessionEvent[];
 	examActions: ExamAction[];
+	vitals: VitalsMeasurement[];
 };
 
 export type Penalty = {
@@ -17,4 +18,7 @@ export type Penalty = {
 	tag: string;
 	what: string;
 	turnId?: string;
+	// Textos de la tarjeta de error; sin ellos van los genéricos.
+	why?: string;
+	nextTime?: string;
 };

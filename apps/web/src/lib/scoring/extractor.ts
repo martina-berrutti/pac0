@@ -1,7 +1,7 @@
 // Extractor determinista (plan.md, sección 8, paso 2): lo medible sale del
-// código, no del modelo. Tiempo sobre cada zona, interrupciones y si hubo
-// examen antes del consentimiento.
-import type { ExamAction } from "@/lib/contracts/exam";
+// código, no del modelo. Tiempo sobre cada zona, interrupciones, la medición
+// de presión y si hubo examen antes del consentimiento.
+import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { SessionEvent, Turn } from "@/lib/contracts/session";
 
 import type { EvaluationInput } from "./types";
@@ -20,13 +20,16 @@ export type Extracted = {
 	// Zonas vistas sobre las zonas del caso, de 0 a 1.
 	zoneCoverage: number;
 	firstExamMs: number | null;
-	// Primera acción de examen (no negada) antes del consentimiento.
-	examWithoutConsent: ExamAction | null;
+	// Primer examen (de boca no negado, o de presión) antes del consentimiento.
+	examWithoutConsent: { id: string; atMs: number } | null;
+	// Última medición de presión con PAS y PAD marcadas: si el resultado es
+	// inesperado, el afiche pide repetir, y vale la última.
+	bp: VitalsMeasurement | null;
 	studentInterruptions: SessionEvent[];
 };
 
 export function extract(input: EvaluationInput): Extracted {
-	const { clinicalCase, session, examActions, events, turns } = input;
+	const { clinicalCase, session, examActions, events, turns, vitals } = input;
 	const full = examActions.filter((a) => a.variant === "completa");
 
 	const hotspotMs: Record<string, number> = {};
@@ -51,7 +54,13 @@ export function extract(input: EvaluationInput): Extracted {
 		: session.consentGiven
 			? 0
 			: null;
-	const examined = examActions.filter((a) => a.variant !== "negado");
+	const examined = [
+		...examActions
+			.filter((a) => a.variant !== "negado")
+			.map((a) => ({ id: a.id, atMs: a.startMs })),
+		...vitals.map((v) => ({ id: v.id, atMs: v.atMs })),
+	].sort((a, b) => a.atMs - b.atMs);
+	const measured = vitals.filter((v) => v.marked && v.gauge);
 
 	return {
 		studentTurns: turns.filter((t) => t.speaker === "estudiante"),
@@ -62,7 +71,8 @@ export function extract(input: EvaluationInput): Extracted {
 		zoneCoverage,
 		firstExamMs: examActions[0]?.startMs ?? null,
 		examWithoutConsent:
-			examined.find((a) => consentAt === null || a.startMs < consentAt) ?? null,
+			examined.find((a) => consentAt === null || a.atMs < consentAt) ?? null,
+		bp: measured.at(-1) ?? null,
 		studentInterruptions: events.filter(
 			(e) => e.type === "interrupcion_estudiante",
 		),

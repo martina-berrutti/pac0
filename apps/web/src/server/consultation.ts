@@ -40,7 +40,7 @@ export type SessionView = {
 	hasReport: boolean;
 };
 
-function ownSession(viewer: Viewer, sessionId: string) {
+export function ownSession(viewer: Viewer, sessionId: string) {
 	const session = store.getSession(sessionId);
 	// Mismo error si no existe o es de otro: no se revela cuál.
 	if (!session || session.userId !== viewer.uid)
@@ -300,6 +300,7 @@ export async function finishSession(
 		turns: store.listTurns(sessionId),
 		events: store.listEvents(sessionId),
 		examActions: store.listExamActions(session.id),
+		vitals: store.listVitals(session.id),
 	};
 	// Con clave, evaluador con IA; sin clave o si falla, juez por reglas.
 	const report = aiEnabled()

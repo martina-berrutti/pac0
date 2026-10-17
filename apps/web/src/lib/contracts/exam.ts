@@ -17,6 +17,37 @@ export type ExamAction = {
 	endMs: number | null;
 };
 
+// Tensiómetro (plan.md, sección 6, afiche HC-01).
+export type CuffSize = "chico" | "adecuado" | "grande";
+
+export type BpTechniqueError =
+	| "sin-reposo"
+	| "hablando"
+	| "piernas-cruzadas"
+	| "espalda-sin-apoyo"
+	| "brazo-bajo"
+	| "brazo-alto"
+	| "manguito-chico"
+	| "manguito-grande"
+	| "sobre-ropa";
+
+export type BpReading = { systolic: number; diastolic: number };
+
+// Una medición de presión. El valor del manómetro (gauge) es el verdadero del
+// caso más los ajustes por técnica; el verdadero no se guarda acá.
+export type VitalsMeasurement = {
+	id: string;
+	sessionId: string;
+	// Lo que el estudiante hizo bien, por ejemplo "descruza-piernas".
+	stepsCompleted: string[];
+	techniqueErrors: BpTechniqueError[];
+	cuffSize: CuffSize | null;
+	overClothes: boolean | null;
+	gauge: BpReading | null;
+	marked: BpReading | null;
+	atMs: number;
+};
+
 // Lo que el servidor devuelve al pedir un examen. Nunca incluye el hallazgo
 // esperado: solo qué se ve.
 export type ExamResult = {

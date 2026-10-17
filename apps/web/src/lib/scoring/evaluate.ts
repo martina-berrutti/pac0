@@ -9,6 +9,8 @@ import {
 	reportSchema,
 } from "@/lib/contracts/report";
 
+import { MARK_TOLERANCE, TECHNIQUE } from "@/lib/exam/blood-pressure";
+
 import { dimensionScore, PENALTY_CAP, totalScore, verdictFor } from "./engine";
 import { type Extracted, extract } from "./extractor";
 import { judgeItem, normalize } from "./rule-judge";
@@ -129,6 +131,49 @@ function penalties(extracted: Extracted): Penalty[] {
 		}
 		asked.add(key);
 	}
+	return [...out, ...bloodPressurePenalties(extracted)];
+}
+
+// Tensiómetro: 2 puntos de examen por cada error de técnica y por cada valor
+// mal marcado (plan.md, sección 8).
+function bloodPressurePenalties({ bp }: Extracted): Penalty[] {
+	if (!bp?.marked || !bp.gauge) return [];
+	const out: Penalty[] = bp.techniqueErrors.map((e) => ({
+		dimension: "examen",
+		points: 2,
+		tag: `tecnica-${e}`,
+		what: `Tomaste la presión con ${TECHNIQUE[e].label}.`,
+		why: TECHNIQUE[e].effect,
+		nextTime: TECHNIQUE[e].tip,
+	}));
+	const marks = [
+		{
+			name: "PAS",
+			marked: bp.marked.systolic,
+			real: bp.gauge.systolic,
+			sound: "apareció el primer ruido",
+			why: "La PAS es el primer ruido de Korotkoff.",
+		},
+		{
+			name: "PAD",
+			marked: bp.marked.diastolic,
+			real: bp.gauge.diastolic,
+			sound: "desaparecieron los ruidos",
+			why: "La PAD es cuando desaparecen los ruidos de Korotkoff.",
+		},
+	];
+	for (const m of marks) {
+		if (Math.abs(m.marked - m.real) <= MARK_TOLERANCE) continue;
+		out.push({
+			dimension: "examen",
+			points: 2,
+			tag: `lectura-${m.name.toLowerCase()}`,
+			what: `Marcaste la ${m.name} en ${m.marked}, pero ${m.sound} en ${m.real}.`,
+			why: m.why,
+			nextTime:
+				"Desinflá despacio, de 2 a 3 mmHg por segundo, y marcá en el momento justo.",
+		});
+	}
 	return out;
 }
 
@@ -193,10 +238,23 @@ export function assembleReport(
 		mistakes.push({
 			tag: p.tag,
 			what: p.what,
-			why: "Resta puntos de la dimensión.",
-			nextTime: "Dejá hablar y preguntá de forma abierta.",
+			why: p.why ?? "Resta puntos de la dimensión.",
+			nextTime: p.nextTime ?? "Dejá hablar y preguntá de forma abierta.",
 			critical: false,
 			evidence: p.turnId ? [{ turnId: p.turnId, quote }] : [],
+		});
+	}
+	// Qué hubiera marcado el manómetro con buena técnica.
+	const { bp } = extracted;
+	if (bp?.gauge && bp.techniqueErrors.length > 0) {
+		const [sys, dia] = clinicalCase.vitals.pa;
+		mistakes.push({
+			tag: "presion-lectura",
+			what: `El manómetro marcó ${bp.gauge.systolic}/${bp.gauge.diastolic}; con buena técnica hubiera marcado ${sys}/${dia}.`,
+			why: "Los errores de técnica cambian la lectura y pueden llevar a un diagnóstico equivocado de hipertensión.",
+			nextTime: "Prepará al paciente y revisá la posición antes de inflar.",
+			critical: false,
+			evidence: [{ examActionId: bp.id }],
 		});
 	}
 	for (const note of reasoning.notes) {

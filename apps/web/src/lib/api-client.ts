@@ -1,9 +1,10 @@
 // Cliente de la API para las pantallas. Tira ApiError con el mensaje del
 // servidor, listo para mostrar en un toast.
 import type { CaseSummary } from "@/cases/schema";
-import type { ExamAction } from "@/lib/contracts/exam";
+import type { BpReading, CuffSize, ExamAction } from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import type { SessionView, TurnResult } from "@/server/consultation";
+import type { BpGauge, BpStart } from "@/server/vitals";
 
 export class ApiError extends Error {
 	constructor(
@@ -83,6 +84,23 @@ export const api = {
 		request<{ action: ExamAction }>(`/api/sessions/${id}/exam/${actionId}`, {
 			method: "PATCH",
 			body: { hotspotTimesMs },
+		}),
+	startBp: (id: string) =>
+		request<BpStart>(`/api/sessions/${id}/vitals`, { method: "POST" }),
+	placeCuff: (
+		id: string,
+		measurementId: string,
+		cuffSize: CuffSize,
+		overClothes: boolean,
+	) =>
+		request<BpGauge>(`/api/sessions/${id}/vitals/${measurementId}`, {
+			method: "PATCH",
+			body: { cuffSize, overClothes },
+		}),
+	markBp: (id: string, measurementId: string, marked: BpReading) =>
+		request<{ ok: boolean }>(`/api/sessions/${id}/vitals/${measurementId}`, {
+			method: "PATCH",
+			body: marked,
 		}),
 	finish: (id: string, hypothesis: string, differentials: string[]) =>
 		request<{ report: Report }>(`/api/sessions/${id}/finish`, {

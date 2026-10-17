@@ -6,10 +6,11 @@ import { Button } from "@pac0/ui/components/button";
 import { Input } from "@pac0/ui/components/input";
 import { Textarea } from "@pac0/ui/components/textarea";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
+import { TensiometroView } from "@/components/exam/tensiometro-view";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
 import type { ExamResult } from "@/lib/contracts/exam";
@@ -22,6 +23,8 @@ export default function ConsultationPage() {
 	const [text, setText] = useState("");
 	const [sending, setSending] = useState(false);
 	const [exam, setExam] = useState<ExamResult | null>(null);
+	const [measuringBp, setMeasuringBp] = useState(false);
+	const closeBp = useCallback(() => setMeasuringBp(false), []);
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
@@ -110,6 +113,8 @@ export default function ConsultationPage() {
 
 			{exam ? (
 				<OrofaringeView exam={exam} onClose={closeExam} />
+			) : measuringBp ? (
+				<TensiometroView sessionId={id} onClose={closeBp} />
 			) : (
 				<>
 					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
@@ -152,7 +157,14 @@ export default function ConsultationPage() {
 				</>
 			)}
 
+			{!exam && !measuringBp && !closing && (
+				<Button variant="outline" onClick={() => setMeasuringBp(true)}>
+					Tomar la presión
+				</Button>
+			)}
+
 			{!exam &&
+				!measuringBp &&
 				(closing ? (
 					<form onSubmit={finish} className="grid gap-2 border p-3">
 						<label htmlFor="hipotesis" className="font-medium">

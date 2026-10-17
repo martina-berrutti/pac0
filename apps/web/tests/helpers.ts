@@ -100,6 +100,7 @@ export function goodStudent(): EvaluationInput {
 		}),
 		turns,
 		events: [],
+		vitals: [],
 		examActions: [exam("completa", allSeen, 105_000)],
 	};
 }
@@ -119,6 +120,7 @@ export function averageStudent(): EvaluationInput {
 		}),
 		turns: lines.map((t, i) => turn("s1", "estudiante", t, i * 10_000)),
 		events: [],
+		vitals: [],
 		examActions: [exam("parcial", { lengua: 800 }, 35_000)],
 	};
 }
@@ -151,6 +153,7 @@ export function badStudent(): EvaluationInput {
 				atMs: 3000,
 			},
 		],
+		vitals: [],
 		examActions: [exam("parcial", {}, 500)],
 	};
 }

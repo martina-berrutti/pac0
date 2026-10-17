@@ -4,12 +4,13 @@
 import type { ChecklistItem } from "@/cases/schema";
 import type { ItemResult } from "@/lib/contracts/report";
 import type { Turn } from "@/lib/contracts/session";
+import { MARK_TOLERANCE } from "@/lib/exam/blood-pressure";
 
 import { type Extracted, extract } from "./extractor";
 import type { EvaluationInput } from "./types";
 
 // Ítems que se juzgan con las acciones de examen, no con lo que dijo.
-export const ACTION_ITEMS = new Set(["orofaringe"]);
+export const ACTION_ITEMS = new Set(["orofaringe", "presion-arterial"]);
 
 export function normalize(s: string) {
 	return s
@@ -61,6 +62,30 @@ function judgeExamAction(
 	};
 }
 
+// Presión: sí con técnica sin errores y PAS y PAD bien marcadas; parcial si
+// midió con errores.
+function judgeBloodPressure(
+	base: Omit<ItemResult, "status" | "evidence">,
+	extracted: Extracted,
+): ItemResult {
+	const { bp } = extracted;
+	if (!bp?.marked || !bp.gauge) return { ...base, status: "no", evidence: [] };
+	const wellRead =
+		Math.abs(bp.marked.systolic - bp.gauge.systolic) <= MARK_TOLERANCE &&
+		Math.abs(bp.marked.diastolic - bp.gauge.diastolic) <= MARK_TOLERANCE;
+	const clean = bp.techniqueErrors.length === 0 && wellRead;
+	return {
+		...base,
+		status: clean ? "si" : "parcial",
+		evidence: [
+			{
+				examActionId: bp.id,
+				quote: `marcó ${bp.marked.systolic}/${bp.marked.diastolic} con ${bp.techniqueErrors.length} errores de técnica`,
+			},
+		],
+	};
+}
+
 export function judgeItem(
 	item: ChecklistItem,
 	input: EvaluationInput,
@@ -72,6 +97,8 @@ export function judgeItem(
 		dimension: item.dimension,
 		weight: item.weight,
 	};
+	if (item.id === "presion-arterial")
+		return judgeBloodPressure(base, extracted);
 	if (ACTION_ITEMS.has(item.id)) return judgeExamAction(base, extracted);
 
 	const turn = findTurn(turnsForItem(item, extracted), item.keywords);
