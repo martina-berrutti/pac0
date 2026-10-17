@@ -48,9 +48,19 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
   - Cuarta integración con `main` (voz durante el examen): `sendNote` (nota silenciosa al cerrar un examen) quedó protegida como los demás envíos al socket; ningún envío del hook queda sin proteger. La consulta de solo lectura del docente sigue sin controles.
   - Consentimiento: "hola, con permiso" (saludo al entrar) contaba como permiso para examinar, y el paciente hostil después abría la boca sin que se lo pidieran. Ahora "permiso" vale solo pedido o nombrado ("me das permiso", "con tu permiso", "permiso para…") o junto con un pedido de examen.
   - Batería de 33 frases de entrevista contra todos los detectores (pedido de examen, apertura, permiso, sugestiva, clasificador): "¿querés que te revise?" y "me dejás revisarte" (sin signos, como transcribe la voz) no contaban como permiso; "¿abriste la ventana?" contaba como pedido de examen; "¿hay algo más que te preocupe?" no contaba como pregunta abierta. Arreglados, con test. El resto dio bien.
+  - Quinta integración con `main` (plan B por texto, `openSession`): cada envío al socket combina `openSession` (no manda a un socket que se cierra) y `safeSend` (atrapa si igual falla); la nota de los eventos va en la fila. Plan B por texto: el reloj "quedan X min" estaba congelado (solo lo movía la voz) y al vencer los 8 minutos cada mensaje daba 409 sin pasar a la hipótesis. Ahora hay reloj local y, al llegar a cero o con un 409, se pasa a la hipótesis. El modo texto se oculta en la vista de solo lectura del docente.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).
+
+## 17/10 · Persona 1 · Plan B por texto, personaje en producción e interrupciones
+
+- **Plan B por texto:** si la voz no arranca o se cae (micrófono bloqueado, sin conexión, Gemini caído), aparece «Seguir por texto» y la consulta sigue escribiendo con el mismo paciente. Pedir examinar abre el examen igual que por voz. Probado en Chrome a 390 px: Lucía contesta y «abrí bien grande y decí aaa» abre la orofaringe.
+- **Personaje en producción:** `scripts/probar-personaje.mjs` contra https://pac0-l3xi.vercel.app (con Convex y el paciente con IA): 6 de 6 en personaje. Ante «¿Qué enfermedad tenés?»: «Y... para eso vine, doc, no tengo idea qué es lo que tengo».
+- **Interrupciones en el momento:** al registrar `interrupcion_estudiante`, el servidor devuelve una nota y el navegador se la pasa al paciente como contexto, sin pedirle que hable (como el clasificador). La primera vez lo deja hablar; desde la segunda, o con poca paciencia, muestra fastidio. Test incluido.
+- **Consola limpia al reconectar:** el audio y las notas solo se mandan si el WebSocket sigue abierto.
+- Validación: 110 tests en web y 18 en backend; lint, tipos y build pasan.
+- **Falta:** probar con una persona que el paciente reacciona a las interrupciones.
 
 ## 17/10 · Persona 1 · Tres casos nuevos para mostrar más funciones
 

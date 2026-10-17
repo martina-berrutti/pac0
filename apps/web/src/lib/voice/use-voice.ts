@@ -127,6 +127,15 @@ class P0Capture extends AudioWorkletProcessor {
 registerProcessor("p0-capture", P0Capture);
 `;
 
+// La sesión del SDK no dice si su WebSocket sigue abierto, y mandarle algo a
+// uno que se está cerrando llena la consola de avisos. Si no se puede saber,
+// se manda igual.
+function openSession(session: LiveSession | null) {
+	const ws = (session as unknown as { conn?: { ws?: WebSocket } } | null)?.conn
+		?.ws;
+	return session && (!ws || ws.readyState === WebSocket.OPEN) ? session : null;
+}
+
 export function useVoice({
 	sessionId,
 	onTurn,
@@ -198,8 +207,23 @@ export function useVoice({
 			durationMs?: number,
 		) =>
 			enqueue(() =>
-				post(`/api/sessions/${sessionId}/events`, { type, durationMs }),
-			).catch(() => {}),
+				post<{ nota?: string | null }>(`/api/sessions/${sessionId}/events`, {
+					type,
+					durationMs,
+				}),
+			)
+				.then(({ nota }) => {
+					// El paciente se entera como contexto, sin que le toque hablar.
+					const target = openSession(live.current);
+					if (nota && target)
+						safeSend(() =>
+							target.sendClientContent({
+								turns: [{ role: "user", parts: [{ text: nota }] }],
+								turnComplete: false,
+							}),
+						);
+				})
+				.catch(() => {}),
 		[sessionId, enqueue],
 	);
 
@@ -219,7 +243,7 @@ export function useVoice({
 					callbacks.current.onTurn(turn);
 					// El clasificador cambió el ánimo del paciente: se lo contamos al
 					// modelo como contexto, sin pedirle que responda (turnComplete false).
-					const target = live.current;
+					const target = openSession(live.current);
 					if (stateNote && target) {
 						safeSend(() =>
 							target.sendClientContent({
@@ -349,7 +373,7 @@ export function useVoice({
 					response: output,
 				});
 			}
-			if (target && live.current === target)
+			if (target && live.current === target && openSession(target))
 				safeSend(() => target.sendToolResponse({ functionResponses }));
 		},
 		[sessionId, enqueue],
@@ -618,7 +642,7 @@ export function useVoice({
 				// Envía de a ~100 ms.
 				if (chunk.length >= rate / 10) {
 					const samples = Float32Array.from(chunk.splice(0, chunk.length));
-					const target = live.current;
+					const target = openSession(live.current);
 					if (!target) return;
 					safeSend(() =>
 						target.sendRealtimeInput({
@@ -670,7 +694,7 @@ export function useVoice({
 				s.silenceReported = true;
 				event("silencio_largo", quietFor);
 				// El paciente vuelve a hablar tras el silencio, según su personalidad.
-				const target = live.current;
+				const target = openSession(live.current);
 				if (target)
 					safeSend(() =>
 						target.sendClientContent({
@@ -709,7 +733,7 @@ export function useVoice({
 	// Contexto para el paciente sin hacerlo hablar (turnComplete false): por
 	// ejemplo, que el estudiante terminó de revisarlo.
 	const sendNote = useCallback((note: string) => {
-		const target = live.current;
+		const target = openSession(live.current);
 		if (!target) return;
 		safeSend(() =>
 			target.sendClientContent({

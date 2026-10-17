@@ -78,11 +78,14 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Aviso antes de la voz: se guarda la transcripción, no el audio; no decir datos personales
 - [x] Guardar cada turno transcrito (`POST /api/sessions/[id]/voice-turns`)
 - [x] El estudiante interrumpe al paciente: se registra `interrupcion_estudiante`
+- [x] El paciente se entera en el momento: el servidor devuelve una nota (sin turno) con la interrupción y su paciencia; desde la segunda vez muestra fastidio ("pará, dejame terminar")
+- [ ] Probar con una persona que el paciente reacciona cuando lo interrumpen varias veces
+- [x] Sin avisos de consola al reconectar: no se manda audio ni notas a una conexión que se está cerrando
 - [x] El paciente interrumpe o retoma tras un silencio largo (20 s): `interrupcion_paciente` y `silencio_largo`
 - [x] Detección de turno más rápida para pacientes impacientes (`silenceDurationMs` 500 en vez de 800)
 - [x] Tope de 8 minutos en el servidor y reloj en pantalla
 - [x] Decisión del 17/10: la consulta es **solo por voz**; se sacó el campo para escribir (la transcripción se ve para leer)
-- [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
+- [x] Plan B si falla la voz o el wifi: si la voz no arranca o se cae, aparece «Seguir por texto» y la consulta sigue escribiendo, con el mismo paciente; pedir examinar abre el examen igual. Probado en Chrome a 390 px
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
 - [x] Probar con micrófono en la computadora (URL pública, 17/10)
 - [ ] Probar con micrófono en el celular. Qué mirar: se escucha al paciente en Safari del iPhone (el audio se activa en el mismo toque); el mensaje si se niega el permiso; cortar el wifi a mitad de frase y ver que reconecte; "Ver mi informe" con el paciente todavía hablando.
@@ -111,6 +114,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
 - [x] Script con IA: el paciente siguió en personaje ("para eso vine, doc"); por voz también
+- [x] Repetido en producción con Convex (17/10): 6 de 6 en personaje con el paciente con IA
 - [x] Script completo en producción con Convex: 6 de 6 en personaje, sin cortes
 
 ### Generador "pedime un paciente" (feature nueva)

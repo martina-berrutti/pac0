@@ -38,7 +38,15 @@ export default function ConsultationPage() {
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
+	// Plan B si falla la voz o el wifi (plan.md, sección 14): la consulta sigue
+	// por texto con el mismo paciente.
+	const [textMode, setTextMode] = useState(false);
+	const [draft, setDraft] = useState("");
+	const [typing, setTyping] = useState(false);
 	const bottom = useRef<HTMLLIElement>(null);
+	// Reloj local sin voz (plan B por texto): parte de lo que quedaba al cargar.
+	const loadedAt = useRef(Date.now());
+	const [now, setNow] = useState(() => Date.now());
 
 	const voice = useVoice({
 		sessionId: id,
@@ -91,6 +99,7 @@ export default function ConsultationPage() {
 				// (el servidor la rechazaría): se pasa directo a la hipótesis.
 				if (v.remainingMs === 0 || v.session.status !== "activa")
 					setClosing(true);
+				loadedAt.current = Date.now();
 				setView(v);
 			})
 			.catch((e) =>
@@ -105,6 +114,23 @@ export default function ConsultationPage() {
 			bottom.current?.scrollIntoView({ behavior: "smooth" });
 	}, [view?.turns.length]);
 
+	// Sin voz, el reloj de la pantalla lo lleva esta página (la voz tiene el
+	// suyo). Al llegar a cero en modo texto se pasa a la hipótesis.
+	const localRemainingMs = view
+		? Math.max(0, view.remainingMs - (now - loadedAt.current))
+		: 0;
+	useEffect(() => {
+		if (!view || closing || view.readOnly) return;
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, [view, closing]);
+	useEffect(() => {
+		if (textMode && view && !closing && localRemainingMs === 0) {
+			toast.info("Se terminaron los 8 minutos de la consulta.");
+			setClosing(true);
+		}
+	}, [textMode, view, closing, localRemainingMs]);
+
 	async function closeExam(times: Record<string, number>) {
 		if (exam && exam.action.variant !== "negado") {
 			await api
@@ -112,6 +138,31 @@ export default function ConsultationPage() {
 				.catch(() => toast.error("No se guardó el tiempo del examen."));
 		}
 		setExam(null);
+	}
+
+	async function sendText(event: React.FormEvent) {
+		event.preventDefault();
+		const text = draft.trim();
+		if (!text) return;
+		setTyping(true);
+		try {
+			const r = await api.sendTurn(id, text);
+			setDraft("");
+			setView((v) =>
+				v ? { ...v, turns: [...v.turns, r.studentTurn, r.patientTurn] } : v,
+			);
+			if (r.exam) setExam(r.exam);
+		} catch (e) {
+			toast.error(
+				e instanceof ApiError
+					? e.message
+					: "No se pudo enviar. Probá de nuevo.",
+			);
+			// La consulta venció o se cerró: no tiene sentido seguir escribiendo.
+			if (e instanceof ApiError && e.status === 409) setClosing(true);
+		} finally {
+			setTyping(false);
+		}
 	}
 
 	async function finish(event: React.FormEvent) {
@@ -148,7 +199,7 @@ export default function ConsultationPage() {
 				</h1>
 				<p className="text-muted-foreground text-sm">
 					{view.case.title} · quedan{" "}
-					{Math.ceil((voice.remainingMs ?? view.remainingMs) / 60000)} min ·
+					{Math.ceil((voice.remainingMs ?? localRemainingMs) / 60000)} min ·
 					herramienta educativa, caso ficticio
 				</p>
 			</div>
@@ -185,8 +236,15 @@ export default function ConsultationPage() {
 								personales reales.
 							</p>
 							<Button onClick={() => voice.start()}>
-								Acepto: hablar por voz
+								{voice.status === "error"
+									? "Probar la voz de nuevo"
+									: "Acepto: hablar por voz"}
 							</Button>
+							{voice.status === "error" && !textMode && (
+								<Button variant="outline" onClick={() => setTextMode(true)}>
+									Seguir por texto
+								</Button>
+							)}
 						</>
 					)}
 				</section>
@@ -242,6 +300,23 @@ export default function ConsultationPage() {
 						</li>
 					))}
 				</ol>
+			)}
+
+			{textMode && !voiceLive && !tool && !closing && !view.readOnly && (
+				<form onSubmit={sendText} className="flex gap-2">
+					<Input
+						aria-label={`Escribile a ${view.case.patient.name}`}
+						placeholder="Escribí lo que le dirías…"
+						value={draft}
+						onChange={(e) => setDraft(e.target.value)}
+						maxLength={1000}
+						disabled={typing}
+						autoFocus
+					/>
+					<Button type="submit" disabled={typing || !draft.trim()}>
+						{typing ? "…" : "Enviar"}
+					</Button>
+				</form>
 			)}
 
 			{!tool && !closing && !view.readOnly && (

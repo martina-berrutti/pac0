@@ -464,7 +464,21 @@ export async function recordVoiceEvent(
 		...(durationMs === undefined ? {} : { durationMs }),
 	});
 	// Interrumpir o quedarse callado le cae mal al paciente.
-	await nudgeState(session, type, elapsed);
+	const next = await nudgeState(session, type, elapsed);
+	if (type !== "interrupcion_estudiante") return { nota: null };
+	const count = (await store.listEvents(sessionId)).filter(
+		(e) => e.type === "interrupcion_estudiante",
+	).length;
+	return { nota: interruptionNote(count, next.state.paciencia) };
+}
+
+// Lo que se le avisa al paciente de voz cuando el estudiante lo interrumpe:
+// sus instrucciones están fijadas en el token, así que el cambio de ánimo le
+// llega como contexto, sin pedirle que hable (plan.md, sección 5).
+export function interruptionNote(count: number, paciencia: number) {
+	if (count < 2 && paciencia >= 0.5)
+		return "(Nota para vos, no la leas en voz alta: el estudiante te interrumpió. Dejalo hablar; si quedó algo importante sin decir, retomalo después.)";
+	return `(Nota para vos, no la leas en voz alta: el estudiante te interrumpió otra vez, ya van ${count}. Tu paciencia ahora es ${paciencia.toFixed(2)} de 1. Mostrá un poco de fastidio según tu personalidad, por ejemplo "pará, dejame terminar", y contestá más corto.)`;
 }
 
 type UsageInput = Omit<VoiceUsage, "responses">;

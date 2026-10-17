@@ -134,6 +134,20 @@ describe("estado del paciente con eventos objetivos (plan.md, sección 5)", () =
 		]);
 	});
 
+	test("al paciente le llega una nota cuando lo interrumpen, y con fastidio si se repite", async () => {
+		const ana = student();
+		const id = await startSession(ana, lucia.id, "caso");
+		const first = await recordVoiceEvent(ana, id, "interrupcion_estudiante");
+		expect(first.nota).toContain("te interrumpió");
+		expect(first.nota).not.toContain("fastidio");
+		const second = await recordVoiceEvent(ana, id, "interrupcion_estudiante");
+		expect(second.nota).toContain("ya van 2");
+		expect(second.nota).toContain("fastidio");
+		expect(
+			(await recordVoiceEvent(ana, id, "silencio_largo", 21_000)).nota,
+		).toBeNull();
+	});
+
 	test("la interrupción del paciente no cambia el estado", async () => {
 		const ana = student();
 		const id = await startSession(ana, lucia.id, "caso");
