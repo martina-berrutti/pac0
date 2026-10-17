@@ -13,7 +13,7 @@ import {
 } from "@google/genai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Turn } from "@/lib/contracts/session";
+import type { PatientState, Turn } from "@/lib/contracts/session";
 import type { ToolRun, ToolUi } from "@/server/voice";
 
 export type VoiceStatus =
@@ -43,6 +43,8 @@ type Options = {
 	sessionId: string;
 	onTurn: (turn: Turn) => void;
 	onTool: (ui: ToolUi) => void;
+	// Ánimo del paciente después de cada turno guardado (para el avatar).
+	onState?: (state: PatientState) => void;
 	onEnd: () => void;
 	onError: (message: string) => void;
 };
@@ -97,10 +99,20 @@ class P0Capture extends AudioWorkletProcessor {
 registerProcessor("p0-capture", P0Capture);
 `;
 
+// La sesión del SDK no dice si su WebSocket sigue abierto, y mandarle algo a
+// uno que se está cerrando llena la consola de avisos. Si no se puede saber,
+// se manda igual.
+function openSession(session: LiveSession | null) {
+	const ws = (session as unknown as { conn?: { ws?: WebSocket } } | null)?.conn
+		?.ws;
+	return session && (!ws || ws.readyState === WebSocket.OPEN) ? session : null;
+}
+
 export function useVoice({
 	sessionId,
 	onTurn,
 	onTool,
+	onState,
 	onEnd,
 	onError,
 }: Options) {
@@ -119,6 +131,8 @@ export function useVoice({
 	const out = useRef<{
 		ctx: AudioContext;
 		analyser: AnalyserNode;
+		// Copia de la voz del paciente para los labios del avatar.
+		stream: MediaStream;
 		buf: Uint8Array<ArrayBuffer>;
 		sources: Set<AudioBufferSourceNode>;
 		playHead: number;
@@ -132,8 +146,12 @@ export function useVoice({
 		silenceReported: false,
 		deadline: 0,
 	});
-	const callbacks = useRef({ onTurn, onTool, onEnd, onError });
-	callbacks.current = { onTurn, onTool, onEnd, onError };
+	const callbacks = useRef({ onTurn, onTool, onState, onEnd, onError });
+	callbacks.current = { onTurn, onTool, onState, onEnd, onError };
+	// Guarda lo que quedó a medio transcribir al cortar (se define más abajo).
+	const flushPending = useRef<() => void>(() => {});
+	// Con un examen abierto el silencio es normal: no se cuenta ni se interrumpe.
+	const examining = useRef(false);
 
 	const stopPlayback = useCallback(() => {
 		const o = out.current;
@@ -150,6 +168,8 @@ export function useVoice({
 
 	const stop = useCallback(
 		(reason: "ended" | "error" = "ended") => {
+			// Lo último que se dijo antes de cortar también va al informe.
+			flushPending.current();
 			stopPlayback();
 			const session = live.current;
 			live.current = null;
@@ -175,9 +195,19 @@ export function useVoice({
 				| "silencio_largo",
 			durationMs?: number,
 		) =>
-			post(`/api/sessions/${sessionId}/events`, { type, durationMs }).catch(
-				() => {},
-			),
+			post<{ nota?: string | null }>(`/api/sessions/${sessionId}/events`, {
+				type,
+				durationMs,
+			})
+				.then(({ nota }) => {
+					// El paciente se entera como contexto, sin que le toque hablar.
+					if (nota)
+						openSession(live.current)?.sendClientContent({
+							turns: [{ role: "user", parts: [{ text: nota }] }],
+							turnComplete: false,
+						});
+				})
+				.catch(() => {}),
 		[sessionId],
 	);
 
@@ -185,19 +215,21 @@ export function useVoice({
 		async (speaker: Turn["speaker"], text: string, overlap: boolean) => {
 			if (!text.trim()) return;
 			try {
-				const { turn, stateNote } = await post<{
+				const { turn, stateNote, state } = await post<{
 					turn: Turn;
 					stateNote: string | null;
+					state: PatientState;
 				}>(`/api/sessions/${sessionId}/voice-turns`, {
 					speaker,
 					text,
 					overlap,
 				});
 				callbacks.current.onTurn(turn);
+				callbacks.current.onState?.(state);
 				// El clasificador cambió el ánimo del paciente: se lo contamos al
 				// modelo como contexto, sin pedirle que responda (turnComplete false).
 				if (stateNote) {
-					live.current?.sendClientContent({
+					openSession(live.current)?.sendClientContent({
 						turns: [
 							{
 								role: "user",
@@ -238,6 +270,11 @@ export function useVoice({
 		[saveTurn],
 	);
 
+	flushPending.current = () => {
+		void flushStudent();
+		void flushPatient(false);
+	};
+
 	const playChunk = useCallback((base64: string) => {
 		const o = out.current;
 		if (!o) return;
@@ -265,6 +302,9 @@ export function useVoice({
 		async (
 			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
 		) => {
+			// Si mientras tanto se reconectó, la respuesta no va a la conexión
+			// nueva (no conoce estas llamadas).
+			const target = live.current;
 			const functionResponses = [];
 			for (const call of calls) {
 				let output: Record<string, unknown>;
@@ -286,7 +326,9 @@ export function useVoice({
 					response: output,
 				});
 			}
-			live.current?.sendToolResponse({ functionResponses });
+			// Misma conexión que pidió la herramienta y todavía abierta.
+			if (target && live.current === target)
+				openSession(target)?.sendToolResponse({ functionResponses });
 		},
 		[sessionId],
 	);
@@ -468,9 +510,14 @@ export function useVoice({
 			const analyser = outCtx.createAnalyser();
 			analyser.fftSize = 512;
 			analyser.connect(outCtx.destination);
+			// El avatar vive en otro AudioContext: se le pasa la voz por un
+			// MediaStream (no suena dos veces, solo lo analiza).
+			const copy = outCtx.createMediaStreamDestination();
+			analyser.connect(copy);
 			out.current = {
 				ctx: outCtx,
 				analyser,
+				stream: copy.stream,
 				buf: new Uint8Array(analyser.fftSize),
 				sources: new Set(),
 				playHead: 0,
@@ -493,7 +540,7 @@ export function useVoice({
 				// Envía de a ~100 ms.
 				if (chunk.length >= rate / 10) {
 					const samples = Float32Array.from(chunk.splice(0, chunk.length));
-					live.current?.sendRealtimeInput({
+					openSession(live.current)?.sendRealtimeInput({
 						audio: {
 							data: toBase64(floatToPcm16(samples)),
 							mimeType: `audio/pcm;rate=${rate}`,
@@ -514,6 +561,11 @@ export function useVoice({
 			setRemainingMs(token.remainingMs);
 			setStatus("live");
 		} catch (e) {
+			// Cortó la usuaria mientras conectaba: no es un error.
+			if (e instanceof Error && e.message === "Conexión de voz descartada") {
+				outCtx.close().catch(() => {});
+				return;
+			}
 			stop("error");
 			if (!out.current) outCtx.close().catch(() => {});
 			callbacks.current.onError(
@@ -537,6 +589,10 @@ export function useVoice({
 				callbacks.current.onEnd();
 				return;
 			}
+			if (examining.current) {
+				s.lastActivity = now;
+				return;
+			}
 			const patientPlaying = (out.current?.sources.size ?? 0) > 0;
 			const studentActive = now - s.lastStudentChunk < SPEAKING_WINDOW_MS;
 			const quietFor = now - s.lastActivity;
@@ -549,7 +605,7 @@ export function useVoice({
 				s.silenceReported = true;
 				event("silencio_largo", quietFor);
 				// El paciente vuelve a hablar tras el silencio, según su personalidad.
-				live.current?.sendClientContent({
+				openSession(live.current)?.sendClientContent({
 					turns: [
 						{
 							role: "user",
@@ -581,7 +637,31 @@ export function useVoice({
 		return Math.min(1, Math.sqrt(sum / o.buf.length) * 4);
 	}, []);
 
+	// Voz del paciente como MediaStream, para mover los labios del avatar.
+	// Existe desde que arranca la voz hasta que se corta.
+	const patientStream = useCallback(() => out.current?.stream ?? null, []);
+
+	// Contexto para el paciente sin hacerlo hablar (turnComplete false): por
+	// ejemplo, que el estudiante terminó de revisarlo.
+	const sendNote = useCallback((note: string) => {
+		live.current?.sendClientContent({
+			turns: [
+				{
+					role: "user",
+					parts: [{ text: `(Nota interna, no la digas en voz alta: ${note})` }],
+				},
+			],
+			turnComplete: false,
+		});
+	}, []);
+
+	const setExamining = useCallback((value: boolean) => {
+		examining.current = value;
+		st.current.lastActivity = Date.now();
+	}, []);
+
 	return {
+		setExamining,
 		status,
 		remainingMs,
 		studentSpeaking,
@@ -589,5 +669,7 @@ export function useVoice({
 		start,
 		stop,
 		readPatientLevel,
+		patientStream,
+		sendNote,
 	};
 }

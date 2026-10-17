@@ -54,7 +54,9 @@ const CLOSED_STARTS = [
 	"fue ",
 	"sentis",
 ];
-const LEADING = [/,?\s*(no|verdad|cierto|no es cierto)\s*\??\s*$/];
+// "…, ¿no?", "…, ¿verdad?": palabra suelta al final y con signo de pregunta
+// (antes "¿tenés algún hermano?" daba sugestiva por el "no" de "hermano").
+const LEADING = [/(?:^|[\s,¿])(no|verdad|cierto|no es cierto)\s*\?\s*$/i];
 // Términos médicos que un paciente no entiende sin explicación.
 const JARGON = [
 	"odinofagia",

@@ -45,7 +45,9 @@ const JUSTIFICATION_WORDS = [
 	"eritema",
 	"mocos",
 ];
-const LEADING_QUESTION = /,?\s*(no|verdad|cierto)\s*\?\s*$/i;
+// Palabra suelta al final ("…, ¿no?"): sin el límite, "¿tenés algún
+// hermano?" contaba como sugestiva.
+const LEADING_QUESTION = /(?:^|[\s,¿])(no|verdad|cierto)\s*\?\s*$/i;
 
 // De dónde sale cada "por qué importa" (plan.md, sección 8: dimensiones y
 // fuentes; sección 6: afiches). Solo se nombra la fuente.

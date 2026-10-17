@@ -191,3 +191,39 @@ describe("records (almacenamiento de la app web)", () => {
 		).rejects.toThrow("No autorizado");
 	});
 });
+
+describe("changeSession (cambios atómicos)", () => {
+	test("suma deltas, reserva voz, respeta ifStatus y exige el secreto", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		const t = convexTest(schema, modules);
+		await t.mutation(api.records.put, {
+			secret,
+			kind: "session",
+			appId: "s1",
+			ownerId: "gst_a",
+			data: { status: "activa", state: { confianza: 0.5 }, inventedFacts: {} },
+		});
+		const change = (c: Record<string, unknown>, s = secret) =>
+			t.mutation(api.records.changeSession, {
+				secret: s,
+				appId: "s1",
+				change: c,
+			});
+		await Promise.all([
+			change({ stateDelta: { confianza: 0.2 } }),
+			change({ stateDelta: { confianza: 0.2 }, incVoiceStarts: true }),
+		]);
+		const after = (await change({ facts: { a: "1" } })) as {
+			state: { confianza: number };
+			voiceStarts: number;
+			inventedFacts: Record<string, string>;
+		};
+		expect(after.state.confianza).toBeCloseTo(0.9, 5);
+		expect(after.voiceStarts).toBe(1);
+		expect(after.inventedFacts).toEqual({ a: "1" });
+		expect(
+			await change({ ifStatus: "evaluada", set: { status: "x" } }),
+		).toBeNull();
+		await expect(change({}, "otro")).rejects.toThrow("No autorizado");
+	});
+});

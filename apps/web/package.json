@@ -14,6 +14,8 @@
 		"@auth/core": "^0.41.3",
 		"@convex-dev/auth": "^0.0.96",
 		"@google/genai": "^2.30.0",
+		"@met4citizen/headaudio": "^0.1.0",
+		"@met4citizen/talkinghead": "^1.7.0",
 		"@pac0/backend": "*",
 		"@pac0/ui": "*",
 		"@swc/helpers": "^0.5.23",
@@ -27,6 +29,7 @@
 		"react-dom": "^19.2.8",
 		"server-only": "^0.0.1",
 		"sonner": "^2.0.8",
+		"three": "^0.180.0",
 		"varlock": "1.18.0",
 		"zod": "^4.5.4"
 	},
