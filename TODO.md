@@ -74,7 +74,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Decisión del 17/10: la consulta es **solo por voz**; se sacó el campo para escribir (la transcripción se ve para leer)
 - [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
-- [ ] Probar con micrófono en el navegador (computadora y celular)
+- [ ] Probar con micrófono en el navegador (computadora y celular) (la lógica del cliente ya tiene tests con el navegador simulado en `tests/use-voice.test.ts`; falta el micrófono real)
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
 - [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
@@ -133,7 +133,7 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Veredicto: 85% sin errores críticos, 70% a 84% "casi", menos de 70% "a repasar"
 - [x] Penalizaciones: interrumpir desde la tercera vez, pregunta sugestiva, pregunta repetida
 - [x] Error crítico: examinar sin consentimiento
-- [ ] Ese error crítico tiene que mirar el orden: hoy un permiso pedido después del examen lo evita (comparar `atMs` del evento `consentimiento` con el primer examen)
+- [x] Ese error crítico mira el orden (extractor: `atMs` del evento `consentimiento` contra cada examen); test de punta a punta con la voz en `tests/voice.test.ts`
 - [x] Razonamiento: hipótesis 40%, diferenciales 25%, justificación 20%, estudios 15%
 - [ ] Penalizaciones que faltan: jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico
 - [ ] Errores críticos que faltan: insistir contra la negativa, pasar por alto una alarma, trato irrespetuoso

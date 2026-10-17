@@ -552,3 +552,51 @@ describe("límite de conexiones de voz", () => {
 		expect(genai.create).toHaveBeenCalledTimes(6);
 	});
 });
+
+describe("consentimiento de punta a punta (voz y evaluador)", () => {
+	const finishFor = async (id: string) => {
+		const { finishSession } = await import("@/server/consultation");
+		return finishSession(ana, id, "faringitis", []);
+	};
+	const critical = (r: Awaited<ReturnType<typeof finishFor>>) =>
+		r.mistakes.some((m) => m.tag === "examen-sin-consentimiento");
+
+	test("pedir permiso después de examinar sigue siendo error crítico", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "examinar", {
+			zona: "garganta",
+			claridad: "alta",
+			consentimiento: false,
+		});
+		// El permiso llega 5 segundos después del examen (en el test todo pasa
+		// en el mismo milisegundo, y "a la vez" cuenta como con permiso).
+		const startedAt = (await store.getSession(id))?.startedAt ?? Date.now();
+		await store.updateSession(id, { startedAt: startedAt - 5000 });
+		await recordVoiceTurn(
+			ana,
+			id,
+			"estudiante",
+			"¿Me das permiso para revisarte la garganta?",
+			false,
+		);
+		expect((await store.getSession(id))?.consentGiven).toBe(true);
+		expect(critical(await finishFor(id))).toBe(true);
+	});
+
+	test("con permiso antes de examinar no hay error crítico", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await recordVoiceTurn(
+			ana,
+			id,
+			"estudiante",
+			"¿Te puedo revisar la garganta?",
+			false,
+		);
+		await runTool(ana, id, "examinar", {
+			zona: "garganta",
+			claridad: "alta",
+			consentimiento: true,
+		});
+		expect(critical(await finishFor(id))).toBe(false);
+	});
+});

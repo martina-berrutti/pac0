@@ -21,8 +21,9 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
 - Cierre: se evalúa antes de guardar, y el informe se guarda antes que el estado. Si el evaluador (ahora también con IA) falla, la sesión no queda "evaluada" sin informe.
 - Generador y paciente por reglas: "él" y "varón", "tos" como palabra entera ("datos" elegía la plantilla de catarro), "100 años", JSON de la IA entre ```, respuesta sin género, `cambio_animo` guarda el cambio.
 - Pantalla de consulta: no ofrece la voz si la consulta venció o se cerró; limita la hipótesis a 500 caracteres y 10 diferenciales.
+- Cliente de voz con tests (`tests/use-voice.test.ts`): el hook corre en Node con el micrófono, el `AudioContext`, el socket de Gemini y el servidor simulados. Cubre el orden de los turnos (el estudiante antes que la herramienta aunque su guardado tarde más), cortar a mitad de frase, mensajes después de cortar, cancelar mientras se pide el micrófono, micrófono bloqueado, socket cerrado e interrupciones. Si se sacan la fila o el filtro de mensajes tardíos, los tests fallan.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
-- **Para la Persona 2:** el error crítico "examinar sin consentimiento" mira `consentGiven` al final; un permiso pedido después del examen lo evita. Habría que comparar el `atMs` del evento `consentimiento` con el primer examen.
+- Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).
 
 ## 17/10 · Persona 1 · Mejoras de la voz para la demo
 
