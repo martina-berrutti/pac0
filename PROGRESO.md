@@ -2,6 +2,15 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Chequeo de la Puerta 2, personaje en los cuatro casos y tests por caso
+
+- **Chequeo de la Puerta 2:** `node apps/web/scripts/probar-consulta.mjs [url]` recorre una consulta completa contra la URL pública (Convex, token de voz, entrevista, examen con permiso, cierre e informe) y verifica puntaje, cuatro dimensiones, veredicto, diagnóstico, que cada ítem cumplido cite un turno o examen real y que otro usuario no vea el informe. En producción: todo en verde, 90%, «Lo hiciste bien». Sirve como chequeo de dos minutos antes de la demo.
+- **Error encontrado con el chequeo:** por texto, «¿Desde cuándo te duele la garganta?» se tomaba como pedido de examen: se registraba un examen sin permiso y el informe marcaba un error crítico falso. Ahora hace falta una acción (abrí, decí aaa, te reviso, linterna); «te revisó» o «al abrir la boca» no cuentan. Con test.
+- **Personaje en los cuatro casos:** `scripts/probar-personaje.mjs` prueba a Lucía, Rosa, Diego y Jorge, cada uno con sus palabras prohibidas. En producción: 24 de 24 sin fugas; 2 ecos («¿de qué bata blanca me habla?»), que no cuentan.
+- **Tests por caso** (`tests/casos-completos.test.ts`): Lucía con orofaringe, Rosa con presión alta sin preparar y real bien preparada, Diego con otoscopio pedido por voz y Jorge que se niega sin permiso y abre al explicarle. El permiso para el oído ahora sube la confianza como en la garganta.
+- **Para la Persona 2:** en producción el informe sale con el juez por reglas aunque hay clave de Gemini; el evaluador con IA falla y usa el respaldo. Ver «Evaluador con IA falló» en los logs de Vercel.
+- Validación: 145 tests en web y 19 en backend; lint, tipos y build pasan.
+
 ## 17/10 · Persona 1 · Revisión de código y arreglos
 
 Dos revisores independientes (errores; privacidad y seguridad) leyeron el código de la Persona 1. Se arreglaron todos los hallazgos que podían afectar la demo:

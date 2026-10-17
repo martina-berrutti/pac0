@@ -115,6 +115,10 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
 - [x] Script con IA: el paciente siguió en personaje ("para eso vine, doc"); por voz también
 - [x] Repetido en producción con Convex (17/10): 6 de 6 en personaje con el paciente con IA
+- [x] Los cuatro casos (Lucía, Rosa, Diego, Jorge), cada uno con sus palabras prohibidas: 24 de 24 en producción. El script separa el eco (el paciente repite sin entender lo que dijo el estudiante) de la fuga
+- [x] Tests de una consulta completa por caso con su herramienta e informe (`tests/casos-completos.test.ts`)
+- [x] Texto: nombrar la garganta («¿desde cuándo te duele la garganta?») ya no abre el examen; hacía falta para el plan B
+- [ ] Persona 2: en producción el informe sale con el juez por reglas aunque hay clave; ver en los logs de Vercel «Evaluador con IA falló»
 - [x] Script completo en producción con Convex: 6 de 6 en personaje, sin cortes
 
 ### Generador "pedime un paciente" (feature nueva)
@@ -255,5 +259,5 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 ## Puertas (plan.md, sección 13)
 
 - [x] **Puerta 1:** URL pública con invitado y voz probada con micrófono (17/10). El login con Google espera las credenciales
-- [ ] **Puerta 2:** una consulta pasa por voz, examen e informe con puntaje y evidencia en la URL pública
+- [ ] **Puerta 2:** una consulta pasa por voz, examen e informe con puntaje y evidencia en la URL pública. Por texto ya pasa (17/10, `node apps/web/scripts/probar-consulta.mjs`: 13 chequeos en verde, 90%, «Lo hiciste bien»); falta una consulta completa por voz con una persona
 - [ ] **Puerta 3:** funciones congeladas; solo arreglos, ensayo y video
