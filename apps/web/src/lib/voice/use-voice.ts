@@ -13,7 +13,7 @@ import {
 } from "@google/genai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Turn } from "@/lib/contracts/session";
+import type { PatientState, Turn } from "@/lib/contracts/session";
 import type { ToolRun, ToolUi } from "@/server/voice";
 
 export type VoiceStatus =
@@ -43,6 +43,8 @@ type Options = {
 	sessionId: string;
 	onTurn: (turn: Turn) => void;
 	onTool: (ui: ToolUi) => void;
+	// Ánimo del paciente después de cada turno guardado (para el avatar).
+	onState?: (state: PatientState) => void;
 	onEnd: () => void;
 	onError: (message: string) => void;
 };
@@ -110,6 +112,7 @@ export function useVoice({
 	sessionId,
 	onTurn,
 	onTool,
+	onState,
 	onEnd,
 	onError,
 }: Options) {
@@ -128,6 +131,8 @@ export function useVoice({
 	const out = useRef<{
 		ctx: AudioContext;
 		analyser: AnalyserNode;
+		// Copia de la voz del paciente para los labios del avatar.
+		stream: MediaStream;
 		buf: Uint8Array<ArrayBuffer>;
 		sources: Set<AudioBufferSourceNode>;
 		playHead: number;
@@ -141,8 +146,8 @@ export function useVoice({
 		silenceReported: false,
 		deadline: 0,
 	});
-	const callbacks = useRef({ onTurn, onTool, onEnd, onError });
-	callbacks.current = { onTurn, onTool, onEnd, onError };
+	const callbacks = useRef({ onTurn, onTool, onState, onEnd, onError });
+	callbacks.current = { onTurn, onTool, onState, onEnd, onError };
 
 	const stopPlayback = useCallback(() => {
 		const o = out.current;
@@ -204,15 +209,17 @@ export function useVoice({
 		async (speaker: Turn["speaker"], text: string, overlap: boolean) => {
 			if (!text.trim()) return;
 			try {
-				const { turn, stateNote } = await post<{
+				const { turn, stateNote, state } = await post<{
 					turn: Turn;
 					stateNote: string | null;
+					state: PatientState;
 				}>(`/api/sessions/${sessionId}/voice-turns`, {
 					speaker,
 					text,
 					overlap,
 				});
 				callbacks.current.onTurn(turn);
+				callbacks.current.onState?.(state);
 				// El clasificador cambió el ánimo del paciente: se lo contamos al
 				// modelo como contexto, sin pedirle que responda (turnComplete false).
 				if (stateNote) {
@@ -487,9 +494,14 @@ export function useVoice({
 			const analyser = outCtx.createAnalyser();
 			analyser.fftSize = 512;
 			analyser.connect(outCtx.destination);
+			// El avatar vive en otro AudioContext: se le pasa la voz por un
+			// MediaStream (no suena dos veces, solo lo analiza).
+			const copy = outCtx.createMediaStreamDestination();
+			analyser.connect(copy);
 			out.current = {
 				ctx: outCtx,
 				analyser,
+				stream: copy.stream,
 				buf: new Uint8Array(analyser.fftSize),
 				sources: new Set(),
 				playHead: 0,
@@ -600,6 +612,10 @@ export function useVoice({
 		return Math.min(1, Math.sqrt(sum / o.buf.length) * 4);
 	}, []);
 
+	// Voz del paciente como MediaStream, para mover los labios del avatar.
+	// Existe desde que arranca la voz hasta que se corta.
+	const patientStream = useCallback(() => out.current?.stream ?? null, []);
+
 	// Contexto para el paciente sin hacerlo hablar (turnComplete false): por
 	// ejemplo, que el estudiante terminó de revisarlo.
 	const sendNote = useCallback((note: string) => {
@@ -622,6 +638,7 @@ export function useVoice({
 		start,
 		stop,
 		readPatientLevel,
+		patientStream,
 		sendNote,
 	};
 }
