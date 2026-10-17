@@ -9,6 +9,20 @@ import type { CaseSummary } from "@/cases/schema";
 import Loader from "@/components/loader";
 import { ApiError, api, type PersonalityOption } from "@/lib/api-client";
 
+// Valor del selector de problema para sortear uno.
+const RANDOM = "azar";
+
+// Los casos del mismo paciente (group) van en una sola tarjeta; los
+// generados, cada uno en la suya.
+function groupCases(cases: CaseSummary[]) {
+	const groups = new Map<string, CaseSummary[]>();
+	for (const c of cases) {
+		const key = c.group ?? c.id;
+		groups.set(key, [...(groups.get(key) ?? []), c]);
+	}
+	return [...groups.entries()].map(([key, list]) => ({ key, cases: list }));
+}
+
 // Versión funcional de "elegir caso"; la Persona 3 la diseña.
 export default function CasesPage() {
 	const router = useRouter();
@@ -16,6 +30,8 @@ export default function CasesPage() {
 	const [cases, setCases] = useState<CaseSummary[] | null>(null);
 	const [personalities, setPersonalities] = useState<PersonalityOption[]>([]);
 	const [chosen, setChosen] = useState<Record<string, string>>({});
+	// Problema elegido por paciente: id del caso o RANDOM.
+	const [problem, setProblem] = useState<Record<string, string>>({});
 	const [request, setRequest] = useState("");
 	const [busy, setBusy] = useState(false);
 
@@ -28,12 +44,18 @@ export default function CasesPage() {
 		api.personalities().then((r) => setPersonalities(r.personalities));
 	}, [router]);
 
-	async function start(caseId: string) {
+	async function start(key: string, options: CaseSummary[]) {
+		const picked = problem[key] ?? options[0]?.id;
+		const caseId =
+			picked === RANDOM
+				? options[Math.floor(Math.random() * options.length)]?.id
+				: picked;
+		if (!caseId) return;
 		setBusy(true);
 		try {
 			const { sessionId } = await api.startSession(
 				caseId,
-				chosen[caseId] ?? "caso",
+				chosen[key] ?? "caso",
 			);
 			router.push(`/consulta/${sessionId}`);
 		} catch (error) {
@@ -102,48 +124,71 @@ export default function CasesPage() {
 			<section className="grid gap-2">
 				<h2 className="font-medium">Casos</h2>
 				<ul className="grid gap-2">
-					{cases.map((c) => (
-						<li key={c.id} className="grid gap-2 border p-3">
-							<div>
-								<p className="font-medium">
-									{c.title}
-									{c.origin === "generado" && (
-										<span className="ml-2 text-muted-foreground text-xs">
-											generado
-										</span>
+					{groupCases(cases).map(({ key, cases: options }) => {
+						const first = options[0];
+						if (!first) return null;
+						const grouped = options.length > 1;
+						return (
+							<li key={key} className="grid gap-2 border p-3">
+								<div>
+									<p className="font-medium">
+										{first.title}
+										{first.origin === "generado" && (
+											<span className="ml-2 text-muted-foreground text-xs">
+												generado
+											</span>
+										)}
+										{!first.reviewed && (
+											<span className="ml-2 text-muted-foreground text-xs">
+												sin revisar
+											</span>
+										)}
+									</p>
+									<p className="text-muted-foreground text-sm">
+										{first.patient.name}, {first.patient.age} años
+										{grouped ? "" : `: “${first.chiefComplaint}”`}
+									</p>
+								</div>
+								<div className="flex flex-wrap items-center gap-2">
+									{grouped && (
+										<select
+											aria-label="Problema"
+											value={problem[key] ?? first.id}
+											onChange={(e) =>
+												setProblem((cur) => ({ ...cur, [key]: e.target.value }))
+											}
+											className="h-8 border border-input bg-background px-2 text-sm"
+										>
+											{options.map((c) => (
+												<option key={c.id} value={c.id}>
+													{c.problem ?? c.id}
+												</option>
+											))}
+											<option value={RANDOM}>Al azar</option>
+										</select>
 									)}
-									{!c.reviewed && (
-										<span className="ml-2 text-muted-foreground text-xs">
-											sin revisar
-										</span>
-									)}
-								</p>
-								<p className="text-muted-foreground text-sm">
-									{c.patient.name}, {c.patient.age} años: “{c.chiefComplaint}”
-								</p>
-							</div>
-							<div className="flex flex-wrap items-center gap-2">
-								<select
-									aria-label="Personalidad"
-									value={chosen[c.id] ?? "caso"}
-									onChange={(e) =>
-										setChosen((cur) => ({ ...cur, [c.id]: e.target.value }))
-									}
-									className="h-8 border border-input bg-background px-2 text-sm"
-								>
-									<option value="caso">Personalidad del caso</option>
-									{personalities.map((p) => (
-										<option key={p.key} value={p.key}>
-											{p.label}
-										</option>
-									))}
-								</select>
-								<Button disabled={busy} onClick={() => start(c.id)}>
-									Empezar consulta
-								</Button>
-							</div>
-						</li>
-					))}
+									<select
+										aria-label="Personalidad"
+										value={chosen[key] ?? "caso"}
+										onChange={(e) =>
+											setChosen((cur) => ({ ...cur, [key]: e.target.value }))
+										}
+										className="h-8 border border-input bg-background px-2 text-sm"
+									>
+										<option value="caso">Personalidad del caso</option>
+										{personalities.map((p) => (
+											<option key={p.key} value={p.key}>
+												{p.label}
+											</option>
+										))}
+									</select>
+									<Button disabled={busy} onClick={() => start(key, options)}>
+										Empezar consulta
+									</Button>
+								</div>
+							</li>
+						);
+					})}
 				</ul>
 			</section>
 		</div>

@@ -83,7 +83,7 @@ describe("cambios atómicos de sesión", () => {
 
 	test("consentimiento y clasificador a la vez: no se pierde ninguno", async () => {
 		const ana = fresh();
-		const id = await startSession(ana, "garganta-02", "caso");
+		const id = await startSession(ana, "garganta-02", "hostil");
 		const session = await store.getSession(id);
 		if (!session) throw new Error("sin sesión");
 		const before = session.state.confianza;
@@ -139,7 +139,7 @@ describe("privacidad", () => {
 describe("abuso desde el navegador", () => {
 	test("actualizar_estado: uno por turno y como mucho ±0,3", async () => {
 		const ana = fresh();
-		const id = await startSession(ana, "garganta-02", "caso");
+		const id = await startSession(ana, "garganta-02", "hostil");
 		const start = (await store.getSession(id))?.state.confianza ?? 0;
 		await runTool(ana, id, "actualizar_estado", {
 			delta: { confianza: 0.5 },

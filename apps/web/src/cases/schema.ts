@@ -46,9 +46,21 @@ export type ChecklistItem = z.infer<typeof checklistItemSchema>;
 // Datos que el paciente solo cuenta si la confianza es alta.
 export const SENSITIVE_KEYS = ["alcohol", "tabaco", "drogas", "sexualidad"];
 
+// Exámenes que tiene la pantalla. En cualquier caso se puede hacer cualquiera;
+// los que no son del problema del paciente restan un punto (lib/scoring).
+export const EXAM_KINDS = ["orofaringe", "oido", "presion"] as const;
+export type ExamKind = (typeof EXAM_KINDS)[number];
+
 export const caseSchema = z.object({
 	id: z.string().regex(/^[a-z0-9-]+$/),
 	title: z.string(),
+	// Mismo paciente con varios problemas: el estudiante elige el paciente y
+	// después el problema. El nombre del problema no dice el diagnóstico.
+	group: z.string().optional(),
+	problem: z.string().optional(),
+	// Exámenes que tienen que ver con el problema. Vacío: no se penaliza
+	// ninguno (casos generados).
+	relevantExams: z.array(z.enum(EXAM_KINDS)).default([]),
 	// banco: escrito por el equipo; generado: lo armó el generador a pedido.
 	origin: z.enum(["banco", "generado"]).default("banco"),
 	// Plantilla de la que salió un caso generado. Solo en el servidor: el nombre
@@ -99,6 +111,8 @@ export type CaseInput = z.input<typeof caseSchema>;
 export type CaseSummary = {
 	id: string;
 	title: string;
+	group?: string;
+	problem?: string;
 	origin: ClinicalCase["origin"];
 	reviewed: boolean;
 	patient: { name: string; age: number };
@@ -109,6 +123,8 @@ export function toSummary(c: ClinicalCase): CaseSummary {
 	return {
 		id: c.id,
 		title: c.title,
+		group: c.group,
+		problem: c.problem,
 		origin: c.origin,
 		reviewed: c.reviewedBy !== null,
 		patient: { name: c.patient.name, age: c.patient.age },

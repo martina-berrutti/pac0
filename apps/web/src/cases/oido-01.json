@@ -1,6 +1,9 @@
 {
 	"id": "oido-01",
 	"title": "Dolor de oído",
+	"group": "diego",
+	"problem": "Problema 1",
+	"relevantExams": ["oido"],
 	"origin": "banco",
 	"reviewedBy": null,
 	"patient": {
@@ -42,8 +45,29 @@
 		"tabaco": "no fumo",
 		"drogas": "no"
 	},
-	"vitals": { "pa": [118, 74], "fc": 76, "fr": 14, "tax": 36.8 },
-	"exam": {},
+	"vitals": {
+		"pa": [118, 74],
+		"fc": 76,
+		"fr": 14,
+		"tax": 36.8
+	},
+	"exam": {
+		"orofaringe": {
+			"variants": {
+				"parcial": "mouth-partial-01",
+				"completa": "throat-normal-01"
+			},
+			"hotspots": [
+				"amigdala-izq",
+				"amigdala-der",
+				"uvula",
+				"paladar",
+				"lengua",
+				"pared-posterior"
+			],
+			"expected": "Orofaringe normal: sin eritema ni exudado"
+		}
+	},
 	"expectedChecklist": [
 		{
 			"id": "presentacion",
@@ -169,7 +193,6 @@
 	],
 	"notApplicable": [
 		"gineco-obstetricos",
-		"orofaringe",
 		"palpacion-cv",
 		"contacto-ocular",
 		"expresion-facial"

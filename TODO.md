@@ -116,7 +116,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
 - [x] Script con IA: el paciente siguió en personaje ("para eso vine, doc"); por voz también
 - [x] Repetido en producción con Convex (17/10): 6 de 6 en personaje con el paciente con IA
-- [x] Los cuatro casos (Lucía, Rosa, Diego, Jorge), cada uno con sus palabras prohibidas: 24 de 24 en producción. El script separa el eco (el paciente repite sin entender lo que dijo el estudiante) de la fuga
+- [x] Los casos del banco, cada uno con sus palabras prohibidas (con los cuatro de antes: 24 de 24 en producción; el script ya tiene los seis problemas nuevos). El script separa el eco (el paciente repite sin entender lo que dijo el estudiante) de la fuga
 - [x] Tests de una consulta completa por caso con su herramienta e informe (`tests/casos-completos.test.ts`)
 - [x] Texto: nombrar la garganta («¿desde cuándo te duele la garganta?») ya no abre el examen; hacía falta para el plan B
 - [ ] Persona 2: en producción el informe sale con el juez por reglas aunque hay clave; ver en los logs de Vercel «Evaluador con IA falló»
@@ -205,10 +205,13 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 - [ ] Revisar el caso 1 con un estudiante avanzado o un médico y completar `reviewedBy`
 - [ ] Traducir las listas de cotejo de la facultad a `expectedChecklist` con pesos y palabras clave
 - [ ] Revisar las plantillas del generador con un médico
-- [x] Caso 2: Rosa Rodríguez, hipertensión mal medida (`hipertension-01`, borrador)
-- [x] Caso 4: Diego, otitis externa para el otoscopio (`oido-01`, borrador)
-- [x] Caso 3: Jorge, garganta viral con paciente hostil (`garganta-02`, borrador)
-- [ ] Revisar con un médico los casos 2, 3 y 4 y completar `reviewedBy`
+- [x] 17/10: el banco queda con dos pacientes y tres problemas cada uno, a elegir antes de empezar («Problema 1, 2, 3» o «Al azar»; el nombre no dice el diagnóstico)
+  - Lucía (garganta): `garganta-01` faringoamigdalitis, `garganta-02` faringitis viral, `garganta-03` mononucleosis
+  - Diego (oído): `oido-01` otitis externa, `oido-02` otitis media aguda (tímpano abombado), `oido-03` dolor de oído que viene de la mandíbula (oídos normales)
+  - Se sacaron Rosa y Jorge. `hipertension-01.json` queda solo para el generador (pacientes de presión)
+- [x] En cualquier caso se puede examinar la garganta, el oído y la presión; lo que no es del problema (`relevantExams` del caso) resta 1 punto de examen por tipo
+- [ ] Revisar con un médico los seis problemas (todos borrador) y completar `reviewedBy`
+- [ ] Calibrar con un docente si medir la presión o mirar la garganta en un caso de oído tiene que restar (hoy resta 1 punto)
 
 
 ### Banco de imágenes (plan.md, sección 7)

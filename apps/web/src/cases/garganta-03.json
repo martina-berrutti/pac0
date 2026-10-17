@@ -1,0 +1,240 @@
+{
+	"id": "garganta-03",
+	"title": "Dolor de garganta",
+	"group": "lucia",
+	"problem": "Problema 3",
+	"relevantExams": ["orofaringe"],
+	"origin": "banco",
+	"reviewedBy": null,
+	"patient": {
+		"name": "Lucía",
+		"age": 24,
+		"occupation": "estudiante",
+		"sex": "f"
+	},
+	"personality": {
+		"cooperacion": 0.9,
+		"ansiedad": 0.3,
+		"locuacidad": 0.6,
+		"desconfianza": 0.1,
+		"paciencia": 0.7,
+		"audicion": "normal",
+		"vocabulario": "simple"
+	},
+	"profile": {
+		"edad": "24 años",
+		"ocupacion": "estudio Ciencias de la Comunicación",
+		"vive": "con una compañera de apartamento",
+		"estadoCivil": "soltera"
+	},
+	"chiefComplaint": "Me duele la garganta hace más de una semana y estoy muy cansada",
+	"hiddenHistory": {
+		"inicio": "hace como diez días, y no se me va",
+		"dolor": "me duele bastante al tragar, como un 6 de 10",
+		"fiebre": "tengo fiebre casi todos los días, 38 y algo",
+		"cansancio": "estoy agotada, duermo siesta y me levanto igual de cansada",
+		"cuello": "tengo unas pelotitas en el cuello que me duelen si las toco",
+		"tos": "no tengo tos",
+		"mocos": "no, la nariz la tengo bien",
+		"contactos": "un chico con el que estuve saliendo anduvo enfermo de la garganta hace unas semanas",
+		"alergias": "que yo sepa no soy alérgica a nada",
+		"medicacion": "tomé ibuprofeno, y una amiga me dio unas pastillas de amoxicilina que le habían sobrado; después me salieron unas manchitas rojas en la piel",
+		"antecedentes": "nunca tuve nada importante",
+		"alcohol": "tomo los fines de semana, con amigos",
+		"tabaco": "no fumo",
+		"drogas": "no"
+	},
+	"variations": {},
+	"vitals": {
+		"pa": [108, 68],
+		"fc": 98,
+		"fr": 16,
+		"tax": 38.2
+	},
+	"exam": {
+		"orofaringe": {
+			"variants": {
+				"parcial": "mouth-partial-01",
+				"completa": "throat-exudate-01"
+			},
+			"hotspots": [
+				"amigdala-izq",
+				"amigdala-der",
+				"uvula",
+				"paladar",
+				"lengua",
+				"pared-posterior"
+			],
+			"expected": "Amígdalas aumentadas con exudado blanquecino"
+		}
+	},
+	"expectedChecklist": [
+		{
+			"id": "presentacion",
+			"item": "se presenta y saluda",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["hola", "buen día", "buenas", "me llamo", "soy"]
+		},
+		{
+			"id": "pregunta-abierta",
+			"item": "empieza con una pregunta abierta",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": [
+				"qué te trae",
+				"en qué te puedo",
+				"contame",
+				"qué te pasa",
+				"cómo estás"
+			]
+		},
+		{
+			"id": "inicio",
+			"item": "pregunta desde cuándo",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"desde cuándo",
+				"cuándo empez",
+				"hace cuánto",
+				"cuántos días"
+			]
+		},
+		{
+			"id": "caracteristicas-dolor",
+			"item": "caracteriza el dolor",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"al tragar",
+				"cuánto te duele",
+				"del 1 al 10",
+				"intensidad",
+				"cómo es el dolor"
+			]
+		},
+		{
+			"id": "fiebre",
+			"item": "pregunta por fiebre",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["fiebre", "temperatura", "chuchos"]
+		},
+		{
+			"id": "cansancio",
+			"item": "pregunta por cansancio o decaimiento",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["cansad", "agotad", "energía", "decaíd", "sueño"]
+		},
+		{
+			"id": "ganglios",
+			"item": "pregunta por bultos o ganglios en el cuello",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["cuello", "ganglio", "bulto", "pelotita"]
+		},
+		{
+			"id": "tos-catarro",
+			"item": "pregunta por tos o síntomas respiratorios",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["tos", "mocos", "nariz", "congest"]
+		},
+		{
+			"id": "contactos",
+			"item": "pregunta por contactos enfermos",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": ["alguien más", "contacto", "cerca tuyo", "alguien con"]
+		},
+		{
+			"id": "alergias",
+			"item": "alergias medicamentosas",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["alérgic", "alergia"]
+		},
+		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"tomaste algo",
+				"estás tomando",
+				"remedio",
+				"pastilla"
+			]
+		},
+		{
+			"id": "antecedentes",
+			"item": "antecedentes personales",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["antecedente", "enfermedad", "operad", "internad"]
+		},
+		{
+			"id": "habitos",
+			"item": "hábitos tóxicos",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": ["fumás", "tabaco", "alcohol", "tomás alcohol", "drogas"]
+		},
+		{
+			"id": "consentimiento",
+			"item": "explica y pide consentimiento antes de examinar",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"te voy a examinar",
+				"puedo",
+				"permiso",
+				"te parece si",
+				"te voy a revisar"
+			]
+		},
+		{
+			"id": "orofaringe",
+			"item": "inspecciona la orofaringe completa",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": []
+		},
+		{
+			"id": "describe-hallazgo",
+			"item": "describe lo que vio",
+			"dimension": "examen",
+			"weight": 2,
+			"keywords": ["exudado", "placas", "roj", "amígdalas", "pus"]
+		},
+		{
+			"id": "resume",
+			"item": "resume y verifica que entendió",
+			"dimension": "comunicacion",
+			"weight": 1,
+			"keywords": [
+				"entonces",
+				"si entendí bien",
+				"resumiendo",
+				"¿entendiste",
+				"alguna duda"
+			]
+		}
+	],
+	"notApplicable": [
+		"gineco-obstetricos",
+		"palpacion-cv",
+		"contacto-ocular",
+		"expresion-facial"
+	],
+	"criticalErrors": ["examen sin consentimiento"],
+	"truth": {
+		"diagnosis": "mononucleosis infecciosa",
+		"acceptable": ["mononucleosis", "enfermedad del beso", "epstein"],
+		"differentials": ["faringoamigdalitis estreptocócica", "citomegalovirus"]
+	}
+}

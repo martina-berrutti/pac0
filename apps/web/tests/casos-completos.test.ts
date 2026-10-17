@@ -82,64 +82,61 @@ describe("consulta completa por caso", () => {
 		expect(criticalTags(report)).toEqual([]);
 	});
 
-	test("Rosa (hipertension-01): sin preparar da alto; bien preparada, el valor real", async () => {
+	test("Lucía (garganta-01): puede medir la presión y mirar el oído, y cada uno resta un punto", async () => {
 		const ana = student();
-		const id = await startSession(ana, "hipertension-01", "caso");
+		const id = await startSession(ana, "garganta-01", "caso");
 		await talk(ana, id, [
-			"Hola Rosa, soy Ana, estudiante. ¿Qué la trae hoy?",
-			"¿Toma alguna medicación para la presión? ¿La toma todos los días?",
-			"¿Tomó café o fumó en la última media hora?",
-			"Le voy a pedir que corte el teléfono y descanse cinco minutos sentada, ¿le parece?",
+			"Hola, soy Ana, estudiante de medicina. ¿Qué te trae por acá?",
+			"¿Desde cuándo te duele? ¿Tuviste fiebre?",
 		]);
-		// Su garganta no se puede examinar en este caso.
-		expect(
-			(
-				await runTool(ana, id, "examinar", {
-					zona: "garganta",
-					claridad: "alta",
-					consentimiento: true,
-				})
-			).output.disponible,
-		).toBe(false);
-
-		// Primero sin preparar: la lectura sale alta.
-		const rushed = await runTool(ana, id, "medir_presion", {
-			pasos_cumplidos: [],
+		const throat = await runTool(ana, id, "examinar", {
+			zona: "garganta",
+			claridad: "alta",
+			consentimiento: true,
 		});
-		if (rushed.ui.kind !== "vitals") throw new Error("no abrió el tensiómetro");
-		const high = await placeCuff(
-			ana,
-			id,
-			rushed.ui.measurementId,
-			"grande",
-			false,
-		);
-		expect(high.gauge.pas).toBeGreaterThan(150);
-		// Al modelo nunca le llega el valor.
-		expect(JSON.stringify(rushed.output)).not.toMatch(/\d{3}/);
+		expect(throat.ui.kind).toBe("exam");
 
-		// Después, con todos los pasos y el manguito grande: el valor real.
-		const careful = await runTool(ana, id, "medir_presion", {
+		// La presión: el tensiómetro abre igual y la lectura es la del caso.
+		const bp = await runTool(ana, id, "medir_presion", {
 			pasos_cumplidos: [...BP_STEPS],
 		});
-		if (careful.ui.kind !== "vitals")
-			throw new Error("no abrió el tensiómetro");
-		const real = await placeCuff(
+		if (bp.ui.kind !== "vitals") throw new Error("no abrió el tensiómetro");
+		const reading = await placeCuff(
 			ana,
 			id,
-			careful.ui.measurementId,
-			"grande",
+			bp.ui.measurementId,
+			"adecuado",
 			false,
 		);
-		expect(real.gauge).toEqual({ pas: 136, pad: 86 });
-		await markReading(ana, id, careful.ui.measurementId, { pas: 136, pad: 86 });
+		expect(reading.gauge).toEqual({ pas: 112, pad: 70 });
+		await markReading(ana, id, bp.ui.measurementId, { pas: 112, pad: 70 });
 
-		const report = await finishSession(ana, id, "hipertensión mal controlada", [
-			"lectura falsamente elevada",
-		]);
-		checkReport(report, "hipertension-01");
-		expect(status(report, "presion-arterial")).not.toBe("no");
-		expect(status(report, "medicacion")).toBe("si");
+		// El oído: el otoscopio abre y los dos oídos son normales.
+		const ear = await runTool(ana, id, "examinar", {
+			zona: "oído",
+			claridad: "alta",
+			consentimiento: true,
+		});
+		expect(ear.ui.kind).toBe("otoscope");
+		const { actionId, appearance } = await startOtoscopy(ana, id, "derecho");
+		expect(appearance).toEqual({ canal: "sano", tympanum: "nacarado" });
+		await finishOtoscopy(ana, id, actionId, {
+			hand: "derecha",
+			prep: ["higiene", "inspeccion-externa", "verificar-luz"],
+			speculum: "adulto",
+			traction: "arriba-atras",
+			roughInsertions: 0,
+			maxDepth: 0.5,
+			canalMs: 3000,
+			tympanumMs: 2000,
+		});
+
+		const report = await finishSession(ana, id, "faringoamigdalitis", []);
+		checkReport(report, "garganta-01");
+		const tags = report.mistakes.map((m) => m.tag);
+		expect(tags).toContain("examen-no-indicado-presion");
+		expect(tags).toContain("examen-no-indicado-oido");
+		expect(tags).not.toContain("examen-no-indicado-orofaringe");
 	});
 
 	test("Diego (oido-01): pedir permiso por voz abre el otoscopio y la otoscopia entra al informe", async () => {
@@ -186,12 +183,12 @@ describe("consulta completa por caso", () => {
 		expect(criticalTags(report)).toEqual([]);
 	});
 
-	test("Jorge (garganta-02): se niega sin permiso; explicando y pidiendo permiso, abre", async () => {
+	test("Lucía hostil (garganta-02): se niega sin permiso; explicando y pidiendo permiso, abre", async () => {
 		const ana = student();
-		const id = await startSession(ana, "garganta-02", "caso");
+		const id = await startSession(ana, "garganta-02", "hostil");
 		await talk(ana, id, [
-			"Buenas, soy Ana, estudiante. ¿Qué lo trae?",
-			"Entiendo que esté molesto por la espera. ¿Desde cuándo le duele la garganta?",
+			"Buenas, soy Ana, estudiante. ¿Qué te trae?",
+			"Entiendo que estés molesta por la espera. ¿Desde cuándo te duele la garganta?",
 		]);
 		const refused = await runTool(ana, id, "examinar", {
 			zona: "garganta",
@@ -203,7 +200,7 @@ describe("consulta completa por caso", () => {
 		const { exam } = await sendTurn(
 			ana,
 			id,
-			"Le explico: quiero mirarle la garganta con una luz para ver si está inflamada. ¿Me da permiso? Abra bien grande y diga aaa.",
+			"Te explico: quiero mirarte la garganta con una luz para ver si está inflamada. ¿Me das permiso? Abrí bien grande y decí aaa.",
 		);
 		expect(exam).not.toBeNull();
 		expect(exam?.action.variant).not.toBe("negado");
@@ -213,5 +210,8 @@ describe("consulta completa por caso", () => {
 		]);
 		checkReport(report, "garganta-02");
 		expect(criticalTags(report)).not.toContain("examen-sin-consentimiento");
+		expect(
+			report.mistakes.some((m) => m.tag.startsWith("examen-no-indicado")),
+		).toBe(false);
 	});
 });
