@@ -175,9 +175,19 @@ export function useVoice({
 				| "silencio_largo",
 			durationMs?: number,
 		) =>
-			post(`/api/sessions/${sessionId}/events`, { type, durationMs }).catch(
-				() => {},
-			),
+			post<{ nota?: string | null }>(`/api/sessions/${sessionId}/events`, {
+				type,
+				durationMs,
+			})
+				.then(({ nota }) => {
+					// El paciente se entera como contexto, sin que le toque hablar.
+					if (nota)
+						live.current?.sendClientContent({
+							turns: [{ role: "user", parts: [{ text: nota }] }],
+							turnComplete: false,
+						});
+				})
+				.catch(() => {}),
 		[sessionId],
 	);
 
