@@ -306,3 +306,14 @@ describe("describir lo que vio", () => {
 		).not.toContain("Lo esperado");
 	});
 });
+
+describe("texto de las omisiones", () => {
+	test("una omisión dice qué faltó, con el ítem tal cual", () => {
+		const report = evaluate(averageStudent());
+		const m = report.mistakes.find((x) => x.tag === "antecedentes");
+		expect(m?.what).toBe(
+			"Faltó: antecedentes personales (no aparece en ningún turno).",
+		);
+		expect(report.mistakes.some((x) => /^No [a-z]/.test(x.what))).toBe(false);
+	});
+});
