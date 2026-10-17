@@ -46,7 +46,9 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Una sesión y su informe solo los ve su dueño
 - [x] Cerrar sesión
 - [ ] Probar el login desde un celular en la URL pública
-- [ ] Login con Google (fase final, con Convex Auth)
+- [x] Login con Google por OAuth propio (`/api/auth/google`): solo `openid`, id con hash, perfil guardado en Convex
+- [ ] Crear las credenciales OAuth en Google Cloud y cargarlas en Vercel
+- [ ] Probar el login con Google en la URL pública
 
 ### Motor del paciente (plan.md, sección 5)
 - [x] Prompt del paciente desde el caso y la personalidad, **sin el diagnóstico** (`lib/patient/brief.ts`)
@@ -74,10 +76,12 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
 - [ ] Probar con micrófono en el navegador (computadora y celular)
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
-- [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno)
-- [ ] Probar 3 voces de Gemini y elegir la más rioplatense; cargarla en `LIVE_VOICE`
+- [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
+- [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
+- [ ] Elegir la voz y cargarla en `LIVE_VOICE` (Vercel y `.env.local`)
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
-- [ ] Medir el costo por sesión de 8 minutos con una consulta real (tokens × precio vigente)
+- [x] Estimar el costo: US$0,50 a 0,80 por consulta de 8 min (audio entrada US$3/M, salida US$12/M; capa gratuita sin costo)
+- [ ] Confirmar el costo con `voiceUsage` de una consulta real por micrófono
 
 ### Herramientas del paciente (plan.md, secciones 4 y 6)
 - [x] `examinar(zona, maniobra, claridad, consentimiento)`: el caso decide la variante; al modelo no le llega el hallazgo
@@ -90,7 +94,8 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 ### Seguridad del personaje
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
-- [ ] Correr el script con `GEMINI_API_KEY` (paciente con IA) y probar lo mismo por voz
+- [x] Script con IA: el paciente siguió en personaje ("para eso vine, doc"); por voz también
+- [ ] Repetir el script completo cuando producción guarde en Convex (se cortó por "Sesión no encontrada")
 
 ### Generador "pedime un paciente" (feature nueva)
 - [x] `POST /api/cases/generate`: "dame un paciente con algo de garganta, que sea ansioso, de 60 años"
@@ -207,11 +212,11 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 - [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
 - [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel
-- [ ] Usuarios, Google y modo invitado con Convex Auth (ya escritos en `packages/backend/convex/auth.ts`)
-- [ ] Borrado de invitados a las 24 horas (`crons.ts`, ya escrito)
+- [x] Usuarios con Google e invitado: resuelto con OAuth propio y `records` (Convex Auth en `packages/backend/convex/auth.ts` queda sin usar)
+- [x] Borrado de invitados a las 24 horas: `records.purgeExpiredGuests` cada hora (`crons.ts`)
 - [ ] `mistakeProfile`: perfil de errores entre sesiones
 - [ ] Imágenes en Convex storage y tabla `assets`
-- [ ] Credenciales de Google en Convex dev y prod
+- [x] Credenciales de Google: van en Vercel (OAuth propio), no en Convex
 - [x] Conectar Convex como almacenamiento (adelantado el 17/10: en Vercel la consulta fallaba con "Sesión no encontrada")
 - [ ] Más adelante: pasar de `records` a las tablas tipadas del esquema
 

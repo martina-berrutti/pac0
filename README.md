@@ -38,6 +38,8 @@ Los `.env` no se suben al repo y los agentes no los pueden leer (`.claude/settin
 | `SESSION_SECRET` | Firma la cookie de sesión. **Obligatoria en producción** (Vercel) |
 | `LIVE_MODEL`, `LIVE_VOICE`, `AI_MODEL` | Modelos y voz; tienen valores por defecto (`gemini-3.8-live`, `Kore`, `gemini-3.8-flash`) |
 | `OPENAI_API_KEY` | Alternativa opcional solo para el texto |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Login con Google (OAuth). Solo se pide `openid`: ni nombre ni correo |
+| `CONVEX_URL`, `STORE_SECRET` | Guardar los datos en Convex. **Obligatorias en Vercel**: sin ellas, la memoria se pierde entre instancias |
 
 ## Comandos
 
@@ -50,7 +52,7 @@ npm test             # tests de la web y de Convex
 
 ## Despliegue
 
-Vercel, con Root Directory `apps/web`; cada push a `main` publica https://pac0-l3xi.vercel.app. En Vercel hacen falta `SESSION_SECRET` y, para la voz, `GEMINI_API_KEY`.
+Vercel, con Root Directory `apps/web`; cada push a `main` publica https://pac0-l3xi.vercel.app. En Vercel hacen falta `SESSION_SECRET`, `CONVEX_URL`, `STORE_SECRET` y `GEMINI_API_KEY` (y `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` para el login con Google). `GET /api/health` dice cuáles están cargadas, sin mostrar los valores.
 
 ## Seguimiento
 

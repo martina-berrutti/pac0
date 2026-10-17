@@ -9,6 +9,9 @@ export async function GET() {
 		sessionSecret: Boolean(process.env.SESSION_SECRET),
 		convexUrl: Boolean(process.env.CONVEX_URL),
 		storeSecret: Boolean(process.env.STORE_SECRET),
+		google: Boolean(
+			process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+		),
 		entorno: process.env.VERCEL_ENV ?? "local",
 	});
 }

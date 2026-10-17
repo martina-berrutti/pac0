@@ -11,4 +11,11 @@ crons.interval(
 	{},
 );
 
+crons.interval(
+	"purge expired guest records",
+	{ hours: 1 },
+	internal.records.purgeExpiredGuests,
+	{},
+);
+
 export default crons;

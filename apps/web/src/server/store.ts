@@ -12,7 +12,12 @@ import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import type { Session, SessionEvent, Turn } from "@/lib/contracts/session";
 
+// Perfil de un usuario con cuenta (Google): solo alias y año de carrera.
+export type Profile = { alias: string; careerYear: string };
+
 export interface Store {
+	getProfile(uid: string): Promise<Profile | undefined>;
+	saveProfile(uid: string, profile: Profile): Promise<void>;
 	listCases(ownerId: string): Promise<ClinicalCase[]>;
 	getCase(id: string): Promise<ClinicalCase | undefined>;
 	// Casos generados: solo los ve quien los pidió.
@@ -49,7 +54,14 @@ class MemoryStore implements Store {
 	private exams = new Map<string, ExamAction>();
 	private vitals = new Map<string, VitalsMeasurement[]>();
 	private reports = new Map<string, Report>();
+	private profiles = new Map<string, Profile>();
 
+	async getProfile(uid: string) {
+		return this.profiles.get(uid);
+	}
+	async saveProfile(uid: string, profile: Profile) {
+		this.profiles.set(uid, profile);
+	}
 	async listCases(ownerId: string) {
 		const own = [...this.generated.values()]
 			.filter((g) => g.ownerId === ownerId)
@@ -130,7 +142,11 @@ class MemoryStore implements Store {
 	}
 }
 
+// Prefijo del id de los invitados (app/api/auth/guest).
+export const GUEST_PREFIX = "gst_";
+
 type Kind =
+	| "user"
 	| "case"
 	| "session"
 	| "turn"
@@ -160,6 +176,8 @@ class ConvexStore implements Store {
 			appId,
 			data,
 			...keys,
+			// Los invitados se borran a las 24 horas (convex/records.ts).
+			guest: keys.ownerId?.startsWith(GUEST_PREFIX) ?? undefined,
 		});
 	}
 	private async get<T>(kind: Kind, appId: string): Promise<T | undefined> {
@@ -186,6 +204,12 @@ class ConvexStore implements Store {
 		});
 	}
 
+	getProfile(uid: string) {
+		return this.get<Profile>("user", uid);
+	}
+	async saveProfile(uid: string, profile: Profile) {
+		await this.put("user", uid, profile, { ownerId: uid });
+	}
 	async listCases(ownerId: string) {
 		return [
 			...caseBank,
