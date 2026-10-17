@@ -26,6 +26,10 @@ export interface Store {
 	getSession(id: string): Promise<Session | undefined>;
 	updateSession(id: string, patch: Partial<Session>): Promise<Session>;
 	listSessions(userId: string): Promise<Session[]>;
+	// Últimas sesiones de todos, para los docentes.
+	listRecentSessions(limit: number): Promise<Session[]>;
+	// Sesiones creadas desde `since` por todos, contando hasta `max`.
+	countSessionsSince(since: number, max: number): Promise<number>;
 	addTurn(t: Turn): Promise<void>;
 	listTurns(sessionId: string): Promise<Turn[]>;
 	addEvent(e: SessionEvent): Promise<void>;
@@ -91,6 +95,16 @@ class MemoryStore implements Store {
 		return [...this.sessions.values()]
 			.filter((s) => s.userId === userId)
 			.sort((a, b) => b.startedAt - a.startedAt);
+	}
+	async listRecentSessions(limit: number) {
+		return [...this.sessions.values()]
+			.sort((a, b) => b.startedAt - a.startedAt)
+			.slice(0, limit);
+	}
+	async countSessionsSince(since: number, max: number) {
+		let count = 0;
+		for (const s of this.sessions.values()) if (s.startedAt >= since) count++;
+		return Math.min(count, max);
 	}
 	async addTurn(t: Turn) {
 		this.turns.set(t.sessionId, [...(this.turns.get(t.sessionId) ?? []), t]);
@@ -240,6 +254,19 @@ class ConvexStore implements Store {
 	}
 	listSessions(userId: string) {
 		return this.byOwner<Session>("session", userId);
+	}
+	listRecentSessions(limit: number): Promise<Session[]> {
+		return this.client.query(anyApi.records.listRecentSessions, {
+			secret: this.secret,
+			limit,
+		});
+	}
+	countSessionsSince(since: number, max: number): Promise<number> {
+		return this.client.query(anyApi.records.countSessionsSince, {
+			secret: this.secret,
+			since,
+			max,
+		});
 	}
 	async addTurn(t: Turn) {
 		await this.put("turn", t.id, t, { sessionId: t.sessionId });

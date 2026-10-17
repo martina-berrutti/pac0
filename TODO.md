@@ -38,7 +38,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Deploy en Vercel: https://pac0-l3xi.vercel.app
 - [x] Cargar `SESSION_SECRET` en Vercel
 - [x] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
-- [ ] `.gitattributes` con `* text=auto eol=lf`: en Windows (`core.autocrlf=true`) `npm run lint` falla por los finales de línea CRLF
+- [x] `.gitattributes` con `* text=auto eol=lf`: en Windows (`core.autocrlf=true`) `npm run lint` fallaba por los finales de línea CRLF
 
 ### Usuarios y acceso (plan.md, sección 10)
 - [x] Invitado con alias temporal y cookie firmada, en menos de 10 s
@@ -50,9 +50,12 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Login con Google por OAuth propio (`/api/auth/google`): solo `openid`, id con hash, perfil guardado en Convex
 - [ ] Crear las credenciales OAuth en Google Cloud y cargarlas en Vercel (`/api/health` en producción dice `google: false`)
 - [ ] Probar el login con Google en la URL pública
-- [ ] Rol en el perfil: estudiante por defecto, docente por lista autorizada a mano (plan.md, sección 10; hoy el perfil solo tiene alias y año)
-- [ ] Docentes autorizados pueden leer los informes (P3, para el panel docente)
-- [ ] Definir cuánto se guardan las transcripciones de usuarios con Google (ley 18.331, a confirmar con la facultad; plan.md, sección 2)
+- [x] Rol en el perfil: estudiante por defecto, docente si su id de cuenta está en `DOCENTES` (`server/auth.ts`, `roleOf`). `/api/me` devuelve `role` y `accountId` para pedir el alta. Un invitado nunca es docente
+- [ ] Cargar `DOCENTES` en Vercel con los ids de cuenta de los docentes (separados por coma)
+- [x] Docentes autorizados pueden leer la consulta y el informe de cualquiera (solo leer) y listar las últimas consultas: `GET /api/teacher/sessions`
+- [ ] Persona 3: pantalla del panel docente contra `/api/teacher/sessions` (P3)
+- [x] Retención de las transcripciones de las cuentas: `records.purgeOldSessions` cada 6 horas borra las sesiones (con turnos, eventos, examen e informe) más viejas que `TRANSCRIPT_RETENTION_DAYS`. Sin la variable no borra nada
+- [ ] Persona 3: preguntar a la facultad el plazo (ley 18.331); después cargar `TRANSCRIPT_RETENTION_DAYS` en Convex
 
 ### Motor del paciente (plan.md, sección 5)
 - [x] Prompt del paciente desde el caso y la personalidad, **sin el diagnóstico** (`lib/patient/brief.ts`)
@@ -63,7 +66,8 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Guardar los hechos que el paciente inventa para no contradecirse (P2): herramienta `anotar_dato` en la voz
 - [x] Variación controlada: sortear valores dentro de rangos sin cambiar el diagnóstico (P2): campo `variations` del caso
 - [ ] Persona 3: revisar con un médico las variaciones del caso 1 (fiebre y contactos)
-- [ ] Los eventos objetivos actualizan el estado (plan.md, sección 5, versión 1): interrumpir baja `paciencia` y `confianza`, pedir consentimiento sube `confianza`. Hoy `interrupcion_estudiante`, `silencio_largo` y el consentimiento se guardan pero no cambian el estado
+- [x] Los eventos objetivos actualizan el estado (plan.md, sección 5, versión 1): interrumpir baja `paciencia` (−0,1) y `confianza` (−0,05), un silencio largo baja `paciencia` (−0,05) y pedir consentimiento sube `confianza` (+0,1). Cada cambio queda como `cambio_animo` con el motivo (`lib/patient/state.ts`)
+- [ ] Calibrar esos valores con un docente
 - [ ] Clasificador rápido por turno (pregunta abierta o cerrada, jerga, empatía) que actualice el estado (versión 2, P3)
 
 ### Voz (plan.md, secciones 4 y 5) · Gemini Live de Google AI Studio
@@ -87,9 +91,10 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
 - [x] Estimar el costo: US$0,50 a 0,80 por consulta de 8 min (audio entrada US$3/M, salida US$12/M; capa gratuita sin costo)
 - [ ] Confirmar el costo con `voiceUsage` de una consulta real por micrófono
-- [ ] Reconectar la voz si se corta el WebSocket sin perder la conversación: hoy un token nuevo no lleva los turnos anteriores y el paciente "se olvida" de lo hablado
-- [ ] Límite de consultas de voz por usuario o invitado por día, para que no se acaben los créditos (plan.md, sección 14, riesgos). Hoy se pueden crear sesiones y tokens sin tope
-- [ ] `/consulta` sin errores de consola a 390 y 1280 px (validación del prompt de la Persona 1, plan.md, sección 12)
+- [x] Reconectar la voz si se corta la conexión (o si Google avisa con `goAway`), hasta 3 veces: el token nuevo lleva los últimos 40 turnos y la confianza actual, y la pantalla dice "Reconectando…"
+- [ ] Probar la reconexión en el navegador cortando el wifi a mitad de la consulta
+- [x] Topes para cuidar los créditos (plan.md, sección 14): 10 consultas por usuario por día (`MAX_SESSIONS_PER_USER_PER_DAY`), 200 en total por día (`MAX_SESSIONS_PER_DAY`, porque un invitado nuevo no cuesta nada). Responden 429 con un mensaje claro; `/api/health` muestra los topes
+- [ ] `/consulta` sin errores de consola a 390 y 1280 px (validación del prompt de la Persona 1, plan.md, sección 12). Arreglado: había un `<div>` dentro de la lista (`<ol>`), que React marca como error, y un fragmento inútil. Falta mirarla en el navegador a los dos anchos
 
 ### Herramientas del paciente (plan.md, secciones 4 y 6)
 - [x] `examinar(zona, maniobra, claridad, consentimiento)`: el caso decide la variante; al modelo no le llega el hallazgo
@@ -219,7 +224,8 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 ## Fase final · Convex (Persona 1)
 
 - [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
-- [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel (revisado el 17/10: `/api/health` en producción todavía dice `store: memoria`). **Bloquea la puerta 1**
+- [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel (revisado el 17/10 a las 16:50, después de los dos redeploys: `/api/health` en producción todavía dice `store: memoria`, así que las variables no llegaron a ese deploy; revisar que estén en el entorno Production y redeployar). **Bloquea la puerta 1**
+- [ ] `npx convex deploy` para subir `listRecentSessions`, `countSessionsSince`, `purgeOldSessions` y el cron nuevo. Sin eso, en Convex el panel docente falla y el tope total no se aplica (la consulta igual anda)
 - [x] Usuarios con Google e invitado: resuelto con OAuth propio y `records` (Convex Auth en `packages/backend/convex/auth.ts` queda sin usar)
 - [x] Borrado de invitados a las 24 horas: `records.purgeExpiredGuests` cada hora (`crons.ts`)
 - [ ] `mistakeProfile`: perfil de errores entre sesiones

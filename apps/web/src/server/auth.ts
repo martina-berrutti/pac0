@@ -39,6 +39,27 @@ export async function requireProfile(): Promise<Viewer & { alias: string }> {
 	return { ...viewer, alias: viewer.alias };
 }
 
+export type Role = "estudiante" | "docente";
+
+// Docentes: lista autorizada a mano en DOCENTES (ids de cuenta separados por
+// coma, los que muestra /api/me). Se lee en cada pedido, así que sacar a
+// alguien de la lista le quita el acceso enseguida. Un invitado nunca es docente.
+export function roleOf(viewer: Viewer): Role {
+	if (viewer.guest) return "estudiante";
+	const teachers = (process.env.DOCENTES ?? "")
+		.split(",")
+		.map((id) => id.trim())
+		.filter(Boolean);
+	return teachers.includes(viewer.uid) ? "docente" : "estudiante";
+}
+
+export async function requireTeacher(): Promise<Viewer> {
+	const viewer = await requireViewer();
+	if (roleOf(viewer) !== "docente")
+		throw new HttpError(403, "Solo para docentes autorizados");
+	return viewer;
+}
+
 export async function setViewer(
 	viewer: Omit<Viewer, "exp"> & { exp?: number },
 ) {

@@ -47,6 +47,9 @@ export type Me = {
 	alias: string | null;
 	careerYear: string | null;
 	guest: boolean;
+	role: "estudiante" | "docente";
+	// Id de cuenta para pedir el rol de docente; null para el invitado.
+	accountId: string | null;
 };
 export type PersonalityOption = {
 	key: string;

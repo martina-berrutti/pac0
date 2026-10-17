@@ -648,10 +648,11 @@ Avance al 17/10 (el detalle está en `TODO.md`):
 - [x] Conectar el audio del paciente al avatar (prioridad 3): `readPatientLevel()` listo; falta que lo use el avatar de la Persona 3
 - [ ] Probar la voz con micrófono en el navegador, en computadora y en celular (agregado)
 - [ ] Elegir la voz y medir el costo real de una consulta (agregado; secciones 5 y 14)
-- [ ] Rol en el perfil (estudiante o docente por lista autorizada) y acceso de docentes a los informes (agregado; sección 10, prioridad 3)
-- [ ] Los eventos objetivos (interrupciones, silencios, consentimiento) actualizan el estado del paciente (agregado; sección 5, versión 1)
-- [ ] Reconectar la voz sin perder la conversación (agregado)
-- [ ] Límite de consultas de voz por usuario para cuidar los créditos (agregado; sección 14, riesgos)
+- [x] Rol en el perfil (estudiante o docente por lista autorizada) y acceso de docentes a los informes (agregado; sección 10, prioridad 3); falta cargar `DOCENTES` en Vercel
+- [x] Los eventos objetivos (interrupciones, silencios, consentimiento) actualizan el estado del paciente (agregado; sección 5, versión 1)
+- [x] Reconectar la voz sin perder la conversación (agregado); falta probarlo en el navegador
+- [x] Límite de consultas de voz por usuario y por día para cuidar los créditos (agregado; sección 14, riesgos)
+- [x] Retención de las transcripciones configurable (agregado; sección 2); el plazo lo define la facultad
 
 ### Persona 2: examen y evaluador
 

@@ -44,6 +44,8 @@ const beto: Viewer = {
 beforeEach(() => {
 	genai.create.mockReset();
 	genai.keys.length = 0;
+	// Acá Ana empieza muchas consultas: el tope diario se prueba en persona1.test.ts.
+	vi.stubEnv("MAX_SESSIONS_PER_USER_PER_DAY", "1000");
 });
 
 afterEach(() => {

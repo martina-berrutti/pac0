@@ -120,4 +120,74 @@ describe("records (almacenamiento de la app web)", () => {
 		expect(await get("session", "google")).not.toBeNull();
 		expect(await get("session", "nueva")).not.toBeNull();
 	});
+
+	test("retención: sin TRANSCRIPT_RETENTION_DAYS no se borra nada; con la variable, solo lo vencido de las cuentas", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		vi.useFakeTimers();
+		const t = convexTest(schema, modules);
+		const put = (args: Record<string, unknown>) =>
+			t.mutation(api.records.put, { secret, data: {}, ...args } as never);
+		await put({
+			kind: "session",
+			appId: "vieja",
+			ownerId: "ggl_a",
+			guest: false,
+		});
+		await put({ kind: "turn", appId: "t1", sessionId: "vieja" });
+		await put({ kind: "user", appId: "ggl_a", ownerId: "ggl_a", guest: false });
+
+		vi.advanceTimersByTime(31 * 24 * 60 * 60 * 1000);
+		await put({
+			kind: "session",
+			appId: "nueva",
+			ownerId: "ggl_a",
+			guest: false,
+		});
+
+		expect(await t.mutation(internal.records.purgeOldSessions, {})).toBe(0);
+		vi.stubEnv("TRANSCRIPT_RETENTION_DAYS", "30");
+		expect(await t.mutation(internal.records.purgeOldSessions, {})).toBe(2);
+		const get = (kind: string, appId: string) =>
+			t.query(api.records.get, { secret, kind, appId } as never);
+		expect(await get("session", "vieja")).toBeNull();
+		expect(await get("turn", "t1")).toBeNull();
+		expect(await get("session", "nueva")).not.toBeNull();
+		// El perfil no es una transcripción: se queda.
+		expect(await get("user", "ggl_a")).not.toBeNull();
+	});
+
+	test("lista las últimas sesiones y cuenta las del día", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		vi.useFakeTimers();
+		const t = convexTest(schema, modules);
+		const put = (appId: string, guest: boolean) =>
+			t.mutation(api.records.put, {
+				secret,
+				kind: "session",
+				appId,
+				ownerId: guest ? "gst_a" : "ggl_b",
+				guest,
+				data: { id: appId },
+			});
+		await put("ayer", true);
+		vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+		const since = Date.now();
+		await put("hoy-1", false);
+		vi.advanceTimersByTime(1000);
+		await put("hoy-2", true);
+
+		expect(
+			await t.query(api.records.countSessionsSince, {
+				secret,
+				since,
+				max: 100,
+			}),
+		).toBe(2);
+		expect(
+			await t.query(api.records.listRecentSessions, { secret, limit: 2 }),
+		).toEqual([{ id: "hoy-2" }, { id: "hoy-1" }]);
+		await expect(
+			t.query(api.records.listRecentSessions, { secret: "otro", limit: 2 }),
+		).rejects.toThrow("No autorizado");
+	});
 });
