@@ -146,10 +146,12 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Orofaringe: círculo de luz que sigue al mouse o al dedo, zonas y tiempo por zona (`components/exam/orofaringe-view.tsx`)
 - [x] Variantes de apertura (parcial, completa, negado) según la claridad
 - [x] Guardar los tiempos por zona (`PATCH /api/sessions/[id]/exam/[actionId]`)
-- [ ] Reemplazar el esquema por la foto con licencia de la Persona 3 (oscurecida, con máscara radial)
-- [ ] Ubicar bien las zonas sobre la foto real (posición y radio)
-- [ ] Tecla de abatelenguas que mejora la vista de las amígdalas (opcional)
-- [ ] Describir por voz lo que vio y compararlo con el hallazgo esperado (crédito parcial si vio sin describir)
+- [x] Registro de fotos por clave de asset con sus zonas (`lib/exam/oropharynx.ts`); sin foto, sigue el esquema. Un test exige que cada foto exista y esté en `CREDITS.md`
+- [ ] Persona 3: subir `mouth-partial-01`, `throat-exudate-01` y `throat-erythema-01` a `apps/web/public/exam/` con `CREDITS.md`; después registrarlas y ubicar las zonas (tecla Z en desarrollo)
+- [x] Tecla de abatelenguas (A, o botón): sin él, amígdalas y pared posterior cuentan la mitad
+- [x] Describir lo que vio y compararlo con el hallazgo esperado; parcial si vio sin describir; ignora lo negado ("no veo placas"). También para el oído
+- [x] Aviso sin puntaje por un examen que el caso no necesitaba (`Report.notices`)
+- [ ] Persona 3: mostrar en el informe `source` de cada error y `notices`
 
 ### Motor de puntaje (plan.md, sección 8)
 - [x] Pesos 3, 2, 1; parcial 50%; ganados ÷ aplicables × 100 (`lib/scoring/engine.ts`)
@@ -158,34 +160,37 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Penalizaciones: interrumpir desde la tercera vez, pregunta sugestiva, pregunta repetida
 - [x] Error crítico: examinar sin consentimiento
 - [x] Razonamiento: hipótesis 40%, diferenciales 25%, justificación 20%, estudios 15%
-- [ ] Penalizaciones que faltan: jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico
-- [ ] Errores críticos que faltan: insistir contra la negativa, pasar por alto una alarma, trato irrespetuoso
-- [ ] "Sube la confianza de un paciente difícil" como punto a favor
-- [ ] Calibrar pesos y penalizaciones con un docente
+- [x] Penalizaciones: jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico
+- [x] Errores críticos: insistir contra la negativa, pasar por alto una alarma (ítem del caso con "alarma"), trato irrespetuoso
+- [x] "Sube la confianza de un paciente difícil" como punto a favor (+5 de comunicación)
+- [ ] Persona 3: ítem de signos de alarma en los casos de garganta y de oído (propuesta en la planilla de calibración)
+- [ ] Verificar en el equipo la planilla de calibración (sin docente; propuestas con fuentes públicas) y pasar los valores al código
 
 ### Evaluador con IA (plan.md, sección 8)
 - [x] Juez por reglas que cita el turno (`lib/scoring/rule-judge.ts`)
 - [x] Juez con IA por ítem (sí, parcial o no, con cita del turno), salida validada con zod (`lib/scoring/ai-judge.ts`)
 - [x] Verificador de omisiones: buscar X en la transcripción antes de decir "no preguntaste X"
-- [x] Redactor de feedback: por qué importa y cómo hacerlo la próxima vez (`lib/scoring/ai-evaluate.ts`; falta citar la fuente)
+- [x] Redactor de feedback: por qué importa y cómo hacerlo la próxima vez (`lib/scoring/ai-evaluate.ts`); cada error nombra su fuente (`source`)
 - [x] Evaluación del diagnóstico con IA (variantes aceptables)
 
 ### Validación del evaluador
 - [x] 3 estudiantes simulados (bueno, mediocre, malo) ordenados bien (`tests/scoring.test.ts`)
 - [x] Consistencia: 3 corridas iguales con el juez por reglas
-- [ ] Repetir orden y consistencia con el juez con IA (variación menor a 5 puntos): `tests/evaluator-live.test.ts`, corre con la clave
-- [ ] Cero omisiones inventadas: en `tests/evaluator-live.test.ts`, corre con la clave
-- [ ] Contraste con 2 estudiantes reales
+- [x] Orden y consistencia con el juez con IA (17/10, Gemini): 97 / 46 / 5 y tres corridas en 46 (`tests/evaluator-live.test.ts`, con pedidos espaciados por la cuota gratuita)
+- [x] Cero omisiones inventadas con el juez con IA
+- [ ] Contraste con una estudiante real en 2 casos (garganta y oído), con la guía de prueba
 
 ### Tensiómetro (P2)
 - [x] Arrastrar el manguito, Espacio infla, S marca PAS, D marca PAD (`components/exam/tensiometro-view.tsx`)
 - [x] Ruidos de Korotkoff (sintetizados) solo entre la PAS y la PAD del manómetro
 - [x] Usar el valor de `medir_presion` y guardar lo que marcó el estudiante (`VitalsMeasurement.marked`)
-- [ ] Calibrar los ajustes de `lib/exam/blood-pressure.ts` con un docente
+- [ ] Pasar al código los ajustes de la planilla (AHA 2019, Handler 2009) cuando el equipo los verifique
 
 ### Otoscopio (P3)
 - [x] Traccionar con arrastre, introducir con scroll, vista circular en esquema y técnica del afiche HC-02 (`components/exam/otoscopio-view.tsx`)
-- [ ] Imágenes de oído con licencia (Persona 3) y hallazgos por caso (`lib/exam/otoscope.ts`)
+- [x] Hallazgos por caso: examinar los dos oídos y empezar por el sano; hallazgo esperado en palabras (`lib/exam/otoscope.ts`)
+- [x] Registro de fotos de oído por hallazgo (`EAR_PHOTOS`)
+- [ ] Persona 3: fotos de oído con licencia y el ítem `describe-hallazgo` en `oido-01.json`
 
 ### Si la Persona 2 se atrasa
 - [ ] Simplificar el informe a puntaje por dimensión y errores principales

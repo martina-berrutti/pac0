@@ -2,6 +2,17 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 2 · Evaluador completo, abatelenguas y listo para las fotos
+
+- **Puntaje:** penalizaciones nuevas (jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico), errores críticos nuevos (insistir contra la negativa, omitir una señal de alarma, trato irrespetuoso) y +5 de comunicación por ganar la confianza de un paciente difícil. Todo lo calcula el código, también con el juez con IA.
+- **Informe:** cada error nombra su fuente (`source`: lista de cotejo o afiche, sin copiar su texto). Avisos sin puntaje en `notices` (por ejemplo, revisar el oído en un caso de garganta). Los dos campos son opcionales; la Persona 3 tiene que mostrarlos.
+- **Describir lo que vio:** se compara con el hallazgo esperado de la garganta o del oído; parcial si miró sin describir; «no veo placas» ya no cuenta como describirlas.
+- **Examen:** abatelenguas (tecla A o botón) en la orofaringe. En la otoscopia, con un oído afectado resta examinar uno solo (2) o empezar por el enfermo (1). Registro de fotos de garganta y de oído con sus zonas; un test exige que cada foto esté en `CREDITS.md`. En desarrollo, la tecla Z muestra las zonas para ubicarlas.
+- **Evaluador con IA real (Gemini):** bueno 97, mediocre 46, malo 5; tres corridas iguales (46); cero omisiones inventadas. La cuota gratuita es de 15 pedidos por minuto: el test espacia los pedidos. Por eso mismo, en producción el evaluador puede caer al juez por reglas si se cierran varias consultas juntas (lo que vio la Persona 1): conviene una clave con facturación para la demo.
+- **Sin docente:** la planilla de calibración (documento aparte) tiene propuestas con fuentes públicas para el tensiómetro (AHA 2019, Handler 2009), los signos de alarma y el otoscopio; el resto son decisiones del equipo. Falta verificarla y pasar los valores al código. El contraste con estudiantes se reduce a una estudiante y 2 casos (guía de prueba aparte).
+- **Pendiente:** fotos de la Persona 3, ítems de signos de alarma en garganta y oído, verificar la planilla y la prueba con la estudiante. Lo de comparar la hipótesis en código antes de confiar en la IA (`ai-judge.ts`) queda para después.
+- Validación: 185 tests en web y 20 en backend; lint, tipos y build pasan.
+
 ## 17/10 · Persona 1 · Límite por IP para invitados y consultas
 
 - **Qué cuida:** sin límite, alguien podía crear invitados sin fin y saltear el tope de 10 consultas por usuario, gastando el tope diario de todos (y los créditos de la voz). Ahora `POST /api/auth/guest` y `POST /api/sessions` pasan por `server/rate-limit.ts`.
