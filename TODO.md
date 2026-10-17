@@ -224,7 +224,8 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 ## Fase final · Convex (Persona 1)
 
 - [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
-- [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel (revisado el 17/10 a las 16:50, después de los dos redeploys: `/api/health` en producción todavía dice `store: memoria`, así que las variables no llegaron a ese deploy; revisar que estén en el entorno Production y redeployar). **Bloquea la puerta 1**
+- [x] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel: no llegaban porque Varlock borra las variables que no están en `.env.schema` (arreglado en `2becc63`). Desde las 17:15, `/api/health` en producción dice `store: convex`
+- [ ] Declarar en `apps/web/.env.schema` las variables nuevas del servidor: `DOCENTES` y, si se quieren cambiar, `MAX_SESSIONS_PER_USER_PER_DAY` y `MAX_SESSIONS_PER_DAY` (si no, Varlock las borra)
 - [ ] `npx convex deploy` para subir `listRecentSessions`, `countSessionsSince`, `purgeOldSessions` y el cron nuevo. Sin eso, en Convex el panel docente falla y el tope total no se aplica (la consulta igual anda)
 - [x] Usuarios con Google e invitado: resuelto con OAuth propio y `records` (Convex Auth en `packages/backend/convex/auth.ts` queda sin usar)
 - [x] Borrado de invitados a las 24 horas: `records.purgeExpiredGuests` cada hora (`crons.ts`)
