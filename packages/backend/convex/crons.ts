@@ -11,11 +11,10 @@ crons.interval(
 	{},
 );
 
-// Datos de la app web (tabla records) de invitados vencidos.
 crons.interval(
-	"purge expired records",
-	{ minutes: 15 },
-	internal.records.purgeExpired,
+	"purge expired guest records",
+	{ hours: 1 },
+	internal.records.purgeExpiredGuests,
 	{},
 );
 

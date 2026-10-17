@@ -6,7 +6,7 @@ import { newId } from "@/server/store";
 export async function POST() {
 	return handle(async () => {
 		const viewer = {
-			uid: newId("usr"),
+			uid: newId("gst"),
 			alias: guestAlias(),
 			careerYear: null,
 			guest: true,

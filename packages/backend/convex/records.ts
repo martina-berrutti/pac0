@@ -13,6 +13,7 @@ export const recordKind = v.union(
 	v.literal("exam"),
 	v.literal("vitals"),
 	v.literal("report"),
+	v.literal("user"),
 );
 
 function checkSecret(secret: string) {
@@ -30,9 +31,13 @@ export const put = mutation({
 		appId: v.string(),
 		sessionId: v.optional(v.string()),
 		ownerId: v.optional(v.string()),
+		guest: v.optional(v.boolean()),
 		data: v.any(),
 	},
-	handler: async (ctx, { secret, kind, appId, sessionId, ownerId, data }) => {
+	handler: async (
+		ctx,
+		{ secret, kind, appId, sessionId, ownerId, guest, data },
+	) => {
 		checkSecret(secret);
 		const existing = await ctx.db
 			.query("records")
@@ -41,9 +46,16 @@ export const put = mutation({
 			)
 			.unique();
 		if (existing) {
-			await ctx.db.patch(existing._id, { data, sessionId, ownerId });
+			await ctx.db.patch(existing._id, { data, sessionId, ownerId, guest });
 		} else {
-			await ctx.db.insert("records", { kind, appId, sessionId, ownerId, data });
+			await ctx.db.insert("records", {
+				kind,
+				appId,
+				sessionId,
+				ownerId,
+				guest,
+				data,
+			});
 		}
 	},
 });
@@ -93,25 +105,49 @@ export const listByOwner = query({
 	},
 });
 
-// Hoy todos los usuarios de la app web son invitados con cookie de 24 horas:
-// pasado ese plazo su uid se pierde y lo guardado queda huérfano. Se borra a
-// las 48 horas (plan.md, sección 10: borrar invitados). Cuando haya cuentas
-// con Google, esto tiene que mirar solo a los invitados.
-export const RECORD_TTL_MS = 48 * 60 * 60 * 1000;
-const RECORDS_PER_RUN = 500;
+const GUEST_TTL_MS = 24 * 60 * 60 * 1000;
+const PER_RUN = 50;
 
-export const purgeExpired = internalMutation({
+// Borra lo de los invitados de más de 24 horas (plan.md, sección 10): sus
+// sesiones con todo lo que cuelga de ellas y sus casos generados.
+export const purgeExpiredGuests = internalMutation({
 	args: {},
 	handler: async (ctx) => {
-		const old = await ctx.db
-			.query("records")
-			.withIndex("by_creation_time", (q) =>
-				q.lt("_creationTime", Date.now() - RECORD_TTL_MS),
-			)
-			.take(RECORDS_PER_RUN);
-		for (const doc of old) {
-			await ctx.db.delete(doc._id);
+		const cutoff = Date.now() - GUEST_TTL_MS;
+		let deleted = 0;
+		for (const kind of ["session", "case"] as const) {
+			// Por índice: solo invitados, del más viejo al más nuevo.
+			const old = await ctx.db
+				.query("records")
+				.withIndex("by_guest_and_kind", (q) =>
+					q.eq("guest", true).eq("kind", kind),
+				)
+				.order("asc")
+				.take(PER_RUN);
+			for (const doc of old) {
+				if (doc._creationTime > cutoff) break;
+				if (kind === "session") {
+					for (const child of [
+						"turn",
+						"event",
+						"exam",
+						"vitals",
+						"report",
+					] as const) {
+						const rows = await ctx.db
+							.query("records")
+							.withIndex("by_kind_and_sessionId", (q) =>
+								q.eq("kind", child).eq("sessionId", doc.appId),
+							)
+							.take(2000);
+						for (const row of rows) await ctx.db.delete(row._id);
+						deleted += rows.length;
+					}
+				}
+				await ctx.db.delete(doc._id);
+				deleted += 1;
+			}
 		}
-		return old.length;
+		return deleted;
 	},
 });

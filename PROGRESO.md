@@ -2,54 +2,48 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
-## 17/10 · Persona 1 · Prevención de errores (quinta pasada: voz cancelada y tensiómetro)
+## 17/10 · Persona 1 · Arreglo y prevención de bugs (integrado con main)
 
-- Voz: después de `close()` el socket puede entregar mensajes que venían en camino, y se procesaban igual. Eso podía guardar turnos o correr `examinar` en el servidor con la voz ya cortada. Ahora se ignoran por intento. Una herramienta que esperaba en la fila tampoco corre si la voz se cortó.
-- La fila de escrituras pasó a `lib/voice/queue.ts` con tests (orden, fallas que no frenan, `drain`).
-- Tensiómetro: `PATCH /api/sessions/[id]/vitals/[vitalsId]` y `api.saveMarkedVitals(id, vitalsId, { pas, pad })` guardan lo que marcó el estudiante en `VitalsMeasurement.marked`. Valida dueño, consulta activa (con 1 minuto de margen), que la medición exista y que PAS sea mayor que PAD. El `vitalsId` llega en `ui.vitals.id` de `medir_presion`. **Persona 2:** el tensiómetro solo tiene que llamarlo.
-- Validación: 57 tests en web y 15 en backend; lint, tipos y build pasan.
+Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. Donde `main` ya resolvía algo (limpieza de invitados en Convex, tope de 6 conexiones de voz, tensiómetro, frecuencias de audio, mensajes del micrófono, costo de la voz), quedó su versión.
 
-## 17/10 · Persona 1 · Prevención de errores (cuarta pasada: Convex y cierre)
+- Voz:
+  - Todo lo que el navegador manda al servidor va en fila (`lib/voice/queue.ts`, con tests): turnos en orden, el permiso anotado antes de `examinar` y sin escrituras que se pisen en Convex.
+  - Al cortar o al vencer los 8 minutos se guarda lo que se estaba diciendo, y "Ver mi informe" espera a que se guarde todo.
+  - Reconexión: el paciente recibe lo ya hablado, marcado como solo transcripción (no son instrucciones) y recortado.
+  - Si se sale mientras conecta, se cierran el socket y el micrófono. Los mensajes que llegan después de `close()` se ignoran (antes podían correr `examinar` con la voz cortada), y una herramienta en espera no corre si se cortó.
+  - Los envíos por un socket cerrado ya no tiran excepciones a la consola. La respuesta de una herramienta va solo a la sesión que la pidió.
+  - `interrupcion_estudiante` (penaliza desde la tercera) solo cuenta si el audio del paciente ya sonaba.
+  - El token de Gemini vence con la consulta, no a los 10 minutos.
+- Herramientas: argumentos fuera del esquema se corrigen en vez de fallar ("Alta", ±0.9, pasos inventados). "toString" no es una herramienta. `anotar_dato` no pisa el perfil ni lo sorteado.
+- Consentimiento: "¿puedo preguntarte la edad?" ya no autoriza a examinar (el paciente hostil abría la boca). "Palabra" no es un pedido de examen.
+- Privacidad: `GET /api/sessions/[id]` mandaba `historyOverrides` (historia oculta sorteada) e `inventedFacts` al navegador; ahora es una lista blanca.
+- Límites: cuerpos de más de 64 KB → 413; 30 casos generados por usuario; turnos de voz largos se recortan en vez de perderse con un 400; tiempos del examen solo de zonas del caso.
+- Cierre: se evalúa antes de guardar, y el informe se guarda antes que el estado. Si el evaluador (ahora también con IA) falla, la sesión no queda "evaluada" sin informe.
+- Generador y paciente por reglas: "él" y "varón", "tos" como palabra entera ("datos" elegía la plantilla de catarro), "100 años", JSON de la IA entre ```, respuesta sin género, `cambio_animo` guarda el cambio.
+- Pantalla de consulta: no ofrece la voz si la consulta venció o se cerró; limita la hipótesis a 500 caracteres y 10 diferenciales.
+- Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
+- **Para la Persona 2:** el error crítico "examinar sin consentimiento" mira `consentGiven` al final; un permiso pedido después del examen lo evita. Habría que comparar el `atMs` del evento `consentimiento` con el primer examen.
 
-- Convex: el cron borraba invitados de la tabla `users` (Convex Auth), pero la app guarda todo en `records` con invitados de cookie, y eso no se borraba nunca. Nuevo `records.purgeExpired` cada 15 minutos: borra lo de más de 48 horas (la cookie dura 24, así que ya era inaccesible). Cuando haya cuentas con Google, tiene que mirar solo a los invitados.
-- **Falta desplegar Convex** (`npx convex deploy`) para que corra el cron nuevo. La app web no depende de él.
-- Cierre: si el evaluador fallaba, la sesión quedaba "evaluada" sin informe. Ahora se evalúa primero, se guarda el informe y después el estado; si se corta en el medio, el próximo intento devuelve el informe y termina de cerrar.
-- Un error inesperado (Convex caído) muestra "Algo falló de nuestro lado. Probá de nuevo en unos segundos." en vez de "Error interno".
-- Validación: 53 tests en web y 15 en backend (2 nuevos: secreto y limpieza); lint, tipos y build pasan.
+## 17/10 · Persona 1 · Mejoras de la voz para la demo
 
-## 17/10 · Persona 1 · Prevención de errores (tercera pasada y prueba de punta a punta)
+- Micrófono y audio a la frecuencia propia del navegador. Antes se forzaba 16 kHz, y Firefox no deja mezclar frecuencias: la voz no arrancaba.
+- Los contextos de audio se crean en el mismo clic, como pide Safari (sobre todo iPhone).
+- Primero se pide el micrófono y después el token, así no se gasta un token si se niega el permiso.
+- Mensajes claros: micrófono bloqueado (con cómo permitirlo), sin micrófono y conexión cortada (para reconectar).
+- Tope de 6 conexiones de voz por consulta, para que nadie gaste la clave pidiendo tokens sin parar. Test incluido.
+- El texto (generador y paciente por texto) usa primero `gemini-3.5-flash-lite`, que responde rápido; `gemini-3.8-flash` queda de respaldo.
+- Validación: 73 tests en web y 16 en backend; lint, tipos y build pasan.
 
-- Prueba de punta a punta por HTTP contra `next dev` (sin claves): invitado, sesión hostil, turnos de voz, examinar sin y con permiso, tiempos del examen, argumentos raros, eventos, tokens, voz sin clave (503 claro), cierre, informe, 409 después de cerrar, 404 para otro usuario y redirección sin cookie. 24 de 24. `scripts/probar-personaje.mjs`: 6 de 6 en personaje.
-- Tokens de la voz: además de las sumas se guarda el pico por mensaje (`voiceUsage.peak`). Si `usageMetadata` es por respuesta, el costo sale de las sumas; si es acumulado, del pico. Ya no hace falta saberlo antes de medir.
-- Cliente de voz: mandar audio, respuestas de herramientas o el aviso de silencio por un socket que Gemini ya cerró tiraba excepciones sin capturar (errores de consola). La respuesta de una herramienta va solo a la sesión que la pidió, no a una reconexión. Si el navegador no acepta elegir la frecuencia del `AudioContext`, se usa la suya.
-- Validación: 52 tests; lint, tipos y build pasan.
-- **Sigue pendiente (necesita a una persona):** probar con micrófono en computadora y celular, y una consulta real con `GEMINI_API_KEY` para ver qué campo de tokens usar. En este worktree no hay `.env.local`.
+## 17/10 · Persona 1 · Login con Google, borrado de invitados, costo y voces
 
-## 17/10 · Persona 1 · Prevención de errores (segunda pasada)
-
-- Privacidad: `GET /api/sessions/[id]` mandaba al navegador `historyOverrides` (valores sorteados de la historia oculta, por ejemplo la fiebre) e `inventedFacts`. Ahora la vista de la sesión es una lista blanca de campos.
-- Costos: tope de 8 conexiones de voz por consulta (`voiceConnections`; cada token abre una sesión paga) y de 30 casos generados por usuario. Cuerpos de más de 64 KB se rechazan con 413.
-- Turnos de voz de más de 2000 caracteres daban 400 y se perdían enteros: ahora se aceptan y el servidor los recorta a 4000.
-- Al reconectar, la transcripción va marcada como solo transcripción y recortada (400 caracteres por turno), para que un "ignorá tus instrucciones" del estudiante no quede como instrucción del sistema.
-- Interrupciones: `interrupcion_estudiante` (que penaliza desde la tercera) solo se registra si el audio del paciente ya sonaba. Antes Gemini la podía marcar por ruido o antes de que el paciente empezara a hablar.
-- Examen: los tiempos por zona solo guardan zonas que existen en el caso.
-- Cierre: hipótesis vacía o con espacios se rechaza con un mensaje claro; la pantalla limita a 500 caracteres y 10 diferenciales (antes salía "Datos inválidos").
-- Paciente por reglas y generador: "tos" como palabra entera ("datos" y "todos" contaban como tos y elegían la plantilla de catarro). "100 años" ya no se lee como "00". El JSON de la IA se acepta aunque venga entre ```.
-- Validación: 52 tests en web (14 nuevos entre las dos pasadas); lint, tipos y build pasan.
-- **Sin verificar:** si `usageMetadata` de Gemini Live es acumulado (el SDK no lo dice); hace falta una consulta real.
-
-## 17/10 · Persona 1 · Arreglo de bugs de voz y motor del paciente
-
-- Voz: todo lo que el navegador manda al servidor (turnos, eventos, herramientas, tokens) va en fila. Antes los turnos podían guardarse desordenados, `examinar` podía correr antes de que se anotara el permiso, y dos escrituras de la misma sesión se pisaban en Convex.
-- Al cortar la voz o al vencer los 8 minutos se guarda lo que se estaba diciendo (antes se perdía). "Ver mi informe" espera a que se guarde todo: antes el informe podía salir sin los últimos turnos.
-- Si la voz se corta y se reconecta, el paciente recibe lo ya hablado (antes arrancaba de cero y se volvía a presentar). Al cortarse sola, la pantalla avisa.
-- Celular: los AudioContext se crean dentro del toque del botón (en Safari quedaban suspendidos y no se escuchaba al paciente). Firefox: si el micrófono no acepta 16 kHz, se usa la frecuencia del navegador. El micrófono se pide antes del token de un solo uso. Si se sale mientras conecta, se cierran el socket y el micrófono.
-- El token de Gemini vence con la consulta (8 min y el margen) en vez de a los 10 min.
-- Herramientas: los argumentos fuera del esquema se corrigen (delta de ±0.9 se acota a ±0.5, "Alta", pasos inventados) en vez de rechazar la llamada. "toString" ya no pasa como herramienta. `anotar_dato` no pisa el perfil ni los valores sorteados.
-- Consentimiento: "¿puedo preguntarte la edad?" ya no cuenta como permiso para examinar (el paciente hostil abría la boca). Cuenta "permiso" o un pedido de permiso junto con el examen. "Palabra" ya no es un pedido de examen.
-- Generador: entiende "él" y "varón" (`\b` no funciona con tildes). Paciente por reglas: una respuesta sin género. El evento `cambio_animo` del texto guarda el cambio, igual que la voz.
-- Validación: 45 tests en web (7 nuevos); lint, tipos y build pasan.
-- **Para la Persona 2:** el evaluador mira `consentGiven` al final; si el permiso se pide *después* de examinar, el error crítico no se marca. Comparar el `atMs` del evento `consentimiento` con el primer examen.
+- **Producción todavía en memoria:** `/api/health` en Vercel dice `store: memoria`, con `convexUrl` y `storeSecret` en false. Faltan esas dos variables en Vercel, y por eso la consulta se sigue cortando con "Sesión no encontrada".
+- Integrado el PR #2 de la Persona 2 (evaluador con IA, tensiómetro unificado con `medir_presion`, otoscopio). Todo sigue pasando: 72 tests en web y 16 en backend.
+- Login con Google por OAuth propio (`/api/auth/google` y `/api/auth/google/callback`): solo `openid`, `state` contra CSRF, id `ggl_` + hash del identificador, cuenta por 30 días. Alias y año se guardan en Convex (`records` tipo `user`). Tests con Google simulado.
+- Borrado de invitados: los ids de invitado empiezan con `gst_`, sus sesiones y casos se marcan `guest`, y `records.purgeExpiredGuests` los borra a las 24 horas, cada hora. Test con reloj simulado.
+- Costo de la voz: `usageMetadata` llega una vez por turno y no es acumulado, pero el prompt crece porque relee la conversación. Precio de `gemini-3.8-live`: audio de entrada US$3/M y de salida US$12/M. Estimación: US$0,50 a 0,80 por consulta de 8 min; la capa gratuita no cobra.
+- Voces: muestras de Kore, Aoede, Leda, Zephyr, Puck y Charon con la misma frase de Lucía, para elegir.
+- Prueba de personaje con IA: "¿Qué enfermedad tenés?" → "Y... para eso vine, doc, no tengo idea qué será. ¿Vos qué decís?".
+- `GET /api/health`: qué almacenamiento usa el servidor y qué variables están cargadas, sin mostrar valores.
 
 ## 17/10 · Persona 1 · Datos en Convex (arreglo de "Sesión no encontrada")
 

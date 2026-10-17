@@ -12,7 +12,12 @@ import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import type { Session, SessionEvent, Turn } from "@/lib/contracts/session";
 
+// Perfil de un usuario con cuenta (Google): solo alias y año de carrera.
+export type Profile = { alias: string; careerYear: string };
+
 export interface Store {
+	getProfile(uid: string): Promise<Profile | undefined>;
+	saveProfile(uid: string, profile: Profile): Promise<void>;
 	listCases(ownerId: string): Promise<ClinicalCase[]>;
 	getCase(id: string): Promise<ClinicalCase | undefined>;
 	// Casos generados: solo los ve quien los pidió.
@@ -32,11 +37,11 @@ export interface Store {
 	): Promise<ExamAction | undefined>;
 	listExamActions(sessionId: string): Promise<ExamAction[]>;
 	addVitals(v: VitalsMeasurement): Promise<void>;
-	listVitals(sessionId: string): Promise<VitalsMeasurement[]>;
 	updateVitals(
 		id: string,
 		patch: Partial<VitalsMeasurement>,
 	): Promise<VitalsMeasurement | undefined>;
+	listVitals(sessionId: string): Promise<VitalsMeasurement[]>;
 	saveReport(r: Report): Promise<void>;
 	getReport(sessionId: string): Promise<Report | undefined>;
 }
@@ -49,7 +54,14 @@ class MemoryStore implements Store {
 	private exams = new Map<string, ExamAction>();
 	private vitals = new Map<string, VitalsMeasurement[]>();
 	private reports = new Map<string, Report>();
+	private profiles = new Map<string, Profile>();
 
+	async getProfile(uid: string) {
+		return this.profiles.get(uid);
+	}
+	async saveProfile(uid: string, profile: Profile) {
+		this.profiles.set(uid, profile);
+	}
 	async listCases(ownerId: string) {
 		const own = [...this.generated.values()]
 			.filter((g) => g.ownerId === ownerId)
@@ -108,21 +120,19 @@ class MemoryStore implements Store {
 	async addVitals(v: VitalsMeasurement) {
 		this.vitals.set(v.sessionId, [...(this.vitals.get(v.sessionId) ?? []), v]);
 	}
-	async listVitals(sessionId: string) {
-		return this.vitals.get(sessionId) ?? [];
-	}
 	async updateVitals(id: string, patch: Partial<VitalsMeasurement>) {
-		for (const [sessionId, list] of this.vitals) {
+		for (const list of this.vitals.values()) {
 			const i = list.findIndex((v) => v.id === id);
-			if (i === -1) continue;
-			const next = { ...(list[i] as VitalsMeasurement), ...patch };
-			this.vitals.set(
-				sessionId,
-				list.map((v, j) => (j === i ? next : v)),
-			);
-			return next;
+			if (i >= 0) {
+				const next = { ...(list[i] as VitalsMeasurement), ...patch };
+				list[i] = next;
+				return next;
+			}
 		}
 		return undefined;
+	}
+	async listVitals(sessionId: string) {
+		return this.vitals.get(sessionId) ?? [];
 	}
 	async saveReport(r: Report) {
 		this.reports.set(r.sessionId, r);
@@ -132,7 +142,11 @@ class MemoryStore implements Store {
 	}
 }
 
+// Prefijo del id de los invitados (app/api/auth/guest).
+export const GUEST_PREFIX = "gst_";
+
 type Kind =
+	| "user"
 	| "case"
 	| "session"
 	| "turn"
@@ -162,6 +176,8 @@ class ConvexStore implements Store {
 			appId,
 			data,
 			...keys,
+			// Los invitados se borran a las 24 horas (convex/records.ts).
+			guest: keys.ownerId?.startsWith(GUEST_PREFIX) ?? undefined,
 		});
 	}
 	private async get<T>(kind: Kind, appId: string): Promise<T | undefined> {
@@ -188,6 +204,12 @@ class ConvexStore implements Store {
 		});
 	}
 
+	getProfile(uid: string) {
+		return this.get<Profile>("user", uid);
+	}
+	async saveProfile(uid: string, profile: Profile) {
+		await this.put("user", uid, profile, { ownerId: uid });
+	}
 	async listCases(ownerId: string) {
 		return [
 			...caseBank,
@@ -247,15 +269,15 @@ class ConvexStore implements Store {
 	async addVitals(v: VitalsMeasurement) {
 		await this.put("vitals", v.id, v, { sessionId: v.sessionId });
 	}
-	listVitals(sessionId: string) {
-		return this.bySession<VitalsMeasurement>("vitals", sessionId);
-	}
 	async updateVitals(id: string, patch: Partial<VitalsMeasurement>) {
 		const current = await this.get<VitalsMeasurement>("vitals", id);
 		if (!current) return undefined;
 		const next = { ...current, ...patch };
 		await this.put("vitals", id, next, { sessionId: next.sessionId });
 		return next;
+	}
+	listVitals(sessionId: string) {
+		return this.bySession<VitalsMeasurement>("vitals", sessionId);
 	}
 	async saveReport(r: Report) {
 		await this.put("report", r.sessionId, r, { sessionId: r.sessionId });
@@ -281,6 +303,8 @@ function createStore(): Store {
 // Un solo store por proceso, que sobrevive a la recarga en caliente de dev.
 const globalForStore = globalThis as unknown as { __p0Store?: Store };
 export const store: Store = globalForStore.__p0Store ?? createStore();
+export const storeKind: "convex" | "memoria" =
+	store instanceof ConvexStore ? "convex" : "memoria";
 globalForStore.__p0Store = store;
 
 export function newId(prefix: string) {

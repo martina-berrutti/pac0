@@ -175,12 +175,16 @@ export default defineSchema({
 			v.literal("exam"),
 			v.literal("vitals"),
 			v.literal("report"),
+			v.literal("user"),
 		),
 		appId: v.string(),
 		sessionId: v.optional(v.string()),
 		ownerId: v.optional(v.string()),
+		// Sesiones y casos de invitados: se borran a las 24 horas (crons.ts).
+		guest: v.optional(v.boolean()),
 		data: v.any(),
 	})
+		.index("by_guest_and_kind", ["guest", "kind"])
 		.index("by_kind_and_appId", ["kind", "appId"])
 		.index("by_kind_and_sessionId", ["kind", "sessionId"])
 		.index("by_kind_and_ownerId", ["kind", "ownerId"]),

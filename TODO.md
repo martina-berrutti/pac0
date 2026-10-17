@@ -46,7 +46,9 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Una sesión y su informe solo los ve su dueño
 - [x] Cerrar sesión
 - [ ] Probar el login desde un celular en la URL pública
-- [ ] Login con Google (fase final, con Convex Auth)
+- [x] Login con Google por OAuth propio (`/api/auth/google`): solo `openid`, id con hash, perfil guardado en Convex
+- [ ] Crear las credenciales OAuth en Google Cloud y cargarlas en Vercel
+- [ ] Probar el login con Google en la URL pública
 
 ### Motor del paciente (plan.md, sección 5)
 - [x] Prompt del paciente desde el caso y la personalidad, **sin el diagnóstico** (`lib/patient/brief.ts`)
@@ -74,10 +76,12 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
 - [ ] Probar con micrófono en el navegador (computadora y celular)
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
-- [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno). Ya se guardan las sumas y el pico (`voiceUsage.peak`): con una consulta real se ve cuál vale
-- [ ] Probar 3 voces de Gemini y elegir la más rioplatense; cargarla en `LIVE_VOICE`
+- [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
+- [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
+- [ ] Elegir la voz y cargarla en `LIVE_VOICE` (Vercel y `.env.local`)
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
-- [ ] Medir el costo por sesión de 8 minutos con una consulta real (tokens × precio vigente)
+- [x] Estimar el costo: US$0,50 a 0,80 por consulta de 8 min (audio entrada US$3/M, salida US$12/M; capa gratuita sin costo)
+- [ ] Confirmar el costo con `voiceUsage` de una consulta real por micrófono
 
 ### Herramientas del paciente (plan.md, secciones 4 y 6)
 - [x] `examinar(zona, maniobra, claridad, consentimiento)`: el caso decide la variante; al modelo no le llega el hallazgo
@@ -85,13 +89,13 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] `medir_presion(pasos_cumplidos)`: el valor lo calcula el código (`lib/patient/blood-pressure.ts`)
 - [x] `mostrar_region(region)`: avisa si la región no está disponible
 - [x] `actualizar_estado(delta, motivo)`: guarda `cambio_animo`
-- [x] Lado de la Persona 1 para el tensiómetro: `PATCH /api/sessions/[id]/vitals/[vitalsId]` y `api.saveMarkedVitals` guardan lo marcado
-- [ ] Conectar `medir_presion` con el tensiómetro de la Persona 2 (falta que la vista del tensiómetro llame a `api.saveMarkedVitals`)
+- [x] Conectar `medir_presion` con el tensiómetro de la Persona 2 (valores marcados por el estudiante)
 
 ### Seguridad del personaje
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
-- [ ] Correr el script con `GEMINI_API_KEY` (paciente con IA) y probar lo mismo por voz
+- [x] Script con IA: el paciente siguió en personaje ("para eso vine, doc"); por voz también
+- [ ] Repetir el script completo cuando producción guarde en Convex (se cortó por "Sesión no encontrada")
 
 ### Generador "pedime un paciente" (feature nueva)
 - [x] `POST /api/cases/generate`: "dame un paciente con algo de garganta, que sea ansioso, de 60 años"
@@ -138,26 +142,27 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 
 ### Evaluador con IA (plan.md, sección 8)
 - [x] Juez por reglas que cita el turno (`lib/scoring/rule-judge.ts`)
-- [ ] Juez con IA por ítem (sí, parcial o no, con cita del turno), salida validada con zod
-- [ ] Verificador de omisiones: buscar X en la transcripción antes de decir "no preguntaste X"
-- [ ] Redactor de feedback: qué pasó, por qué importa (con la fuente) y cómo hacerlo la próxima vez
-- [ ] Evaluación del diagnóstico con IA (variantes aceptables)
+- [x] Juez con IA por ítem (sí, parcial o no, con cita del turno), salida validada con zod (`lib/scoring/ai-judge.ts`)
+- [x] Verificador de omisiones: buscar X en la transcripción antes de decir "no preguntaste X"
+- [x] Redactor de feedback: por qué importa y cómo hacerlo la próxima vez (`lib/scoring/ai-evaluate.ts`; falta citar la fuente)
+- [x] Evaluación del diagnóstico con IA (variantes aceptables)
 
 ### Validación del evaluador
 - [x] 3 estudiantes simulados (bueno, mediocre, malo) ordenados bien (`tests/scoring.test.ts`)
 - [x] Consistencia: 3 corridas iguales con el juez por reglas
-- [ ] Repetir orden y consistencia con el juez con IA (variación menor a 5 puntos)
-- [ ] Cero omisiones inventadas
+- [ ] Repetir orden y consistencia con el juez con IA (variación menor a 5 puntos): `tests/evaluator-live.test.ts`, corre con la clave
+- [ ] Cero omisiones inventadas: en `tests/evaluator-live.test.ts`, corre con la clave
 - [ ] Contraste con 2 estudiantes reales
 
 ### Tensiómetro (P2)
-- [ ] Arrastrar el manguito, Espacio infla, S marca PAS, D marca PAD
-- [ ] Audio de Korotkoff solo entre la PAS y la PAD verdaderas
-- [ ] Usar el valor de `medir_presion` y guardar lo que marcó el estudiante (`VitalsMeasurement.marked`)
-- [ ] Calibrar los ajustes de `lib/patient/blood-pressure.ts` con un docente
+- [x] Arrastrar el manguito, Espacio infla, S marca PAS, D marca PAD (`components/exam/tensiometro-view.tsx`)
+- [x] Ruidos de Korotkoff (sintetizados) solo entre la PAS y la PAD del manómetro
+- [x] Usar el valor de `medir_presion` y guardar lo que marcó el estudiante (`VitalsMeasurement.marked`)
+- [ ] Calibrar los ajustes de `lib/exam/blood-pressure.ts` con un docente
 
 ### Otoscopio (P3)
-- [ ] Traccionar con arrastre, introducir con scroll, vista circular con imágenes licenciadas
+- [x] Traccionar con arrastre, introducir con scroll, vista circular en esquema y técnica del afiche HC-02 (`components/exam/otoscopio-view.tsx`)
+- [ ] Imágenes de oído con licencia (Persona 3) y hallazgos por caso (`lib/exam/otoscope.ts`)
 
 ### Si la Persona 2 se atrasa
 - [ ] Simplificar el informe a puntaje por dimensión y errores principales
@@ -208,13 +213,11 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 - [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
 - [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel
-- [ ] Usuarios, Google y modo invitado con Convex Auth (ya escritos en `packages/backend/convex/auth.ts`)
-- [ ] Borrado de invitados a las 24 horas (`crons.ts`, ya escrito)
-- [x] Borrar lo guardado en `records` a las 48 horas (`records.purgeExpired` en `crons.ts`)
-- [ ] Desplegar Convex para que corra el cron de `records` (`npx convex deploy`)
+- [x] Usuarios con Google e invitado: resuelto con OAuth propio y `records` (Convex Auth en `packages/backend/convex/auth.ts` queda sin usar)
+- [x] Borrado de invitados a las 24 horas: `records.purgeExpiredGuests` cada hora (`crons.ts`)
 - [ ] `mistakeProfile`: perfil de errores entre sesiones
 - [ ] Imágenes en Convex storage y tabla `assets`
-- [ ] Credenciales de Google en Convex dev y prod
+- [x] Credenciales de Google: van en Vercel (OAuth propio), no en Convex
 - [x] Conectar Convex como almacenamiento (adelantado el 17/10: en Vercel la consulta fallaba con "Sesión no encontrada")
 - [ ] Más adelante: pasar de `records` a las tablas tipadas del esquema
 

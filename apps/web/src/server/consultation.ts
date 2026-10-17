@@ -28,9 +28,10 @@ import {
 } from "@/lib/patient/exam-instruction";
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
+import { evaluateWithAi } from "@/lib/scoring/ai-evaluate";
 import { evaluate } from "@/lib/scoring/evaluate";
 
-import { aiEnabled, chat } from "./ai";
+import { aiEnabled, chat, completeJson } from "./ai";
 import { HttpError } from "./auth";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
@@ -105,7 +106,6 @@ export async function startSession(
 		historyOverrides: pickVariations(clinicalCase),
 		inventedFacts: {},
 		voiceUsage: null,
-		voiceConnections: 0,
 	};
 	await store.createSession(session);
 	return session.id;
@@ -382,26 +382,6 @@ export async function saveExamTimes(
 	});
 }
 
-// Margen para marcar la presión medida justo antes de los 8 minutos.
-const VITALS_GRACE_MS = 60_000;
-
-// Lo que el estudiante marcó en el tensiómetro (Persona 2). El valor que se
-// mostró lo calculó medir_presion; acá solo se guarda la lectura del alumno.
-export async function saveMarkedVitals(
-	viewer: Viewer,
-	sessionId: string,
-	vitalsId: string,
-	marked: { pas: number; pad: number },
-) {
-	await activeSession(viewer, sessionId, VITALS_GRACE_MS);
-	const list = await store.listVitals(sessionId);
-	if (!list.some((v) => v.id === vitalsId))
-		throw new HttpError(404, "Medición no encontrada");
-	if (marked.pad >= marked.pas)
-		throw new HttpError(400, "La máxima tiene que ser mayor que la mínima");
-	return store.updateVitals(vitalsId, { marked });
-}
-
 export async function finishSession(
 	viewer: Viewer,
 	sessionId: string,
@@ -424,20 +404,26 @@ export async function finishSession(
 			differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
 		},
 	};
-	const [turns, events, examActions] = await Promise.all([
+	const [turns, events, examActions, vitals] = await Promise.all([
 		store.listTurns(sessionId),
 		store.listEvents(sessionId),
 		store.listExamActions(sessionId),
+		store.listVitals(sessionId),
 	]);
-	// Primero se evalúa y después se guarda: si el evaluador falla, la sesión
-	// no queda "evaluada" sin informe y se puede volver a intentar.
-	const report = evaluate({
+	const input = {
 		clinicalCase,
 		session: { ...session, ...patch },
 		turns,
 		events,
 		examActions,
-	});
+		vitals,
+	};
+	// Primero se evalúa y después se guarda: si el evaluador falla, la sesión
+	// no queda "evaluada" sin informe y se puede volver a intentar.
+	// Con clave, evaluador con IA; sin clave o si falla, juez por reglas.
+	const report = aiEnabled()
+		? await evaluateWithAi(input, completeJson)
+		: evaluate(input);
 	// El informe va antes que el estado: si se corta en el medio, el próximo
 	// intento encuentra el informe y lo devuelve.
 	await store.saveReport(report);

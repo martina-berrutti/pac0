@@ -8,6 +8,7 @@ import {
 	validateAlias,
 } from "@/server/auth";
 import { handle, readBody } from "@/server/http";
+import { store } from "@/server/store";
 
 // Perfil actual, o null sin sesión.
 export async function GET() {
@@ -39,6 +40,14 @@ export async function PATCH(req: Request) {
 			alias: validateAlias(body.alias),
 			careerYear: body.careerYear,
 		};
+		// Las cuentas de Google guardan el perfil para el próximo ingreso; el
+		// invitado lo tiene solo en su cookie.
+		if (!next.guest) {
+			await store.saveProfile(next.uid, {
+				alias: next.alias,
+				careerYear: next.careerYear,
+			});
+		}
 		await setViewer(next);
 		return {
 			viewer: {

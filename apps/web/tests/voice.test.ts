@@ -12,7 +12,7 @@ vi.mock("@google/genai", () => ({
 	},
 }));
 
-import { bloodPressureReading } from "@/lib/patient/blood-pressure";
+import { measure } from "@/lib/exam/blood-pressure";
 import { BP_STEPS } from "@/lib/patient/tools";
 import { startSession } from "@/server/consultation";
 import { store } from "@/server/store";
@@ -186,14 +186,15 @@ describe("herramientas del paciente", () => {
 		const run = await runTool(ana, id, "medir_presion", {
 			pasos_cumplidos: [...BP_STEPS],
 		});
-		expect(run.ui.kind === "vitals" && run.ui.vitals.shown).toEqual({
-			pas: 112,
-			pad: 70,
-		});
+		const saved = (await store.listVitals(id))[0];
+		expect(saved?.shown).toEqual({ pas: 112, pad: 70 });
+		// Ni el modelo ni la pantalla reciben el valor: lo mide el estudiante.
 		expect(JSON.stringify(run.output)).not.toContain("112");
-		const bad = bloodPressureReading([112, 70], []);
+		expect(JSON.stringify(run.ui)).not.toContain("112");
+		expect(run.ui.kind === "vitals" && run.ui.measurementId).toBe(saved?.id);
+		const bad = measure([112, 70], [], null, 26);
 		expect(bad.shown.pas).toBeGreaterThan(112);
-		expect(bad.techniqueErrors).toContain("piernas cruzadas");
+		expect(bad.techniqueErrors).toContain("piernas-cruzadas");
 	});
 
 	test("actualizar_estado: queda entre 0 y 1 y se registra el evento", async () => {
@@ -323,14 +324,7 @@ describe("pendientes de la Persona 1", () => {
 			inputAudioTokens: 160,
 			outputAudioTokens: 80,
 			cachedTokens: 20,
-			peak: { inputTokens: 100, outputTokens: 50 },
 		});
-		// Si fuera acumulado, el pico tiene el total sin contar dos veces.
-		const acumulado = await recordVoiceUsage(ana, id, {
-			...u,
-			inputTokens: 300,
-		});
-		expect(acumulado.peak?.inputTokens).toBe(300);
 		await expect(recordVoiceUsage(beto, id, u)).rejects.toThrow(
 			"Sesión no encontrada",
 		);
@@ -374,7 +368,11 @@ describe("bugs de la Persona 1", () => {
 		const bp = await runTool(ana, id, "medir_presion", {
 			pasos_cumplidos: [...BP_STEPS, "paso_inventado"],
 		});
-		expect(bp.ui.kind === "vitals" && bp.ui.vitals.shown.pas).toBe(112);
+		// El paso inventado no hace fallar la herramienta y no se guarda.
+		expect(bp.ui.kind).toBe("vitals");
+		expect((await store.listVitals(id))[0]?.stepsCompleted).toEqual([
+			...BP_STEPS,
+		]);
 	});
 
 	test("nombres heredados de Object no son herramientas", async () => {
@@ -453,16 +451,6 @@ describe("prevención de errores (segunda pasada)", () => {
 		expect(view).not.toContain("tengo dos hermanos");
 		expect(view).not.toContain("historyOverrides");
 		expect(view).not.toContain(lucia.truth.diagnosis);
-	});
-
-	test("hay tope de conexiones de voz por consulta", async () => {
-		const { MAX_VOICE_CONNECTIONS } = await import("@/server/voice");
-		vi.stubEnv("GEMINI_API_KEY", "AIza-test-servidor");
-		genai.create.mockResolvedValue({ name: "auth_tokens/x" });
-		const id = await startSession(ana, lucia.id, "caso");
-		for (let i = 0; i < MAX_VOICE_CONNECTIONS; i++)
-			await createLiveSession(ana, id);
-		await expect(createLiveSession(ana, id)).rejects.toThrow("reconectaste");
 	});
 
 	test("un turno de voz largo se guarda recortado, no se pierde", async () => {
@@ -554,30 +542,13 @@ test("si el evaluador falla, la sesión no queda cerrada sin informe", async () 
 	expect((await store.getSession(id))?.status).toBe("evaluada");
 });
 
-test("tensiómetro: se guarda lo que marcó el estudiante, con controles", async () => {
-	const { saveMarkedVitals } = await import("@/server/consultation");
-	const id = await startSession(ana, lucia.id, "caso");
-	const run = await runTool(ana, id, "medir_presion", {
-		pasos_cumplidos: [...BP_STEPS],
+describe("límite de conexiones de voz", () => {
+	test("después de 6 tokens en una consulta, se rechaza", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "AIza-test");
+		genai.create.mockResolvedValue({ name: "auth_tokens/x" });
+		const id = await startSession(ana, lucia.id, "caso");
+		for (let i = 0; i < 6; i++) await createLiveSession(ana, id);
+		await expect(createLiveSession(ana, id)).rejects.toThrow("muchas veces");
+		expect(genai.create).toHaveBeenCalledTimes(6);
 	});
-	if (run.ui.kind !== "vitals") throw new Error("sin medición");
-	const vitalsId = run.ui.vitals.id;
-	const saved = await saveMarkedVitals(ana, id, vitalsId, {
-		pas: 110,
-		pad: 72,
-	});
-	expect(saved?.marked).toEqual({ pas: 110, pad: 72 });
-	expect((await store.listVitals(id))[0]?.marked).toEqual({
-		pas: 110,
-		pad: 72,
-	});
-	await expect(
-		saveMarkedVitals(ana, id, vitalsId, { pas: 70, pad: 110 }),
-	).rejects.toThrow("mayor que la mínima");
-	await expect(
-		saveMarkedVitals(ana, id, "vit_otra", { pas: 110, pad: 70 }),
-	).rejects.toThrow("no encontrada");
-	await expect(
-		saveMarkedVitals(beto, id, vitalsId, { pas: 110, pad: 70 }),
-	).rejects.toThrow("Sesión no encontrada");
 });

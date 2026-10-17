@@ -6,7 +6,7 @@ import "server-only";
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-import type { ExamResult, VitalsMeasurement } from "@/lib/contracts/exam";
+import type { ExamResult } from "@/lib/contracts/exam";
 import {
 	MAX_SESSION_MS,
 	type PatientState,
@@ -14,7 +14,6 @@ import {
 	type Turn,
 	type VoiceUsage,
 } from "@/lib/contracts/session";
-import { bloodPressureReading } from "@/lib/patient/blood-pressure";
 import { buildPatientPrompt, type PatientBrief } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
@@ -30,12 +29,14 @@ import {
 } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
+import { type BpStart, createMeasurement } from "./vitals";
+
+// Conexiones de voz por consulta: alcanza para reconectar si se corta y
+// evita que alguien gaste la clave pidiendo tokens sin parar.
+export const MAX_VOICE_STARTS = 6;
 
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
-// Conexión inicial más reconexiones por consulta: cada token abre una sesión
-// paga de Gemini Live.
-export const MAX_VOICE_CONNECTIONS = 8;
 
 export function liveModel() {
 	return process.env.LIVE_MODEL || "gemini-3.8-live";
@@ -136,14 +137,13 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 		viewer,
 		sessionId,
 	);
-	const connections = session.voiceConnections ?? 0;
-	if (connections >= MAX_VOICE_CONNECTIONS)
+	const model = liveModel();
+	const starts = session.voiceStarts ?? 0;
+	if (starts >= MAX_VOICE_STARTS)
 		throw new HttpError(
 			429,
-			"Ya te reconectaste muchas veces en esta consulta. Terminala y empezá otra.",
+			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
 		);
-	await store.updateSession(sessionId, { voiceConnections: connections + 1 });
-	const model = liveModel();
 	const config = liveConfig(
 		buildVoiceInstructions(
 			brief(session, clinicalCase),
@@ -172,6 +172,7 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 				},
 			});
 			if (token.name) {
+				await store.updateSession(sessionId, { voiceStarts: starts + 1 });
 				return {
 					token: token.name,
 					apiVersion,
@@ -191,7 +192,7 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 
 export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
-	| { kind: "vitals"; vitals: VitalsMeasurement }
+	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
 	| { kind: "end" }
 	| { kind: "none" };
@@ -290,25 +291,20 @@ export async function runTool(
 		}
 		case "medir_presion": {
 			const args = toolArgs.medir_presion.parse(rawArgs);
-			const reading = bloodPressureReading(
-				clinicalCase.vitals.pa,
-				args.pasos_cumplidos,
-			);
-			const vitals: VitalsMeasurement = {
-				id: newId("vit"),
+			const bp = await createMeasurement(
+				clinicalCase,
 				sessionId,
-				...reading,
-				marked: null,
-				atMs: elapsed,
-			};
-			await store.addVitals(vitals);
-			// El paciente no sabe su presión: el valor va solo a la pantalla.
+				args.pasos_cumplidos,
+				elapsed,
+			);
+			// Ni el paciente ni la pantalla reciben el valor: la pantalla abre el
+			// tensiómetro y el estudiante lo mide (Persona 2).
 			return {
 				output: {
 					ok: true,
 					que_pasa: "Te están midiendo la presión. Quedate quieto.",
 				},
-				ui: { kind: "vitals", vitals },
+				ui: { kind: "vitals", ...bp },
 			};
 		}
 		case "mostrar_region": {
@@ -420,7 +416,7 @@ export async function recordVoiceEvent(
 	});
 }
 
-type UsageInput = Omit<VoiceUsage, "responses" | "peak">;
+type UsageInput = Omit<VoiceUsage, "responses">;
 
 // Suma los tokens de cada respuesta de la voz para medir el costo por sesión.
 export async function recordVoiceUsage(
@@ -444,10 +440,6 @@ export async function recordVoiceUsage(
 		inputAudioTokens: prev.inputAudioTokens + usage.inputAudioTokens,
 		outputAudioTokens: prev.outputAudioTokens + usage.outputAudioTokens,
 		cachedTokens: prev.cachedTokens + usage.cachedTokens,
-		peak: {
-			inputTokens: Math.max(prev.peak?.inputTokens ?? 0, usage.inputTokens),
-			outputTokens: Math.max(prev.peak?.outputTokens ?? 0, usage.outputTokens),
-		},
 	};
 	await store.updateSession(sessionId, { voiceUsage: next });
 	return next;

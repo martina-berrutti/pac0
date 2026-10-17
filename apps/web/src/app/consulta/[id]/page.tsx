@@ -6,17 +6,20 @@ import { Button } from "@pac0/ui/components/button";
 import { Input } from "@pac0/ui/components/input";
 import { Textarea } from "@pac0/ui/components/textarea";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
+import { OtoscopioView } from "@/components/exam/otoscopio-view";
+import { TensiometroView } from "@/components/exam/tensiometro-view";
 import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
-import type { ExamResult, VitalsMeasurement } from "@/lib/contracts/exam";
+import type { ExamResult } from "@/lib/contracts/exam";
 import type { Turn } from "@/lib/contracts/session";
 import { useVoice } from "@/lib/voice/use-voice";
 import type { SessionView } from "@/server/consultation";
+import type { BpStart } from "@/server/vitals";
 import type { ToolUi } from "@/server/voice";
 
 export default function ConsultationPage() {
@@ -26,10 +29,15 @@ export default function ConsultationPage() {
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [sending, setSending] = useState(false);
 	const [exam, setExam] = useState<ExamResult | null>(null);
+	// Tensiómetro abierto: con la medición de medir_presion (voz) o sin ella
+	// (botón).
+	const [bp, setBp] = useState<{ start: BpStart | null } | null>(null);
+	const closeBp = useCallback(() => setBp(null), []);
+	const [otoscopy, setOtoscopy] = useState(false);
+	const tool = exam !== null || bp !== null || otoscopy;
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
-	const [vitals, setVitals] = useState<VitalsMeasurement | null>(null);
 	const bottom = useRef<HTMLDivElement>(null);
 
 	const voice = useVoice({
@@ -38,7 +46,10 @@ export default function ConsultationPage() {
 			setView((v) => (v ? { ...v, turns: [...v.turns, turn] } : v)),
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "exam") setExam(ui.exam);
-			if (ui.kind === "vitals") setVitals(ui.vitals);
+			if (ui.kind === "vitals")
+				setBp({
+					start: { measurementId: ui.measurementId, armCm: ui.armCm },
+				});
 			if (ui.kind === "region" && !ui.available)
 				toast.info(`"${ui.region}" todavía no está disponible.`);
 			if (ui.kind === "end") {
@@ -156,21 +167,12 @@ export default function ConsultationPage() {
 				</section>
 			)}
 
-			{vitals && (
-				<section className="border p-3 text-sm">
-					<p className="font-medium">
-						Presión medida: {vitals.shown.pas}/{vitals.shown.pad} mmHg
-					</p>
-					{vitals.techniqueErrors.length > 0 && (
-						<p className="text-muted-foreground">
-							Errores de técnica: {vitals.techniqueErrors.join(", ")}.
-						</p>
-					)}
-				</section>
-			)}
-
 			{exam ? (
 				<OrofaringeView exam={exam} onClose={closeExam} />
+			) : bp ? (
+				<TensiometroView sessionId={id} start={bp.start} onClose={closeBp} />
+			) : otoscopy ? (
+				<OtoscopioView sessionId={id} onClose={() => setOtoscopy(false)} />
 			) : (
 				<>
 					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
@@ -202,7 +204,18 @@ export default function ConsultationPage() {
 				</>
 			)}
 
-			{!exam &&
+			{!tool && !closing && (
+				<div className="flex flex-wrap gap-2">
+					<Button variant="outline" onClick={() => setBp({ start: null })}>
+						Tomar la presión
+					</Button>
+					<Button variant="outline" onClick={() => setOtoscopy(true)}>
+						Examinar el oído
+					</Button>
+				</div>
+			)}
+
+			{!tool &&
 				(closing ? (
 					<form onSubmit={finish} className="grid gap-2 border p-3">
 						<label htmlFor="hipotesis" className="font-medium">

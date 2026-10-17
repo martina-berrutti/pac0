@@ -34,9 +34,8 @@ export type Session = {
 	inventedFacts: Record<string, string>;
 	// Tokens de la voz, para medir el costo por sesión.
 	voiceUsage: VoiceUsage | null;
-	// Tokens de voz pedidos (conexión y reconexiones), con tope por costo.
-	// Opcional: las sesiones guardadas antes no lo tienen.
-	voiceConnections?: number;
+	// Conexiones de voz pedidas en esta consulta (hay un tope).
+	voiceStarts?: number;
 };
 
 export type VoiceUsage = {
@@ -46,11 +45,6 @@ export type VoiceUsage = {
 	inputAudioTokens: number;
 	outputAudioTokens: number;
 	cachedTokens: number;
-	// El mayor valor recibido en un solo mensaje. Todavía no sabemos si
-	// usageMetadata de Gemini Live es por respuesta o acumulado: si es por
-	// respuesta, el costo sale de las sumas; si es acumulado, de estos picos.
-	// Opcional: las sesiones guardadas antes no lo tienen.
-	peak?: { inputTokens: number; outputTokens: number };
 };
 
 export type Turn = {
