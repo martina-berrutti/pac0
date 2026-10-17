@@ -46,6 +46,7 @@ export default function ConsultationPage() {
 			setView((v) => (v ? { ...v, turns: [...v.turns, turn] } : v)),
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "exam") setExam(ui.exam);
+			if (ui.kind === "otoscope") setOtoscopy(true);
 			if (ui.kind === "vitals")
 				setBp({
 					start: { measurementId: ui.measurementId, armCm: ui.armCm },

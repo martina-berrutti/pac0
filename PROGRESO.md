@@ -2,6 +2,15 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Tres casos nuevos para mostrar más funciones
+
+- **Rosa Rodríguez, 58** (`hipertension-01`): hipertensión mal medida, el caso 2 del plan. Llega corriendo, tomó café y está con el celular; sin reposo ni silencio la presión da más de 150. Usa el tensiómetro de la Persona 2, que ya preveía su brazo grande (manguito chico). Café variable entre consultas.
+- **Diego, 29** (`oido-01`): guardavidas con otitis externa derecha. Usa el otoscopio: conducto derecho con secreción, tímpano sano. Si por voz le piden revisar el oído, la herramienta `examinar` abre el otoscopio.
+- **Jorge, 45** (`garganta-02`): faringitis viral con paciente hostil y voz de hombre; no abre la boca sin permiso.
+- El generador ahora también arma pacientes con dolor de oído y para control de presión (plantillas que reutilizan lo clínico de esos casos; hipertensión con 45 años o más).
+- Los tres son **borradores sin revisar** (`reviewedBy: null`). `AGENTS.md` dice "un solo caso perfecto antes de agregar otro": se agregaron a pedido para la demo y falta la revisión médica.
+- Validación: 109 tests en web.
+
 ## 17/10 · Persona 1 · Clasificador de turnos y voces al azar
 
 - Clasificador por reglas de cada turno del estudiante (`lib/patient/turn-classifier.ts`): pregunta abierta o cerrada, sugestiva, jerga sin explicar, empatía y pregunta repetida. Actualiza el estado del paciente (`cambio_animo` con motivo "clasificador: …") y guarda las etiquetas en `turn.tags` para el evaluador. Funciona en texto y en voz, y la empatía ya no se suma dos veces.

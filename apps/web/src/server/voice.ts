@@ -194,6 +194,7 @@ export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
 	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
+	| { kind: "otoscope" }
 	| { kind: "end" }
 	| { kind: "none" };
 
@@ -235,6 +236,27 @@ export async function runTool(
 	switch (name) {
 		case "examinar": {
 			const args = toolArgs.examinar.parse(rawArgs);
+			// El oído se examina con el otoscopio de la pantalla (Persona 2): la
+			// herramienta lo abre y el paciente se queda quieto.
+			if (/o[ií]do|oreja/i.test(args.zona)) {
+				if (args.consentimiento && !session.consentGiven) {
+					await store.addEvent({
+						id: newId("evt"),
+						sessionId,
+						type: "consentimiento",
+						atMs: elapsed,
+					});
+					await store.updateSession(sessionId, { consentGiven: true });
+				}
+				return {
+					output: {
+						disponible: true,
+						que_pasa:
+							"Te van a revisar el oído con el otoscopio. Quedate quieto; si te tiran de la oreja que te duele, quejate.",
+					},
+					ui: { kind: "otoscope" },
+				};
+			}
 			// Sin zona clara, se examina la zona principal del caso.
 			const zone = args.zona.trim()
 				? zoneFor(args.zona, Object.keys(clinicalCase.exam))

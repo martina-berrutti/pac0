@@ -195,8 +195,11 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 - [ ] Revisar el caso 1 con un estudiante avanzado o un médico y completar `reviewedBy`
 - [ ] Traducir las listas de cotejo de la facultad a `expectedChecklist` con pesos y palabras clave
 - [ ] Revisar las plantillas del generador con un médico
-- [ ] Caso 2: Rosa Rodríguez, hipertensión mal medida (P2)
-- [ ] Caso 3: garganta con otra personalidad (P2)
+- [x] Caso 2: Rosa Rodríguez, hipertensión mal medida (`hipertension-01`, borrador)
+- [x] Caso 4: Diego, otitis externa para el otoscopio (`oido-01`, borrador)
+- [x] Caso 3: Jorge, garganta viral con paciente hostil (`garganta-02`, borrador)
+- [ ] Revisar con un médico los casos 2, 3 y 4 y completar `reviewedBy`
+
 
 ### Banco de imágenes (plan.md, sección 7)
 - [ ] Orofaringe normal, faringitis con eritema y faringoamigdalitis con exudado, con licencia

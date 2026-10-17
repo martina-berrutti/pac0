@@ -1,0 +1,229 @@
+{
+	"id": "hipertension-01",
+	"title": "Control de presión",
+	"origin": "banco",
+	"reviewedBy": null,
+	"patient": {
+		"name": "Rosa",
+		"age": 58,
+		"occupation": "comerciante",
+		"sex": "f"
+	},
+	"personality": {
+		"cooperacion": 0.8,
+		"ansiedad": 0.6,
+		"locuacidad": 0.8,
+		"desconfianza": 0.2,
+		"paciencia": 0.3,
+		"audicion": "normal",
+		"vocabulario": "simple"
+	},
+	"personalityStyle": "Llegás apurada y agitada porque viniste corriendo para no perder el ómnibus. Hablás rápido, pedís perdón por la demora y al principio estás contestando mensajes en el celular. Si te piden que te sientes tranquila y no hables, lo hacés.",
+	"chiefComplaint": "Perdón la demora, vine corriendo porque casi pierdo el ómnibus. Vengo al control de la presión",
+	"profile": {
+		"edad": "58 años",
+		"ocupacion": "tengo un almacén en el barrio",
+		"vive": "con mi marido",
+		"apellido": "Rodríguez"
+	},
+	"hiddenHistory": {
+		"inicio": "me diagnosticaron hipertensión hace cinco años",
+		"medicacion": "tomo enalapril de 20, uno por día",
+		"adherencia": "a veces me olvido de tomarlo, sobre todo los fines de semana",
+		"cafe": "me tomé un café cortado antes de salir, hace un rato",
+		"actividad": "recién vine corriendo; ejercicio no hago, con el almacén no tengo tiempo",
+		"sal": "y, le pongo bastante sal a la comida",
+		"dolor": "a veces me levanto con dolor de cabeza, en la nuca",
+		"pecho": "no, dolor de pecho no",
+		"vision": "no, veo bien",
+		"alergias": "no soy alérgica a nada",
+		"antecedentes": "sobrepeso, eso me dice siempre el médico",
+		"familia": "mi padre tuvo un infarto a los 60",
+		"tabaco": "fumé hasta los 40, después dejé",
+		"alcohol": "una copita de vino los domingos",
+		"drogas": "no"
+	},
+	"variations": {
+		"cafe": [
+			"me tomé un café cortado antes de salir, hace un rato",
+			"me tomé un mate antes de venir",
+			"hoy no tomé café"
+		]
+	},
+	"vitals": { "pa": [136, 86], "fc": 92, "fr": 18, "tax": 36.5 },
+	"exam": {},
+	"expectedChecklist": [
+		{
+			"id": "presentacion",
+			"item": "se presenta y saluda",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["hola", "buen día", "buenas", "me llamo", "soy"]
+		},
+		{
+			"id": "pregunta-abierta",
+			"item": "empieza con una pregunta abierta",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": [
+				"qué te trae",
+				"en qué te puedo",
+				"contame",
+				"cómo andás",
+				"cómo estás"
+			]
+		},
+		{
+			"id": "tranquiliza",
+			"item": "la tranquiliza por la demora y la hace descansar antes de medir",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"descans",
+				"tranquila",
+				"esperamos unos minutos",
+				"sentate",
+				"tomate un momento",
+				"recuperes"
+			]
+		},
+		{
+			"id": "sin-celular",
+			"item": "le pide que deje el celular y no hable durante la medición",
+			"dimension": "examen",
+			"weight": 2,
+			"keywords": [
+				"celular",
+				"teléfono",
+				"no hables",
+				"en silencio",
+				"sin hablar"
+			]
+		},
+		{
+			"id": "cafe-tabaco",
+			"item": "pregunta por café, mate o tabaco en los últimos 30 minutos",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["café", "mate", "fumaste", "tomaste algo", "energizante"]
+		},
+		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"estás tomando",
+				"remedio",
+				"pastilla",
+				"enalapril"
+			]
+		},
+		{
+			"id": "adherencia",
+			"item": "pregunta si toma la medicación todos los días",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"todos los días",
+				"te olvidás",
+				"olvid",
+				"cómo la tomás",
+				"regular"
+			]
+		},
+		{
+			"id": "sintomas-alarma",
+			"item": "pregunta por síntomas de alarma (cabeza, pecho, visión)",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"dolor de cabeza",
+				"cabeza",
+				"pecho",
+				"visión",
+				"ves bien",
+				"falta de aire"
+			]
+		},
+		{
+			"id": "habitos",
+			"item": "pregunta por sal, actividad física y tabaco",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"sal",
+				"ejercicio",
+				"actividad",
+				"caminás",
+				"fumás",
+				"tabaco"
+			]
+		},
+		{
+			"id": "familia",
+			"item": "antecedentes familiares cardiovasculares",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": ["familia", "padre", "madre", "familiar", "infarto"]
+		},
+		{
+			"id": "alergias",
+			"item": "alergias medicamentosas",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["alérgic", "alergia"]
+		},
+		{
+			"id": "consentimiento",
+			"item": "explica y pide consentimiento antes de medir",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"te voy a tomar",
+				"puedo",
+				"permiso",
+				"te parece si",
+				"te voy a medir"
+			]
+		},
+		{
+			"id": "presion-arterial",
+			"item": "mide la presión con buena técnica y valores cercanos al real",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": []
+		},
+		{
+			"id": "resume",
+			"item": "resume y explica el resultado",
+			"dimension": "comunicacion",
+			"weight": 1,
+			"keywords": [
+				"entonces",
+				"si entendí bien",
+				"resumiendo",
+				"alguna duda",
+				"te dio"
+			]
+		}
+	],
+	"notApplicable": [
+		"gineco-obstetricos",
+		"orofaringe",
+		"contacto-ocular",
+		"expresion-facial"
+	],
+	"criticalErrors": ["examen sin consentimiento"],
+	"truth": {
+		"diagnosis": "hipertensión arterial mal controlada por adherencia irregular",
+		"acceptable": ["hipertensión", "hta", "hipertensa", "presión alta"],
+		"differentials": [
+			"lectura falsamente elevada por mala técnica",
+			"hipertensión de bata blanca",
+			"hipertensión secundaria"
+		]
+	}
+}

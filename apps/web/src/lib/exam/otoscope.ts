@@ -97,15 +97,31 @@ export type OtoscopyScenario = {
 
 const NORMAL: EarAppearance = { canal: "sano", tympanum: "nacarado" };
 
-// Hallazgos por caso. Sin entrada, los dos oídos son normales. Cuando haya un
-// caso de otoscopia (caso 4), pueden pasar al JSON del caso.
-const APPEARANCE: Record<string, Partial<Record<Ear, EarAppearance>>> = {};
+// Hallazgos por caso. Sin entrada, los dos oídos son normales. Más adelante
+// pueden pasar al JSON del caso.
+const APPEARANCE: Record<string, Partial<Record<Ear, EarAppearance>>> = {
+	// Otitis externa derecha: conducto rojo con secreción, tímpano sano.
+	"oido-01": { derecho: { canal: "secrecion", tympanum: "nacarado" } },
+	// Pacientes generados con la plantilla de otitis externa.
+	"otitis-externa": { derecho: { canal: "secrecion", tympanum: "nacarado" } },
+};
+
+// Por id del caso, o por plantilla en los generados (gen-<plantilla>-…).
+function appearanceFor(caseId: string) {
+	return (
+		APPEARANCE[caseId] ??
+		Object.entries(APPEARANCE).find(([key]) =>
+			caseId.startsWith(`gen-${key}-`),
+		)?.[1] ??
+		{}
+	);
+}
 
 export function otoscopyScenario(
 	caseId: string,
 	age: number,
 ): OtoscopyScenario {
-	const found = APPEARANCE[caseId] ?? {};
+	const found = appearanceFor(caseId);
 	return {
 		appearance: {
 			derecho: found.derecho ?? NORMAL,
