@@ -279,6 +279,8 @@ function createStore(): Store {
 // Un solo store por proceso, que sobrevive a la recarga en caliente de dev.
 const globalForStore = globalThis as unknown as { __p0Store?: Store };
 export const store: Store = globalForStore.__p0Store ?? createStore();
+export const storeKind: "convex" | "memoria" =
+	store instanceof ConvexStore ? "convex" : "memoria";
 globalForStore.__p0Store = store;
 
 export function newId(prefix: string) {
