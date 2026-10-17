@@ -330,3 +330,14 @@ describe("pendientes de la Persona 1", () => {
 		);
 	});
 });
+
+describe("límite de conexiones de voz", () => {
+	test("después de 6 tokens en una consulta, se rechaza", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "AIza-test");
+		genai.create.mockResolvedValue({ name: "auth_tokens/x" });
+		const id = await startSession(ana, lucia.id, "caso");
+		for (let i = 0; i < 6; i++) await createLiveSession(ana, id);
+		await expect(createLiveSession(ana, id)).rejects.toThrow("muchas veces");
+		expect(genai.create).toHaveBeenCalledTimes(6);
+	});
+});

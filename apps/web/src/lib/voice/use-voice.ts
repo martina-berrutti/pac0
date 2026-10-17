@@ -22,7 +22,6 @@ export type VoiceStatus = "idle" | "connecting" | "live" | "ended" | "error";
 const LONG_SILENCE_MS = 20_000;
 // Se considera que el estudiante sigue hablando si llegó transcripción hace menos de esto.
 const SPEAKING_WINDOW_MS = 900;
-const INPUT_RATE = 16_000;
 const OUTPUT_RATE = 24_000;
 
 type Options = {
@@ -318,7 +317,34 @@ export function useVoice({
 
 	const start = useCallback(async () => {
 		setStatus("connecting");
+		// Los AudioContext se crean en el mismo clic (Safari, sobre todo en
+		// iPhone, bloquea el audio que no arranca por un gesto del usuario) y a la
+		// frecuencia propia del navegador: Firefox no deja mezclar frecuencias, y
+		// Gemini convierte la entrada y el navegador la salida de 24 kHz.
+		const outCtx = new AudioContext();
+		const ctx = new AudioContext();
+		out.current = null;
+		inCtx.current = ctx;
 		try {
+			// Primero el micrófono: si se niega, no se gasta un token.
+			let stream: MediaStream;
+			try {
+				stream = await navigator.mediaDevices.getUserMedia({
+					audio: { echoCancellation: true, noiseSuppression: true },
+				});
+			} catch (e) {
+				const name = e instanceof DOMException ? e.name : "";
+				throw new Error(
+					name === "NotAllowedError"
+						? "El navegador bloqueó el micrófono. Permitilo (ícono del candado en la barra de direcciones) y probá de nuevo."
+						: name === "NotFoundError"
+							? "No encontramos un micrófono conectado."
+							: "No pudimos usar el micrófono.",
+				);
+			}
+			mic.current = stream;
+			await Promise.all([outCtx.resume(), ctx.resume()]);
+
 			const token = await post<{
 				token: string;
 				apiVersion: string;
@@ -326,8 +352,7 @@ export function useVoice({
 				remainingMs: number;
 			}>("/api/voice/session", { sessionId });
 
-			// Salida: 24 kHz, con un AnalyserNode para el avatar.
-			const outCtx = new AudioContext({ sampleRate: OUTPUT_RATE });
+			// Salida del paciente, con un AnalyserNode para el avatar.
 			const analyser = outCtx.createAnalyser();
 			analyser.fftSize = 512;
 			analyser.connect(outCtx.destination);
@@ -352,18 +377,18 @@ export function useVoice({
 					onerror: () =>
 						callbacks.current.onError("Se cortó la conexión de voz."),
 					onclose: () => {
-						if (live.current) stop();
+						// Si se cortó sin que lo pidiéramos, avisar para reconectar.
+						if (live.current) {
+							stop();
+							callbacks.current.onError(
+								"Se cortó la conexión con el paciente. Tocá de nuevo “hablar por voz” para seguir.",
+							);
+						}
 					},
 				},
 			});
 
-			// Entrada: micrófono a 16 kHz (si el navegador usa otra frecuencia, Gemini la convierte).
-			const stream = await navigator.mediaDevices.getUserMedia({
-				audio: { echoCancellation: true, noiseSuppression: true },
-			});
-			mic.current = stream;
-			const ctx = new AudioContext({ sampleRate: INPUT_RATE });
-			inCtx.current = ctx;
+			// Entrada: el micrófono a la frecuencia del navegador.
 			const url = URL.createObjectURL(
 				new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
 			);
@@ -400,6 +425,7 @@ export function useVoice({
 			setStatus("live");
 		} catch (e) {
 			stop("error");
+			if (!out.current) outCtx.close().catch(() => {});
 			callbacks.current.onError(
 				e instanceof Error ? e.message : "No se pudo iniciar la voz",
 			);

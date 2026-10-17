@@ -32,13 +32,15 @@ async function callGemini(
 			role: m.role === "assistant" ? "model" : "user",
 			parts: [{ text: m.content }],
 		}));
-	// Si el modelo principal está saturado (503), se prueba el de respaldo.
+	// Primero el modelo liviano, que responde rápido (el paciente y el
+	// generador no necesitan más); si falla, el de AI_MODEL.
 	const models = [
 		...new Set([
-			process.env.AI_MODEL || "gemini-3.8-flash",
 			"gemini-3.5-flash-lite",
+			process.env.AI_MODEL || "gemini-3.8-flash",
 		]),
 	];
+
 	let lastError: unknown;
 	for (const model of models) {
 		try {

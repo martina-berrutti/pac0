@@ -31,6 +31,10 @@ import { newId, store } from "./store";
 import type { Viewer } from "./token";
 import { type BpStart, createMeasurement } from "./vitals";
 
+// Conexiones de voz por consulta: alcanza para reconectar si se corta y
+// evita que alguien gaste la clave pidiendo tokens sin parar.
+export const MAX_VOICE_STARTS = 6;
+
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
 
@@ -105,6 +109,12 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 		);
 	const { session, elapsed } = await activeSession(viewer, sessionId);
 	const model = liveModel();
+	const starts = session.voiceStarts ?? 0;
+	if (starts >= MAX_VOICE_STARTS)
+		throw new HttpError(
+			429,
+			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
+		);
 	const config = liveConfig(
 		await voiceInstructions(viewer, sessionId),
 		session.personality.paciencia < 0.4,
@@ -125,6 +135,7 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 				},
 			});
 			if (token.name) {
+				await store.updateSession(sessionId, { voiceStarts: starts + 1 });
 				return {
 					token: token.name,
 					apiVersion,

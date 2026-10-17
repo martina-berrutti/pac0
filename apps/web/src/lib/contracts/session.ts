@@ -34,6 +34,8 @@ export type Session = {
 	inventedFacts: Record<string, string>;
 	// Tokens de la voz, para medir el costo por sesión.
 	voiceUsage: VoiceUsage | null;
+	// Conexiones de voz pedidas en esta consulta (hay un tope).
+	voiceStarts?: number;
 };
 
 export type VoiceUsage = {
