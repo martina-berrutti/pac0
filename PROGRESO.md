@@ -42,10 +42,28 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
     - Promesas sin manejar: ninguna suelta en el servidor; en el cliente, todas atrapadas (red de seguridad en la reconexión). Revisado.
     - Estados a medias: cierre de la consulta, tiempo de margen para terminar exámenes, limpieza de Convex con presupuesto. Revisado, con tests.
     - Respuestas malformadas: un 200 con el cuerpo cortado es error; JSON de la IA entre ``` o inválido cae al plan B. Revisado.
-    - Navegadores: Safari (audio en el gesto), Firefox (frecuencias), socket cerrado. Revisado con el navegador simulado; **falta el micrófono real**.
+    - Navegadores: Safari (audio en el gesto), Firefox (frecuencias), socket cerrado. Revisado con el navegador simulado; el micrófono real ya se probó en la computadora (17/10), **falta el celular**.
+  - Tercera integración con `main` (clasificador de turnos, voces al azar, tres casos nuevos): la nota de estado del clasificador va dentro de la fila y con envío protegido. Bug en la regla de pregunta sugestiva, que estaba en el clasificador y en el evaluador: "¿todo bueno?" y "¿fumás o no?" contaban como sugestivas (bajaban la confianza y restaban un punto). Ahora hay una sola función, `isLeadingQuestion`, que usan los dos (cambio de una línea en `lib/scoring/evaluate.ts`, de la Persona 2).
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).
+
+## 17/10 · Persona 1 · Tres casos nuevos para mostrar más funciones
+
+- **Rosa Rodríguez, 58** (`hipertension-01`): hipertensión mal medida, el caso 2 del plan. Llega corriendo, tomó café y está con el celular; sin reposo ni silencio la presión da más de 150. Usa el tensiómetro de la Persona 2, que ya preveía su brazo grande (manguito chico). Café variable entre consultas.
+- **Diego, 29** (`oido-01`): guardavidas con otitis externa derecha. Usa el otoscopio: conducto derecho con secreción, tímpano sano. Si por voz le piden revisar el oído, la herramienta `examinar` abre el otoscopio.
+- **Jorge, 45** (`garganta-02`): faringitis viral con paciente hostil y voz de hombre; no abre la boca sin permiso.
+- El generador ahora también arma pacientes con dolor de oído y para control de presión (plantillas que reutilizan lo clínico de esos casos; hipertensión con 45 años o más).
+- Los tres son **borradores sin revisar** (`reviewedBy: null`). `AGENTS.md` dice "un solo caso perfecto antes de agregar otro": se agregaron a pedido para la demo y falta la revisión médica.
+- Validación: 109 tests en web.
+
+## 17/10 · Persona 1 · Clasificador de turnos y voces al azar
+
+- Clasificador por reglas de cada turno del estudiante (`lib/patient/turn-classifier.ts`): pregunta abierta o cerrada, sugestiva, jerga sin explicar, empatía y pregunta repetida. Actualiza el estado del paciente (`cambio_animo` con motivo "clasificador: …") y guarda las etiquetas en `turn.tags` para el evaluador. Funciona en texto y en voz, y la empatía ya no se suma dos veces.
+- En la voz, cuando la confianza o la paciencia cambian de nivel, el cliente le manda al modelo una nota silenciosa (`turnComplete: false`). Probado en producción: la nota no genera audio, y después de la empatía el paciente hostil afloja ("Bueno, ta, está bien. Abrila entonces, si me decís para qué sirve.").
+- Voces: cada consulta sortea una acorde al sexo del paciente (`patient.sex` en el caso; el generador lo completa) y la mantiene aunque se reconecte.
+- Validación: 98 tests en web y 18 en backend.
+- Ojo: `apps/web/.env.local` quedó vacío a las 17:08, así que la voz local no anda hasta volver a poner `GEMINI_API_KEY`.
 
 ## 17/10 · Persona 1 · Tareas agregadas en la revisión
 

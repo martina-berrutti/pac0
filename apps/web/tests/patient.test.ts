@@ -141,3 +141,16 @@ describe("cookie de sesión", () => {
 		expect(await verifyViewer(token)).toBeNull();
 	});
 });
+
+test("pregunta sugestiva: solo ', ¿no?', '¿verdad?' o '¿cierto?' como palabra entera", async () => {
+	const { isLeadingQuestion } = await import("@/lib/patient/turn-classifier");
+	for (const t of [
+		"¿Te duele al tragar, no?",
+		"Te duele, ¿no?",
+		"¿Es en la garganta, verdad?",
+		"te duele al tragar, no",
+	])
+		expect(isLeadingQuestion(t), t).toBe(true);
+	for (const t of ["¿Todo bueno?", "¿Fumás o no?", "¿Tenés fiebre?", "eso no"])
+		expect(isLeadingQuestion(t), t).toBe(false);
+});

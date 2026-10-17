@@ -1,0 +1,187 @@
+{
+	"id": "oido-01",
+	"title": "Dolor de oído",
+	"origin": "banco",
+	"reviewedBy": null,
+	"patient": {
+		"name": "Diego",
+		"age": 29,
+		"occupation": "guardavidas",
+		"sex": "m"
+	},
+	"personality": {
+		"cooperacion": 0.9,
+		"ansiedad": 0.4,
+		"locuacidad": 0.6,
+		"desconfianza": 0.1,
+		"paciencia": 0.6,
+		"audicion": "normal",
+		"vocabulario": "simple"
+	},
+	"personalityStyle": "Directo y simpático, con voseo. Te molesta mucho el oído y lo tocás seguido. Si te tocan la oreja, te quejás porque duele.",
+	"chiefComplaint": "Me duele un montón el oído derecho desde hace dos días",
+	"profile": {
+		"edad": "29 años",
+		"ocupacion": "soy guardavidas en una piscina",
+		"vive": "con mi novia"
+	},
+	"hiddenHistory": {
+		"inicio": "empezó hace dos días, cada vez peor",
+		"dolor": "me duele mucho, y más si me toco la oreja o mastico",
+		"agua": "estoy todo el día en la piscina, me meto varias veces por día",
+		"picazon": "antes de que me doliera me picaba bastante",
+		"secrecion": "me sale un poco de líquido, como agüita",
+		"audicion": "escucho un poco tapado de ese lado",
+		"fiebre": "no tuve fiebre",
+		"resfrio": "no estoy resfriado",
+		"hisopos": "sí, uso hisopos todos los días para secarme",
+		"alergias": "soy alérgico a la penicilina",
+		"medicacion": "nada, solo un ibuprofeno anoche",
+		"antecedentes": "nunca tuve problemas de oído",
+		"alcohol": "los fines de semana, poco",
+		"tabaco": "no fumo",
+		"drogas": "no"
+	},
+	"vitals": { "pa": [118, 74], "fc": 76, "fr": 14, "tax": 36.8 },
+	"exam": {},
+	"expectedChecklist": [
+		{
+			"id": "presentacion",
+			"item": "se presenta y saluda",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["hola", "buen día", "buenas", "me llamo", "soy"]
+		},
+		{
+			"id": "pregunta-abierta",
+			"item": "empieza con una pregunta abierta",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["qué te trae", "en qué te puedo", "contame", "qué te pasa"]
+		},
+		{
+			"id": "inicio",
+			"item": "pregunta desde cuándo",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"desde cuándo",
+				"cuándo empez",
+				"hace cuánto",
+				"cuántos días"
+			]
+		},
+		{
+			"id": "caracteristicas-dolor",
+			"item": "caracteriza el dolor (qué lo empeora)",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"cuánto te duele",
+				"del 1 al 10",
+				"empeora",
+				"tocás la oreja",
+				"masticar"
+			]
+		},
+		{
+			"id": "agua",
+			"item": "pregunta por agua, piscina o hisopos",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"agua",
+				"piscina",
+				"nadás",
+				"hisopo",
+				"cotonete",
+				"te metiste"
+			]
+		},
+		{
+			"id": "secrecion",
+			"item": "pregunta por secreción y audición",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"secreción",
+				"líquido",
+				"supura",
+				"escuchás",
+				"tapado",
+				"audición"
+			]
+		},
+		{
+			"id": "fiebre",
+			"item": "pregunta por fiebre",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["fiebre", "temperatura"]
+		},
+		{
+			"id": "alergias",
+			"item": "alergias medicamentosas",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": ["alérgic", "alergia"]
+		},
+		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"tomaste algo",
+				"estás tomando",
+				"remedio"
+			]
+		},
+		{
+			"id": "consentimiento",
+			"item": "explica y pide consentimiento antes de examinar",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"te voy a revisar",
+				"te voy a mirar",
+				"puedo",
+				"permiso",
+				"te parece si"
+			]
+		},
+		{
+			"id": "otoscopia",
+			"item": "otoscopia con buena técnica (ambos oídos, empezando por el sano)",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": []
+		},
+		{
+			"id": "resume",
+			"item": "resume y verifica que entendió",
+			"dimension": "comunicacion",
+			"weight": 1,
+			"keywords": ["entonces", "si entendí bien", "resumiendo", "alguna duda"]
+		}
+	],
+	"notApplicable": [
+		"gineco-obstetricos",
+		"orofaringe",
+		"palpacion-cv",
+		"contacto-ocular",
+		"expresion-facial"
+	],
+	"criticalErrors": ["examen sin consentimiento"],
+	"truth": {
+		"diagnosis": "otitis externa aguda derecha",
+		"acceptable": ["otitis externa", "oído de nadador", "otitis del nadador"],
+		"differentials": [
+			"otitis media aguda",
+			"forúnculo del conducto",
+			"tapón de cerumen"
+		]
+	}
+}

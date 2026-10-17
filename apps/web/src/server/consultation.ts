@@ -30,6 +30,12 @@ import {
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
 import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
+import {
+	classifyStudentTurn,
+	stateBand,
+	type TurnTag,
+} from "@/lib/patient/turn-classifier";
+import { pickVoice } from "@/lib/patient/voices";
 import { evaluateWithAi } from "@/lib/scoring/ai-evaluate";
 import { evaluate } from "@/lib/scoring/evaluate";
 
@@ -161,6 +167,7 @@ export async function startSession(
 		closing: null,
 		consentGiven: false,
 		historyOverrides: pickVariations(clinicalCase),
+		voice: pickVoice(clinicalCase.patient.sex),
 		inventedFacts: {},
 		voiceUsage: null,
 	};
@@ -370,6 +377,39 @@ export async function recordExam(
 	};
 }
 
+// Clasifica lo que dijo el estudiante (antes de guardar su turno) y
+// actualiza el estado del paciente. Si la confianza o la paciencia cambian
+// de nivel, devuelve una nota para avisarle al modelo de voz.
+export async function classifyStudent(
+	session: Session,
+	text: string,
+	atMs: number,
+): Promise<{ session: Session; tags: TurnTag[]; stateNote: string | null }> {
+	const previous = (await store.listTurns(session.id))
+		.filter((t) => t.speaker === "estudiante")
+		.map((t) => t.text);
+	const c = classifyStudentTurn(text, previous);
+	if (!c.motivo) return { session, tags: c.tags, stateNote: null };
+	const before = stateBand(session.state);
+	const next = await store.updateSession(session.id, {
+		state: applyDelta(session.state, c.delta),
+	});
+	await store.addEvent({
+		id: newId("evt"),
+		sessionId: session.id,
+		type: "cambio_animo",
+		atMs,
+		delta: c.delta,
+		motivo: `clasificador: ${c.motivo}`,
+	});
+	const after = stateBand(next.state);
+	return {
+		session: next,
+		tags: c.tags,
+		stateNote: after === before ? null : after,
+	};
+}
+
 export type TurnResult = {
 	studentTurn: Turn;
 	patientTurn: Turn;
@@ -389,6 +429,7 @@ export async function sendTurn(
 	const clean = text.trim().slice(0, 1000);
 	if (!clean) throw new HttpError(400, "Escribí algo");
 
+	const classified = await classifyStudent(session, clean, elapsed);
 	const studentTurn: Turn = {
 		id: newId("turn"),
 		sessionId,
@@ -397,10 +438,11 @@ export async function sendTurn(
 		startMs: elapsed,
 		endMs: elapsed,
 		overlap: false,
+		tags: classified.tags,
 	};
 	await store.addTurn(studentTurn);
 
-	const current = await noteConsent(session, clean, elapsed);
+	const current = await noteConsent(classified.session, clean, elapsed);
 
 	let reply: string;
 	let exam: ExamResult | null = null;
@@ -414,28 +456,8 @@ export async function sendTurn(
 		exam = await recordExam(clinicalCase, sessionId, zone, decision, elapsed);
 		reply = exam.patientReaction;
 	} else {
-		const r = await patientReply(current, clinicalCase, clean);
-		reply = r.text;
-		if (r.delta) {
-			// El paciente por reglas devuelve el valor nuevo; el evento guarda el
-			// cambio, igual que actualizar_estado en la voz.
-			const change = Object.fromEntries(
-				(Object.entries(r.delta) as [keyof PatientState, number][]).map(
-					([k, v]) => [k, v - current.state[k]],
-				),
-			) as Partial<PatientState>;
-			await store.updateSession(sessionId, {
-				state: { ...current.state, ...r.delta },
-			});
-			await store.addEvent({
-				id: newId("evt"),
-				sessionId,
-				type: "cambio_animo",
-				atMs: elapsed,
-				delta: change,
-				motivo: r.motivo,
-			});
-		}
+		// El estado ya lo actualizó el clasificador (empatía incluida).
+		reply = (await patientReply(current, clinicalCase, clean)).text;
 	}
 
 	const end = Date.now() - session.startedAt;

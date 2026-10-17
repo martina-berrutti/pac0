@@ -463,7 +463,7 @@ describe("prevención de errores (segunda pasada)", () => {
 
 	test("un turno de voz largo se guarda recortado, no se pierde", async () => {
 		const id = await startSession(ana, lucia.id, "mayor");
-		const turn = await recordVoiceTurn(
+		const { turn } = await recordVoiceTurn(
 			ana,
 			id,
 			"paciente",

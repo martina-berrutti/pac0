@@ -58,6 +58,8 @@ export const caseSchema = z.object({
 		name: z.string(),
 		age: z.number().int().positive(),
 		occupation: z.string(),
+		// Para elegir una voz acorde (lib/patient/voices.ts).
+		sex: z.enum(["f", "m"]).optional(),
 	}),
 	personality: personalitySchema,
 	// Cómo habla con la personalidad propia del caso (opcional).

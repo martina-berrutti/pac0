@@ -17,11 +17,13 @@ import { buildPatientPrompt, type PatientBrief } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
 import { applyDelta } from "@/lib/patient/state";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
+import { pickVoice } from "@/lib/patient/voices";
 
 import { HttpError } from "./auth";
 import {
 	activeSession,
 	brief,
+	classifyStudent,
 	defaultZone,
 	giveConsent,
 	noteConsent,
@@ -110,13 +112,18 @@ function buildVoiceInstructions(
 
 // Configuración de la sesión Live de Gemini. Va dentro del token efímero
 // (liveConnectConstraints): el navegador no puede cambiar las instrucciones.
-export function liveConfig(instructions: string, impatient: boolean) {
+export function liveConfig(
+	instructions: string,
+	impatient: boolean,
+	voice = "Kore",
+) {
 	return {
 		responseModalities: [Modality.AUDIO],
 		systemInstruction: instructions,
 		speechConfig: {
 			voiceConfig: {
-				prebuiltVoiceConfig: { voiceName: process.env.LIVE_VOICE || "Kore" },
+				// La voz sorteada para esta consulta (lib/patient/voices.ts).
+				prebuiltVoiceConfig: { voiceName: voice },
 			},
 		},
 		// Solo se guarda la transcripción, nunca el audio (plan.md, sección 2).
@@ -159,6 +166,9 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			429,
 			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
 		);
+	// Consultas anteriores a las voces al azar no tienen voz: se sortea una.
+	const voice = session.voice ?? pickVoice(clinicalCase.patient.sex);
+	if (!session.voice) await store.updateSession(sessionId, { voice });
 	const config = liveConfig(
 		buildVoiceInstructions(
 			brief(session, clinicalCase),
@@ -166,6 +176,7 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			session.state.confianza,
 		),
 		session.personality.paciencia < 0.4,
+		voice,
 	);
 	const now = Date.now();
 	const remainingMs = Math.max(0, MAX_SESSION_MS - elapsed);
@@ -214,6 +225,7 @@ export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
 	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
+	| { kind: "otoscope" }
 	| { kind: "end" }
 	| { kind: "none" };
 
@@ -255,6 +267,27 @@ export async function runTool(
 	switch (name) {
 		case "examinar": {
 			const args = toolArgs.examinar.parse(rawArgs);
+			// El oído se examina con el otoscopio de la pantalla (Persona 2): la
+			// herramienta lo abre y el paciente se queda quieto.
+			if (/o[ií]do|oreja/i.test(args.zona)) {
+				if (args.consentimiento && !session.consentGiven) {
+					await store.addEvent({
+						id: newId("evt"),
+						sessionId,
+						type: "consentimiento",
+						atMs: elapsed,
+					});
+					await store.updateSession(sessionId, { consentGiven: true });
+				}
+				return {
+					output: {
+						disponible: true,
+						que_pasa:
+							"Te van a revisar el oído con el otoscopio. Quedate quieto; si te tiran de la oreja que te duele, quejate.",
+					},
+					ui: { kind: "otoscope" },
+				};
+			}
 			// Sin zona clara, se examina la zona principal del caso.
 			const zone = args.zona.trim()
 				? zoneFor(args.zona, Object.keys(clinicalCase.exam))
@@ -378,7 +411,7 @@ export async function recordVoiceTurn(
 	speaker: Turn["speaker"],
 	text: string,
 	overlap: boolean,
-): Promise<Turn> {
+): Promise<{ turn: Turn; stateNote: string | null }> {
 	const { session, elapsed } = await activeSession(
 		viewer,
 		sessionId,
@@ -386,6 +419,11 @@ export async function recordVoiceTurn(
 	);
 	const clean = text.trim().slice(0, 4000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
+	// El estudiante pasa por el clasificador antes de guardar su turno.
+	const classified =
+		speaker === "estudiante"
+			? await classifyStudent(session, clean, elapsed)
+			: null;
 	const turn: Turn = {
 		id: newId("turn"),
 		sessionId,
@@ -394,10 +432,11 @@ export async function recordVoiceTurn(
 		startMs: elapsed,
 		endMs: elapsed,
 		overlap,
+		...(classified ? { tags: classified.tags } : {}),
 	};
 	await store.addTurn(turn);
-	if (speaker === "estudiante") await noteConsent(session, clean, elapsed);
-	return turn;
+	if (classified) await noteConsent(classified.session, clean, elapsed);
+	return { turn, stateNote: classified?.stateNote ?? null };
 }
 
 export const VOICE_EVENTS = [

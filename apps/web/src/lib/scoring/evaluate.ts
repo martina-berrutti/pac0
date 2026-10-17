@@ -11,7 +11,7 @@ import {
 
 import { MARK_TOLERANCE, TECHNIQUE } from "@/lib/exam/blood-pressure";
 import { OTOSCOPY_TECHNIQUE } from "@/lib/exam/otoscope";
-
+import { isLeadingQuestion } from "@/lib/patient/turn-classifier";
 import { dimensionScore, PENALTY_CAP, totalScore, verdictFor } from "./engine";
 import { type Extracted, extract } from "./extractor";
 import { judgeItem, normalize } from "./rule-judge";
@@ -37,7 +37,6 @@ const JUSTIFICATION_WORDS = [
 	"eritema",
 	"mocos",
 ];
-const LEADING_QUESTION = /,?\s*(no|verdad|cierto)\s*\?\s*$/i;
 
 export type Reasoning = { score: number; notes: string[] };
 
@@ -109,7 +108,8 @@ function penalties(extracted: Extracted): Penalty[] {
 	}
 	const asked = new Set<string>();
 	for (const t of extracted.studentTurns) {
-		if (LEADING_QUESTION.test(t.text.trim())) {
+		// Misma regla que el clasificador de la voz (lib/patient/turn-classifier).
+		if (isLeadingQuestion(t.text)) {
 			out.push({
 				dimension: "comunicacion",
 				points: 1,

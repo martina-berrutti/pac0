@@ -20,14 +20,6 @@ export async function POST(
 		const viewer = await requireViewer();
 		const { id } = await ctx.params;
 		const body = await readBody(req, bodySchema);
-		return {
-			turn: await recordVoiceTurn(
-				viewer,
-				id,
-				body.speaker,
-				body.text,
-				body.overlap,
-			),
-		};
+		return recordVoiceTurn(viewer, id, body.speaker, body.text, body.overlap);
 	});
 }

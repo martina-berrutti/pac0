@@ -34,6 +34,8 @@ export type Session = {
 	inventedFacts: Record<string, string>;
 	// Tokens de la voz, para medir el costo por sesión.
 	voiceUsage: VoiceUsage | null;
+	// Voz de Gemini sorteada al empezar (lib/patient/voices.ts).
+	voice?: string;
 	// Conexiones de voz pedidas en esta consulta (hay un tope).
 	voiceStarts?: number;
 };
@@ -56,6 +58,9 @@ export type Turn = {
 	startMs: number;
 	endMs: number;
 	overlap: boolean;
+	// Etiquetas del clasificador en los turnos del estudiante
+	// (lib/patient/turn-classifier.ts): pregunta abierta, jerga, empatía...
+	tags?: string[];
 };
 
 export type SessionEventType =

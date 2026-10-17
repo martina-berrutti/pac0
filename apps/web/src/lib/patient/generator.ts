@@ -85,7 +85,7 @@ export function chooseTemplate(
 	);
 	if (matches.length === 0) {
 		throw new GenerationError(
-			'Por ahora solo hay casos de garganta. Probá con: "dame un paciente con dolor de garganta".',
+			'Por ahora hay pacientes con dolor de garganta, dolor de oído o control de presión. Probá con: "dame un paciente con dolor de oído".',
 		);
 	}
 	// Si pide catarro o tos, prioriza la plantilla que mejor coincide.
@@ -110,12 +110,19 @@ export function chooseArchetype(text: string, explicitKey?: string): Archetype {
 	);
 }
 
-function parseAge(text: string, archetype: Archetype, rand: () => number) {
+function parseAge(
+	text: string,
+	archetype: Archetype,
+	rand: () => number,
+	minAge = 16,
+) {
 	// "100 años" no tiene que leerse como "00 años".
 	const match = text.match(/(?<!\d)(\d{1,3})\s*años/);
-	if (match) return Math.max(16, Math.min(95, Number(match[1])));
+	// La plantilla puede pedir una edad mínima (la historia tiene que cerrar).
+	if (match) return Math.max(minAge, Math.min(95, Number(match[1])));
 	if (archetype.key === "mayor") return 68 + Math.floor(rand() * 15);
-	return 18 + Math.floor(rand() * 40);
+	const from = Math.max(18, minAge);
+	return from + Math.floor(rand() * Math.max(10, 58 - from));
 }
 
 function parseSex(text: string, rand: () => number): "f" | "m" {
@@ -185,7 +192,7 @@ export async function generateCase(
 ): Promise<{ clinicalCase: ClinicalCase; personalityKey: string }> {
 	const tpl = chooseTemplate(req.text, rand);
 	const archetype = chooseArchetype(req.text, req.personalityKey);
-	const age = parseAge(req.text, archetype, rand);
+	const age = parseAge(req.text, archetype, rand, tpl.minAge);
 	const sex = parseSex(req.text, rand);
 	const persona =
 		(await aiPersona(req.text, tpl, archetype, sex, age).catch(() => null)) ??
@@ -203,7 +210,7 @@ export async function generateCase(
 		title: tpl.title,
 		origin: "generado",
 		reviewedBy: null,
-		patient: { name: persona.name, age, occupation: persona.occupation },
+		patient: { name: persona.name, age, occupation: persona.occupation, sex },
 		personality,
 		personalityStyle: [archetype.style, ...notes].join(" "),
 		chiefComplaint: persona.chiefComplaint,
@@ -215,8 +222,8 @@ export async function generateCase(
 		hiddenHistory: tpl.hiddenHistory,
 		vitals: tpl.vitals,
 		exam: tpl.exam,
-		expectedChecklist: OROFARINGE_CHECKLIST,
-		notApplicable: [
+		expectedChecklist: tpl.checklist ?? OROFARINGE_CHECKLIST,
+		notApplicable: tpl.notApplicable ?? [
 			"gineco-obstetricos",
 			"palpacion-cv",
 			"contacto-ocular",
