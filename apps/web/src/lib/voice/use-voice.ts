@@ -97,6 +97,15 @@ class P0Capture extends AudioWorkletProcessor {
 registerProcessor("p0-capture", P0Capture);
 `;
 
+// La sesión del SDK no dice si su WebSocket sigue abierto, y mandarle algo a
+// uno que se está cerrando llena la consola de avisos. Si no se puede saber,
+// se manda igual.
+function openSession(session: LiveSession | null) {
+	const ws = (session as unknown as { conn?: { ws?: WebSocket } } | null)?.conn
+		?.ws;
+	return session && (!ws || ws.readyState === WebSocket.OPEN) ? session : null;
+}
+
 export function useVoice({
 	sessionId,
 	onTurn,
@@ -182,7 +191,7 @@ export function useVoice({
 				.then(({ nota }) => {
 					// El paciente se entera como contexto, sin que le toque hablar.
 					if (nota)
-						live.current?.sendClientContent({
+						openSession(live.current)?.sendClientContent({
 							turns: [{ role: "user", parts: [{ text: nota }] }],
 							turnComplete: false,
 						});
@@ -207,7 +216,7 @@ export function useVoice({
 				// El clasificador cambió el ánimo del paciente: se lo contamos al
 				// modelo como contexto, sin pedirle que responda (turnComplete false).
 				if (stateNote) {
-					live.current?.sendClientContent({
+					openSession(live.current)?.sendClientContent({
 						turns: [
 							{
 								role: "user",
@@ -296,7 +305,7 @@ export function useVoice({
 					response: output,
 				});
 			}
-			live.current?.sendToolResponse({ functionResponses });
+			openSession(live.current)?.sendToolResponse({ functionResponses });
 		},
 		[sessionId],
 	);
@@ -503,7 +512,7 @@ export function useVoice({
 				// Envía de a ~100 ms.
 				if (chunk.length >= rate / 10) {
 					const samples = Float32Array.from(chunk.splice(0, chunk.length));
-					live.current?.sendRealtimeInput({
+					openSession(live.current)?.sendRealtimeInput({
 						audio: {
 							data: toBase64(floatToPcm16(samples)),
 							mimeType: `audio/pcm;rate=${rate}`,
@@ -559,7 +568,7 @@ export function useVoice({
 				s.silenceReported = true;
 				event("silencio_largo", quietFor);
 				// El paciente vuelve a hablar tras el silencio, según su personalidad.
-				live.current?.sendClientContent({
+				openSession(live.current)?.sendClientContent({
 					turns: [
 						{
 							role: "user",
