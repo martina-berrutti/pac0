@@ -1,7 +1,11 @@
 // Extractor determinista (plan.md, sección 8, paso 2): lo medible sale del
 // código, no del modelo. Tiempo sobre cada zona, interrupciones, la medición
-// de presión y si hubo examen antes del consentimiento.
-import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
+// de presión, las otoscopias y si hubo examen antes del consentimiento.
+import {
+	type ExamAction,
+	OTOSCOPY,
+	type VitalsMeasurement,
+} from "@/lib/contracts/exam";
 import type { SessionEvent, Turn } from "@/lib/contracts/session";
 
 import type { EvaluationInput } from "./types";
@@ -20,17 +24,22 @@ export type Extracted = {
 	// Zonas vistas sobre las zonas del caso, de 0 a 1.
 	zoneCoverage: number;
 	firstExamMs: number | null;
-	// Primer examen (de boca no negado, o de presión) antes del consentimiento.
+	// Primer examen (boca no negada, otoscopia o presión) antes del
+	// consentimiento.
 	examWithoutConsent: { id: string; atMs: number } | null;
 	// Última medición de presión con PAS y PAD marcadas: si el resultado es
 	// inesperado, el afiche pide repetir, y vale la última.
 	bp: VitalsMeasurement | null;
+	// Otoscopias terminadas (con pasos y errores calculados).
+	otoscopies: ExamAction[];
 	studentInterruptions: SessionEvent[];
 };
 
 export function extract(input: EvaluationInput): Extracted {
 	const { clinicalCase, session, examActions, events, turns, vitals } = input;
-	const full = examActions.filter((a) => a.variant === "completa");
+	// Las acciones de boca; las otoscopias van aparte.
+	const mouth = examActions.filter((a) => a.maneuver !== OTOSCOPY);
+	const full = mouth.filter((a) => a.variant === "completa");
 
 	const hotspotMs: Record<string, number> = {};
 	for (const action of full) {
@@ -65,14 +74,17 @@ export function extract(input: EvaluationInput): Extracted {
 	return {
 		studentTurns: turns.filter((t) => t.speaker === "estudiante"),
 		fullExam: full[0] ?? null,
-		partialExam: examActions.find((a) => a.variant === "parcial") ?? null,
+		partialExam: mouth.find((a) => a.variant === "parcial") ?? null,
 		hotspotMs,
 		zonesSeen,
 		zoneCoverage,
-		firstExamMs: examActions[0]?.startMs ?? null,
+		firstExamMs: mouth[0]?.startMs ?? null,
 		examWithoutConsent:
 			examined.find((a) => consentAt === null || a.atMs < consentAt) ?? null,
 		bp: measured.at(-1) ?? null,
+		otoscopies: examActions.filter(
+			(a) => a.maneuver === OTOSCOPY && a.technique !== undefined,
+		),
 		studentInterruptions: events.filter(
 			(e) => e.type === "interrupcion_estudiante",
 		),

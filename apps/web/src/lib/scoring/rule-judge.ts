@@ -10,7 +10,11 @@ import { type Extracted, extract } from "./extractor";
 import type { EvaluationInput } from "./types";
 
 // Ítems que se juzgan con las acciones de examen, no con lo que dijo.
-export const ACTION_ITEMS = new Set(["orofaringe", "presion-arterial"]);
+export const ACTION_ITEMS = new Set([
+	"orofaringe",
+	"presion-arterial",
+	"otoscopia",
+]);
 
 export function normalize(s: string) {
 	return s
@@ -86,6 +90,29 @@ function judgeBloodPressure(
 	};
 }
 
+// Otoscopia: sí si algún oído se examinó sin errores; parcial si hubo errores.
+function judgeOtoscopy(
+	base: Omit<ItemResult, "status" | "evidence">,
+	extracted: Extracted,
+): ItemResult {
+	const done = extracted.otoscopies;
+	if (done.length === 0) return { ...base, status: "no", evidence: [] };
+	const clean = done.find((a) => a.technique?.errors.length === 0);
+	const shown = clean ?? done[0];
+	return {
+		...base,
+		status: clean ? "si" : "parcial",
+		evidence: shown
+			? [
+					{
+						examActionId: shown.id,
+						quote: `${shown.zone}: ${shown.technique?.errors.length ?? 0} errores de técnica`,
+					},
+				]
+			: [],
+	};
+}
+
 export function judgeItem(
 	item: ChecklistItem,
 	input: EvaluationInput,
@@ -99,6 +126,7 @@ export function judgeItem(
 	};
 	if (item.id === "presion-arterial")
 		return judgeBloodPressure(base, extracted);
+	if (item.id === "otoscopia") return judgeOtoscopy(base, extracted);
 	if (ACTION_ITEMS.has(item.id)) return judgeExamAction(base, extracted);
 
 	const turn = findTurn(turnsForItem(item, extracted), item.keywords);

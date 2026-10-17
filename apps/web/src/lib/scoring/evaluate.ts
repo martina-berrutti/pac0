@@ -10,6 +10,7 @@ import {
 } from "@/lib/contracts/report";
 
 import { MARK_TOLERANCE, TECHNIQUE } from "@/lib/exam/blood-pressure";
+import { OTOSCOPY_TECHNIQUE } from "@/lib/exam/otoscope";
 
 import { dimensionScore, PENALTY_CAP, totalScore, verdictFor } from "./engine";
 import { type Extracted, extract } from "./extractor";
@@ -131,7 +132,25 @@ function penalties(extracted: Extracted): Penalty[] {
 		}
 		asked.add(key);
 	}
-	return [...out, ...bloodPressurePenalties(extracted)];
+	return [
+		...out,
+		...bloodPressurePenalties(extracted),
+		...otoscopyPenalties(extracted),
+	];
+}
+
+// Otoscopio: 2 puntos de examen por cada error de técnica del afiche HC-02.
+// Si examinó los dos oídos, el mismo error cuenta una vez.
+function otoscopyPenalties({ otoscopies }: Extracted): Penalty[] {
+	const errors = new Set(otoscopies.flatMap((a) => a.technique?.errors ?? []));
+	return [...errors].map((e) => ({
+		dimension: "examen",
+		points: 2,
+		tag: `otoscopia-${e}`,
+		what: OTOSCOPY_TECHNIQUE[e].label,
+		why: OTOSCOPY_TECHNIQUE[e].why,
+		nextTime: OTOSCOPY_TECHNIQUE[e].tip,
+	}));
 }
 
 // Tensiómetro: 2 puntos de examen por cada error de técnica y por cada valor

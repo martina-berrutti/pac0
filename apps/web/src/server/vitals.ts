@@ -25,7 +25,8 @@ import type { Viewer } from "./token";
 export type BpStart = { measurementId: string; armCm: number };
 export type BpGauge = { gauge: BpReading; pulse: number };
 
-function activeSession(viewer: Viewer, sessionId: string) {
+// Sesión propia, activa y dentro de los 8 minutos.
+export function activeSession(viewer: Viewer, sessionId: string) {
 	const found = ownSession(viewer, sessionId);
 	if (found.session.status !== "activa")
 		throw new HttpError(409, "La consulta ya terminó");

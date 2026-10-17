@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
+import { OtoscopioView } from "@/components/exam/otoscopio-view";
 import { TensiometroView } from "@/components/exam/tensiometro-view";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
@@ -25,6 +26,8 @@ export default function ConsultationPage() {
 	const [exam, setExam] = useState<ExamResult | null>(null);
 	const [measuringBp, setMeasuringBp] = useState(false);
 	const closeBp = useCallback(() => setMeasuringBp(false), []);
+	const [otoscopy, setOtoscopy] = useState(false);
+	const tool = exam !== null || measuringBp || otoscopy;
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
@@ -115,6 +118,8 @@ export default function ConsultationPage() {
 				<OrofaringeView exam={exam} onClose={closeExam} />
 			) : measuringBp ? (
 				<TensiometroView sessionId={id} onClose={closeBp} />
+			) : otoscopy ? (
+				<OtoscopioView sessionId={id} onClose={() => setOtoscopy(false)} />
 			) : (
 				<>
 					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
@@ -157,14 +162,18 @@ export default function ConsultationPage() {
 				</>
 			)}
 
-			{!exam && !measuringBp && !closing && (
-				<Button variant="outline" onClick={() => setMeasuringBp(true)}>
-					Tomar la presión
-				</Button>
+			{!tool && !closing && (
+				<div className="flex flex-wrap gap-2">
+					<Button variant="outline" onClick={() => setMeasuringBp(true)}>
+						Tomar la presión
+					</Button>
+					<Button variant="outline" onClick={() => setOtoscopy(true)}>
+						Examinar el oído
+					</Button>
+				</div>
 			)}
 
-			{!exam &&
-				!measuringBp &&
+			{!tool &&
 				(closing ? (
 					<form onSubmit={finish} className="grid gap-2 border p-3">
 						<label htmlFor="hipotesis" className="font-medium">

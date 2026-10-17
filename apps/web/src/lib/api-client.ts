@@ -1,9 +1,16 @@
 // Cliente de la API para las pantallas. Tira ApiError con el mensaje del
 // servidor, listo para mostrar en un toast.
 import type { CaseSummary } from "@/cases/schema";
-import type { BpReading, CuffSize, ExamAction } from "@/lib/contracts/exam";
+import type {
+	BpReading,
+	CuffSize,
+	Ear,
+	ExamAction,
+	OtoscopyRecord,
+} from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import type { SessionView, TurnResult } from "@/server/consultation";
+import type { OtoscopyStart } from "@/server/otoscopy";
 import type { BpGauge, BpStart } from "@/server/vitals";
 
 export class ApiError extends Error {
@@ -101,6 +108,16 @@ export const api = {
 		request<{ ok: boolean }>(`/api/sessions/${id}/vitals/${measurementId}`, {
 			method: "PATCH",
 			body: marked,
+		}),
+	startOtoscopy: (id: string, ear: Ear) =>
+		request<OtoscopyStart>(`/api/sessions/${id}/otoscopy`, {
+			method: "POST",
+			body: { ear },
+		}),
+	finishOtoscopy: (id: string, actionId: string, record: OtoscopyRecord) =>
+		request<{ ok: boolean }>(`/api/sessions/${id}/otoscopy/${actionId}`, {
+			method: "PATCH",
+			body: record,
 		}),
 	finish: (id: string, hypothesis: string, differentials: string[]) =>
 		request<{ report: Report }>(`/api/sessions/${id}/finish`, {
