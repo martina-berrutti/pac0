@@ -1,15 +1,18 @@
-// Consulta por voz con OpenAI Realtime por WebRTC (Persona 1).
-// El servidor pide una clave efímera con las instrucciones del paciente (sin
+// Consulta por voz con la Live API de Gemini (Google AI Studio), Persona 1.
+// El servidor crea un token efímero con las instrucciones del paciente (sin
 // el diagnóstico) y ejecuta las herramientas; el navegador solo conecta el
 // audio y reenvía transcripciones y llamadas.
 import "server-only";
 
+import { GoogleGenAI, Modality } from "@google/genai";
+
 import type { ExamResult, VitalsMeasurement } from "@/lib/contracts/exam";
-import type {
-	PatientState,
-	SessionEventType,
-	Turn,
-	VoiceUsage,
+import {
+	MAX_SESSION_MS,
+	type PatientState,
+	type SessionEventType,
+	type Turn,
+	type VoiceUsage,
 } from "@/lib/contracts/session";
 import { bloodPressureReading } from "@/lib/patient/blood-pressure";
 import { buildPatientPrompt } from "@/lib/patient/brief";
@@ -31,8 +34,8 @@ import type { Viewer } from "./token";
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
 
-export function realtimeModel() {
-	return process.env.REALTIME_MODEL || "gpt-realtime-2.1";
+export function liveModel() {
+	return process.env.LIVE_MODEL || "gemini-3.8-live";
 }
 
 const VOICE_RULES = [
@@ -60,90 +63,82 @@ export function voiceInstructions(viewer: Viewer, sessionId: string) {
 	return `${buildPatientPrompt(b)}\n${VOICE_RULES}${hearing}${impatient}`;
 }
 
-async function sha256(text: string) {
-	const digest = await crypto.subtle.digest(
-		"SHA-256",
-		new TextEncoder().encode(text),
-	);
-	return Array.from(new Uint8Array(digest), (b) =>
-		b.toString(16).padStart(2, "0"),
-	).join("");
+// Configuración de la sesión Live de Gemini. Va dentro del token efímero
+// (liveConnectConstraints): el navegador no puede cambiar las instrucciones.
+export function liveConfig(instructions: string, impatient: boolean) {
+	return {
+		responseModalities: [Modality.AUDIO],
+		systemInstruction: instructions,
+		speechConfig: {
+			voiceConfig: {
+				prebuiltVoiceConfig: { voiceName: process.env.LIVE_VOICE || "Kore" },
+			},
+		},
+		// Solo se guarda la transcripción, nunca el audio (plan.md, sección 2).
+		inputAudioTranscription: {},
+		outputAudioTranscription: {},
+		realtimeInputConfig: {
+			automaticActivityDetection: {
+				// Paciente impaciente: toma el turno más rápido (sección 5).
+				silenceDurationMs: impatient ? 500 : 800,
+			},
+		},
+		tools: [
+			{
+				functionDeclarations: PATIENT_TOOLS.map((t) => ({
+					name: t.name,
+					description: t.description,
+					parametersJsonSchema: t.parameters,
+				})),
+			},
+		],
+	};
 }
 
-// Pide la clave efímera. La clave real (OPENAI_API_KEY) no sale de acá.
-export async function createRealtimeSession(viewer: Viewer, sessionId: string) {
-	const key = process.env.OPENAI_API_KEY;
-	if (!key)
+// Token efímero de Gemini Live. La clave real (GEMINI_API_KEY) no sale de acá.
+export async function createLiveSession(viewer: Viewer, sessionId: string) {
+	const apiKey = process.env.GEMINI_API_KEY;
+	if (!apiKey)
 		throw new HttpError(
 			503,
-			"La voz no está configurada (falta OPENAI_API_KEY). Usá la versión por texto.",
+			"La voz no está configurada (falta GEMINI_API_KEY). Usá la versión por texto.",
 		);
 	const { session, elapsed } = activeSession(viewer, sessionId);
-	const instructions = voiceInstructions(viewer, sessionId);
-	const impatient = session.personality.paciencia < 0.4;
-
-	const body = (withEagerness: boolean) => ({
-		session: {
-			type: "realtime",
-			model: realtimeModel(),
-			instructions,
-			audio: {
-				input: {
-					// Solo se guarda la transcripción, nunca el audio (plan.md, sección 2).
-					transcription: {
-						model: process.env.TRANSCRIBE_MODEL || "gpt-4o-mini-transcribe",
-					},
-					turn_detection: {
-						type: "semantic_vad",
-						// Paciente impaciente: detección de turno más rápida (sección 5).
-						...(withEagerness
-							? { eagerness: impatient ? "high" : "auto" }
-							: {}),
-					},
+	const model = liveModel();
+	const config = liveConfig(
+		voiceInstructions(viewer, sessionId),
+		session.personality.paciencia < 0.4,
+	);
+	const now = Date.now();
+	// La documentación web dice v1beta y el SDK dice v1alpha: se prueban las dos.
+	for (const apiVersion of ["v1beta", "v1alpha"] as const) {
+		try {
+			const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion } });
+			const token = await ai.authTokens.create({
+				config: {
+					uses: 1,
+					expireTime: new Date(now + 10 * 60 * 1000).toISOString(),
+					newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
+					liveConnectConstraints: { model, config },
+					lockAdditionalFields: [],
 				},
-				output: { voice: process.env.REALTIME_VOICE || "marin" },
-			},
-			tools: PATIENT_TOOLS,
-			tool_choice: "auto",
-		},
-	});
-
-	const safetyId = await sha256(viewer.uid);
-	const send = (withEagerness: boolean) =>
-		fetch("https://api.openai.com/v1/realtime/client_secrets", {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${key}`,
-				"Content-Type": "application/json",
-				// Identificador estable que no revela al usuario.
-				"OpenAI-Safety-Identifier": safetyId,
-			},
-			body: JSON.stringify(body(withEagerness)),
-			signal: AbortSignal.timeout(15_000),
-		});
-
-	let res = await send(true);
-	// Si esta versión de la API no acepta eagerness, se reintenta sin él.
-	if (res.status === 400) res = await send(false);
-	if (!res.ok) {
-		console.error(
-			"OpenAI client_secrets",
-			res.status,
-			await res.text().catch(() => ""),
-		);
-		throw new HttpError(
-			502,
-			"No pudimos abrir la sesión de voz. Usá la versión por texto.",
-		);
+			});
+			if (token.name) {
+				return {
+					token: token.name,
+					apiVersion,
+					model,
+					remainingMs: Math.max(0, MAX_SESSION_MS - elapsed),
+				};
+			}
+		} catch (error) {
+			console.error(`Gemini authTokens (${apiVersion})`, error);
+		}
 	}
-	const data = (await res.json()) as { value?: string; expires_at?: number };
-	if (!data.value)
-		throw new HttpError(502, "OpenAI no devolvió la clave efímera");
-	return {
-		clientSecret: data.value,
-		model: realtimeModel(),
-		remainingMs: Math.max(0, 8 * 60 * 1000 - elapsed),
-	};
+	throw new HttpError(
+		502,
+		"No pudimos abrir la sesión de voz. Usá la versión por texto.",
+	);
 }
 
 export type ToolUi =

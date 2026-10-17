@@ -37,7 +37,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] `AGENTS.md` y `.claude/settings.json` que bloquea los `.env` de todo el repo
 - [x] Deploy en Vercel: https://pac0-l3xi.vercel.app
 - [ ] Cargar `SESSION_SECRET` en Vercel (sin eso no anda el invitado en producción)
-- [ ] Cargar `OPENAI_API_KEY` en `apps/web/.env.local` y en Vercel (voz e IA)
+- [ ] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
 
 ### Usuarios y acceso (plan.md, sección 10)
 - [x] Invitado con alias temporal y cookie firmada, en menos de 10 s
@@ -53,25 +53,27 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Cuatro arquetipos: directo, ansioso, mayor con audición reducida, hostil (`lib/patient/personalities.ts`)
 - [x] Datos sensibles (alcohol, tabaco, drogas) solo con confianza alta
 - [x] Paciente por reglas sin IA, como respaldo (`lib/patient/rule-responder.ts`)
-- [x] Paciente con IA por texto si hay `OPENAI_API_KEY`
+- [x] Paciente con IA por texto con Gemini si hay `GEMINI_API_KEY` (OpenAI como alternativa)
 - [x] Guardar los hechos que el paciente inventa para no contradecirse (P2): herramienta `anotar_dato` en la voz
 - [x] Variación controlada: sortear valores dentro de rangos sin cambiar el diagnóstico (P2): campo `variations` del caso
 - [ ] Persona 3: revisar con un médico las variaciones del caso 1 (fiebre y contactos)
 - [ ] Clasificador rápido por turno (pregunta abierta o cerrada, jerga, empatía) que actualice el estado (versión 2, P3)
 
-### Voz (plan.md, secciones 4 y 5)
-- [x] Endpoint de clave efímera: `POST /api/realtime/session` (la clave real no sale del servidor)
-- [x] Sesión de voz por WebRTC en `/consulta` (`lib/voice/use-voice.ts`)
+### Voz (plan.md, secciones 4 y 5) · Gemini Live de Google AI Studio
+- [x] Decisión del 17/10: la voz usa Gemini Live (Google AI Studio) en vez de OpenAI Realtime
+- [x] Token efímero de Gemini con las instrucciones fijadas: `POST /api/voice/session` (la clave real no sale del servidor)
+- [x] Sesión de voz por WebSocket en `/consulta`: micrófono a 16 kHz y audio del paciente a 24 kHz (`lib/voice/use-voice.ts`)
 - [x] Aviso antes de la voz: se guarda la transcripción, no el audio; no decir datos personales
 - [x] Guardar cada turno transcrito (`POST /api/sessions/[id]/voice-turns`)
 - [x] El estudiante interrumpe al paciente: se registra `interrupcion_estudiante`
 - [x] El paciente interrumpe o retoma tras un silencio largo (20 s): `interrupcion_paciente` y `silencio_largo`
-- [x] Detección de turno más rápida para pacientes impacientes (`eagerness`, con reintento si la API no lo acepta)
+- [x] Detección de turno más rápida para pacientes impacientes (`silenceDurationMs` 500 en vez de 800)
 - [x] Tope de 8 minutos en el servidor y reloj en pantalla
 - [x] Versión por texto de respaldo
-- [ ] **Probar la voz de verdad con una clave de OpenAI** (todavía no se probó en vivo)
-- [ ] Verificar en la documentación de OpenAI Realtime los parámetros de detección de turno del modelo elegido
-- [ ] Probar 3 voces (OpenAI y ElevenLabs) y elegir la más rioplatense; cargarla en `REALTIME_VOICE`
+- [ ] **Probar la voz de verdad con la clave de Google AI Studio** (todavía no se probó en vivo)
+- [ ] Verificar en vivo qué versión de API acepta el token efímero (`v1beta` o `v1alpha`; el servidor prueba las dos)
+- [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno)
+- [ ] Probar 3 voces de Gemini y elegir la más rioplatense; cargarla en `LIVE_VOICE`
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
 - [ ] Medir el costo por sesión de 8 minutos con una consulta real (tokens × precio vigente)
 
@@ -86,7 +88,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 ### Seguridad del personaje
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
-- [ ] Correr el script con `OPENAI_API_KEY` (paciente con IA) y probar lo mismo por voz
+- [ ] Correr el script con `GEMINI_API_KEY` (paciente con IA) y probar lo mismo por voz
 
 ### Generador "pedime un paciente" (feature nueva)
 - [x] `POST /api/cases/generate`: "dame un paciente con algo de garganta, que sea ansioso, de 60 años"

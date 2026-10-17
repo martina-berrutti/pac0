@@ -13,6 +13,7 @@
 	"dependencies": {
 		"@auth/core": "^0.41.3",
 		"@convex-dev/auth": "^0.0.96",
+		"@google/genai": "^2.30.0",
 		"@pac0/backend": "*",
 		"@pac0/ui": "*",
 		"@swc/helpers": "^0.5.23",

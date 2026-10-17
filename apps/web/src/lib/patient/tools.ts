@@ -51,7 +51,8 @@ export function isToolName(name: string): name is ToolName {
 	return name in toolArgs;
 }
 
-// Definiciones en el formato de OpenAI Realtime (type: "function").
+// Definiciones de las herramientas. Para Gemini Live se pasan como
+// functionDeclarations con parametersJsonSchema (server/voice.ts).
 export const PATIENT_TOOLS = [
 	{
 		type: "function",

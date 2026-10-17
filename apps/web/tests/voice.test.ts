@@ -1,4 +1,16 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+
+// SDK de Google simulado: registra la clave usada y los tokens pedidos.
+const genai = vi.hoisted(() => ({ create: vi.fn(), keys: [] as string[] }));
+vi.mock("@google/genai", () => ({
+	Modality: { AUDIO: "AUDIO" },
+	GoogleGenAI: class {
+		authTokens = { create: genai.create };
+		constructor(opts: { apiKey: string }) {
+			genai.keys.push(opts.apiKey);
+		}
+	},
+}));
 
 import { bloodPressureReading } from "@/lib/patient/blood-pressure";
 import { BP_STEPS } from "@/lib/patient/tools";
@@ -6,7 +18,7 @@ import { startSession } from "@/server/consultation";
 import { store } from "@/server/store";
 import type { Viewer } from "@/server/token";
 import {
-	createRealtimeSession,
+	createLiveSession,
 	recordVoiceTurn,
 	runTool,
 	voiceInstructions,
@@ -29,40 +41,57 @@ const beto: Viewer = {
 	exp: Date.now() + 1e6,
 };
 
+beforeEach(() => {
+	genai.create.mockReset();
+	genai.keys.length = 0;
+});
+
 afterEach(() => {
 	vi.unstubAllGlobals();
 	vi.unstubAllEnvs();
 });
 
-describe("sesión de voz", () => {
-	test("sin OPENAI_API_KEY avisa que se use el texto", async () => {
-		vi.stubEnv("OPENAI_API_KEY", "");
+describe("sesión de voz (Gemini Live)", () => {
+	test("sin GEMINI_API_KEY avisa que se use el texto", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "");
 		const id = startSession(ana, lucia.id, "caso");
-		await expect(createRealtimeSession(ana, id)).rejects.toThrow(
+		await expect(createLiveSession(ana, id)).rejects.toThrow(
 			"versión por texto",
 		);
 	});
 
-	test("pide la clave efímera sin el diagnóstico y con las herramientas", async () => {
-		vi.stubEnv("OPENAI_API_KEY", "sk-test-servidor");
-		const fetchMock = vi.fn(async () => Response.json({ value: "ek_efimera" }));
-		vi.stubGlobal("fetch", fetchMock);
+	test("el token efímero fija las instrucciones sin el diagnóstico y con las herramientas", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "AIza-test-servidor");
+		genai.create.mockResolvedValueOnce({ name: "auth_tokens/efimero" });
 		const id = startSession(ana, lucia.id, "caso");
 
-		const result = await createRealtimeSession(ana, id);
+		const result = await createLiveSession(ana, id);
 
-		expect(result.clientSecret).toBe("ek_efimera");
-		expect(JSON.stringify(result)).not.toContain("sk-test-servidor");
-		const [url, init] = fetchMock.mock.calls[0] as unknown as [
-			string,
-			RequestInit,
-		];
-		expect(url).toBe("https://api.openai.com/v1/realtime/client_secrets");
-		const body = String(init.body);
-		expect(body).not.toContain(lucia.truth.diagnosis);
-		expect(body).not.toContain(lucia.exam.orofaringe?.expected ?? "-");
-		const parsed = JSON.parse(body);
-		expect(parsed.session.tools.map((t: { name: string }) => t.name)).toEqual([
+		expect(result.token).toBe("auth_tokens/efimero");
+		expect(result.model).toBe("gemini-3.8-live");
+		expect(JSON.stringify(result)).not.toContain("AIza-test-servidor");
+		expect(genai.keys).toContain("AIza-test-servidor");
+		const { config } = (genai.create.mock.calls[0] ?? [])[0] as {
+			config: {
+				uses: number;
+				liveConnectConstraints: { config: Record<string, unknown> };
+			};
+		};
+		expect(config.uses).toBe(1);
+		const live = config.liveConnectConstraints.config as {
+			systemInstruction: string;
+			inputAudioTranscription: object;
+			outputAudioTranscription: object;
+			tools: { functionDeclarations: { name: string }[] }[];
+		};
+		expect(live.systemInstruction).not.toContain(lucia.truth.diagnosis);
+		expect(JSON.stringify(live)).not.toContain(
+			lucia.exam.orofaringe?.expected ?? "-",
+		);
+		// Se guarda la transcripción, no el audio.
+		expect(live.inputAudioTranscription).toEqual({});
+		expect(live.outputAudioTranscription).toEqual({});
+		expect(live.tools[0]?.functionDeclarations.map((t) => t.name)).toEqual([
 			"examinar",
 			"medir_presion",
 			"mostrar_region",
@@ -70,25 +99,32 @@ describe("sesión de voz", () => {
 			"terminar_consulta",
 			"anotar_dato",
 		]);
-		// La transcripción va activada: se guarda el texto, no el audio.
-		expect(parsed.session.audio.input.transcription.model).toBeTruthy();
 	});
 
-	test("si la API no acepta eagerness, reintenta sin él", async () => {
-		vi.stubEnv("OPENAI_API_KEY", "sk-test");
-		const fetchMock = vi
-			.fn()
-			.mockResolvedValueOnce(new Response("bad", { status: 400 }))
-			.mockResolvedValueOnce(Response.json({ value: "ek_2" }));
-		vi.stubGlobal("fetch", fetchMock);
+	test("si v1beta falla, prueba v1alpha; paciente impaciente toma el turno antes", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "AIza-test");
+		genai.create
+			.mockRejectedValueOnce(new Error("no soportado"))
+			.mockResolvedValueOnce({ name: "auth_tokens/2" });
 		const id = startSession(ana, lucia.id, "hostil");
-		expect((await createRealtimeSession(ana, id)).clientSecret).toBe("ek_2");
-		const second = JSON.parse(
-			String(
-				(fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].body,
-			),
-		);
-		expect(second.session.audio.input.turn_detection.eagerness).toBeUndefined();
+		const result = await createLiveSession(ana, id);
+		expect(result.apiVersion).toBe("v1alpha");
+		const live = (
+			(genai.create.mock.calls[1] ?? [])[0] as {
+				config: {
+					liveConnectConstraints: {
+						config: {
+							realtimeInputConfig: {
+								automaticActivityDetection: { silenceDurationMs: number };
+							};
+						};
+					};
+				};
+			}
+		).config.liveConnectConstraints.config;
+		expect(
+			live.realtimeInputConfig.automaticActivityDetection.silenceDurationMs,
+		).toBe(500);
 	});
 
 	test("las instrucciones de voz siguen sin el diagnóstico", () => {

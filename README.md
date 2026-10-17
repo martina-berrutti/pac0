@@ -34,9 +34,10 @@ Los `.env` no se suben al repo y los agentes no los pueden leer (`.claude/settin
 
 | Variable | Para qué |
 |---|---|
-| `OPENAI_API_KEY` | Voz (OpenAI Realtime) y paciente con IA. Sin ella, paciente por reglas y solo texto |
+| `GEMINI_API_KEY` | Google AI Studio: voz (Gemini Live), paciente por texto con IA y generador. Sin ella, paciente por reglas y solo texto |
 | `SESSION_SECRET` | Firma la cookie de sesión. **Obligatoria en producción** (Vercel) |
-| `REALTIME_MODEL`, `REALTIME_VOICE`, `TRANSCRIBE_MODEL`, `AI_MODEL` | Modelos y voz; tienen valores por defecto |
+| `LIVE_MODEL`, `LIVE_VOICE`, `AI_MODEL` | Modelos y voz; tienen valores por defecto (`gemini-3.8-live`, `Kore`, `gemini-3.8-flash`) |
+| `OPENAI_API_KEY` | Alternativa opcional solo para el texto |
 
 ## Comandos
 
@@ -49,7 +50,7 @@ npm test             # tests de la web y de Convex
 
 ## Despliegue
 
-Vercel, con Root Directory `apps/web`; cada push a `main` publica https://pac0-l3xi.vercel.app. En Vercel hacen falta `SESSION_SECRET` y, para la voz, `OPENAI_API_KEY`.
+Vercel, con Root Directory `apps/web`; cada push a `main` publica https://pac0-l3xi.vercel.app. En Vercel hacen falta `SESSION_SECRET` y, para la voz, `GEMINI_API_KEY`.
 
 ## Seguimiento
 

@@ -1,8 +1,16 @@
 "use client";
 
-// Consulta por voz con OpenAI Realtime por WebRTC (Persona 1).
-// El navegador conecta micrófono y audio; transcripciones, herramientas,
-// interrupciones y silencios se mandan a nuestro servidor.
+// Consulta por voz con la Live API de Gemini (Google AI Studio), Persona 1.
+// El navegador captura el micrófono (PCM 16 kHz), reproduce la voz del
+// paciente (PCM 24 kHz) y reenvía a nuestro servidor transcripciones,
+// herramientas, interrupciones y silencios. Las instrucciones del paciente
+// van fijadas en el token efímero: el navegador no las ve ni las cambia.
+import {
+	GoogleGenAI,
+	type LiveServerMessage,
+	type Session as LiveSession,
+	Modality,
+} from "@google/genai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Turn } from "@/lib/contracts/session";
@@ -12,6 +20,10 @@ export type VoiceStatus = "idle" | "connecting" | "live" | "ended" | "error";
 
 // Silencio largo: sin nadie hablando durante este tiempo (plan.md, sección 5).
 const LONG_SILENCE_MS = 20_000;
+// Se considera que el estudiante sigue hablando si llegó transcripción hace menos de esto.
+const SPEAKING_WINDOW_MS = 900;
+const INPUT_RATE = 16_000;
+const OUTPUT_RATE = 24_000;
 
 type Options = {
 	sessionId: string;
@@ -32,25 +44,44 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 	return data;
 }
 
-type RealtimeEvent = {
-	type: string;
-	transcript?: string;
-	response?: {
-		status?: string;
-		usage?: {
-			input_tokens?: number;
-			output_tokens?: number;
-			input_token_details?: { audio_tokens?: number; cached_tokens?: number };
-			output_token_details?: { audio_tokens?: number };
-		};
-		output?: {
-			type: string;
-			name?: string;
-			call_id?: string;
-			arguments?: string;
-		}[];
-	};
-};
+function toBase64(bytes: Uint8Array) {
+	let s = "";
+	for (let i = 0; i < bytes.length; i += 0x8000) {
+		s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+	}
+	return btoa(s);
+}
+
+function pcm16ToFloat(base64: string) {
+	const bin = atob(base64);
+	const out = new Float32Array(bin.length / 2);
+	for (let i = 0; i < out.length; i++) {
+		const v = bin.charCodeAt(i * 2) | (bin.charCodeAt(i * 2 + 1) << 8);
+		out[i] = (v >= 0x8000 ? v - 0x10000 : v) / 0x8000;
+	}
+	return out;
+}
+
+function floatToPcm16(samples: Float32Array) {
+	const out = new Int16Array(samples.length);
+	for (let i = 0; i < samples.length; i++) {
+		const v = Math.max(-1, Math.min(1, samples[i] ?? 0));
+		out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+	}
+	return new Uint8Array(out.buffer);
+}
+
+// Procesador que copia el audio del micrófono al hilo principal.
+const CAPTURE_WORKLET = `
+class P0Capture extends AudioWorkletProcessor {
+	process(inputs) {
+		const ch = inputs[0] && inputs[0][0];
+		if (ch) this.port.postMessage(ch.slice(0));
+		return true;
+	}
+}
+registerProcessor("p0-capture", P0Capture);
+`;
 
 export function useVoice({
 	sessionId,
@@ -64,19 +95,21 @@ export function useVoice({
 	const [studentSpeaking, setStudentSpeaking] = useState(false);
 	const [patientSpeaking, setPatientSpeaking] = useState(false);
 
-	const pc = useRef<RTCPeerConnection | null>(null);
-	const dc = useRef<RTCDataChannel | null>(null);
+	const live = useRef<LiveSession | null>(null);
 	const mic = useRef<MediaStream | null>(null);
-	const audio = useRef<HTMLAudioElement | null>(null);
-	const analyser = useRef<{
+	const inCtx = useRef<AudioContext | null>(null);
+	const out = useRef<{
 		ctx: AudioContext;
-		node: AnalyserNode;
+		analyser: AnalyserNode;
 		buf: Uint8Array<ArrayBuffer>;
+		sources: Set<AudioBufferSourceNode>;
+		playHead: number;
 	} | null>(null);
-	const flags = useRef({
-		student: false,
-		patient: false,
-		overlap: false,
+	const st = useRef({
+		studentText: "",
+		patientText: "",
+		lastStudentChunk: 0,
+		patientTurnStarted: false,
 		lastActivity: 0,
 		silenceReported: false,
 		deadline: 0,
@@ -84,24 +117,36 @@ export function useVoice({
 	const callbacks = useRef({ onTurn, onTool, onEnd, onError });
 	callbacks.current = { onTurn, onTool, onEnd, onError };
 
-	const stop = useCallback((reason: "ended" | "error" = "ended") => {
-		dc.current?.close();
-		pc.current?.close();
-		for (const track of mic.current?.getTracks() ?? []) track.stop();
-		analyser.current?.ctx.close().catch(() => {});
-		analyser.current = null;
-		dc.current = null;
-		pc.current = null;
-		mic.current = null;
-		setStudentSpeaking(false);
+	const stopPlayback = useCallback(() => {
+		const o = out.current;
+		if (!o) return;
+		for (const src of o.sources) {
+			try {
+				src.stop();
+			} catch {}
+		}
+		o.sources.clear();
+		o.playHead = 0;
 		setPatientSpeaking(false);
-		setStatus(reason);
 	}, []);
 
-	const sendEvent = useCallback((event: Record<string, unknown>) => {
-		if (dc.current?.readyState === "open")
-			dc.current.send(JSON.stringify(event));
-	}, []);
+	const stop = useCallback(
+		(reason: "ended" | "error" = "ended") => {
+			stopPlayback();
+			const session = live.current;
+			live.current = null;
+			session?.close();
+			for (const track of mic.current?.getTracks() ?? []) track.stop();
+			mic.current = null;
+			inCtx.current?.close().catch(() => {});
+			inCtx.current = null;
+			out.current?.ctx.close().catch(() => {});
+			out.current = null;
+			setStudentSpeaking(false);
+			setStatus((s) => (s === "idle" ? s : reason));
+		},
+		[stopPlayback],
+	);
 
 	const event = useCallback(
 		(
@@ -135,15 +180,56 @@ export function useVoice({
 		[sessionId],
 	);
 
+	const flushStudent = useCallback(() => {
+		const s = st.current;
+		if (s.studentText.trim()) saveTurn("estudiante", s.studentText, false);
+		s.studentText = "";
+	}, [saveTurn]);
+
+	const flushPatient = useCallback(
+		(overlap: boolean) => {
+			const s = st.current;
+			if (s.patientText.trim()) saveTurn("paciente", s.patientText, overlap);
+			s.patientText = "";
+			s.patientTurnStarted = false;
+		},
+		[saveTurn],
+	);
+
+	const playChunk = useCallback((base64: string) => {
+		const o = out.current;
+		if (!o) return;
+		const samples = pcm16ToFloat(base64);
+		const buffer = o.ctx.createBuffer(1, samples.length, OUTPUT_RATE);
+		buffer.copyToChannel(samples, 0);
+		const src = o.ctx.createBufferSource();
+		src.buffer = buffer;
+		src.connect(o.analyser);
+		const at = Math.max(o.ctx.currentTime, o.playHead);
+		src.start(at);
+		o.playHead = at + buffer.duration;
+		o.sources.add(src);
+		setPatientSpeaking(true);
+		src.onended = () => {
+			o.sources.delete(src);
+			if (o.sources.size === 0) {
+				setPatientSpeaking(false);
+				st.current.lastActivity = Date.now();
+			}
+		};
+	}, []);
+
 	const runTools = useCallback(
-		async (calls: { name: string; call_id: string; arguments: string }[]) => {
+		async (
+			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
+		) => {
+			const functionResponses = [];
 			for (const call of calls) {
 				let output: Record<string, unknown>;
 				try {
-					const args = call.arguments ? JSON.parse(call.arguments) : {};
 					const run = await post<ToolRun>(`/api/sessions/${sessionId}/tools`, {
 						name: call.name,
-						arguments: args,
+						arguments: call.args ?? {},
 					});
 					output = run.output;
 					callbacks.current.onTool(run.ui);
@@ -152,159 +238,165 @@ export function useVoice({
 						error: e instanceof Error ? e.message : "falló la herramienta",
 					};
 				}
-				sendEvent({
-					type: "conversation.item.create",
-					item: {
-						type: "function_call_output",
-						call_id: call.call_id,
-						output: JSON.stringify(output),
-					},
+				functionResponses.push({
+					id: call.id,
+					name: call.name,
+					response: output,
 				});
 			}
-			// Que el paciente reaccione al resultado.
-			sendEvent({ type: "response.create" });
+			live.current?.sendToolResponse({ functionResponses });
 		},
-		[sessionId, sendEvent],
+		[sessionId],
 	);
 
 	const onMessage = useCallback(
-		(raw: MessageEvent) => {
-			let e: RealtimeEvent;
-			try {
-				e = JSON.parse(String(raw.data));
-			} catch {
-				return;
-			}
-			const f = flags.current;
+		(m: LiveServerMessage) => {
+			const s = st.current;
 			const now = Date.now();
-			switch (e.type) {
-				case "input_audio_buffer.speech_started":
-					// El estudiante empieza a hablar mientras habla el paciente.
-					if (f.patient) {
-						f.overlap = true;
-						event("interrupcion_estudiante");
-					}
-					f.student = true;
-					f.lastActivity = now;
-					f.silenceReported = false;
-					setStudentSpeaking(true);
-					break;
-				case "input_audio_buffer.speech_stopped":
-					f.student = false;
-					f.lastActivity = now;
-					setStudentSpeaking(false);
-					break;
-				case "conversation.item.input_audio_transcription.completed":
-					saveTurn("estudiante", e.transcript ?? "", f.overlap);
-					f.overlap = false;
-					break;
-				case "response.created":
-					// El paciente arranca a hablar mientras habla el estudiante.
-					if (f.student) event("interrupcion_paciente");
-					f.patient = true;
-					setPatientSpeaking(true);
-					break;
-				case "output_audio_buffer.started":
-					f.patient = true;
-					setPatientSpeaking(true);
-					break;
-				case "output_audio_buffer.stopped":
-					f.patient = false;
-					f.lastActivity = now;
-					setPatientSpeaking(false);
-					break;
-				case "response.output_audio_transcript.done":
-					saveTurn("paciente", e.transcript ?? "", false);
-					break;
-				case "response.done": {
-					const u = e.response?.usage;
-					if (u) {
-						post(`/api/sessions/${sessionId}/usage`, {
-							inputTokens: u.input_tokens ?? 0,
-							outputTokens: u.output_tokens ?? 0,
-							inputAudioTokens: u.input_token_details?.audio_tokens ?? 0,
-							outputAudioTokens: u.output_token_details?.audio_tokens ?? 0,
-							cachedTokens: u.input_token_details?.cached_tokens ?? 0,
-						}).catch(() => {});
-					}
-					if (e.response?.status === "cancelled") {
-						f.patient = false;
-						setPatientSpeaking(false);
-					}
-					const calls = (e.response?.output ?? [])
-						.filter((o) => o.type === "function_call" && o.name && o.call_id)
-						.map((o) => ({
-							name: o.name as string,
-							call_id: o.call_id as string,
-							arguments: o.arguments ?? "{}",
-						}));
-					if (calls.length > 0) runTools(calls);
-					break;
+			const content = m.serverContent;
+
+			if (content?.inputTranscription?.text) {
+				s.studentText += content.inputTranscription.text;
+				s.lastStudentChunk = now;
+				s.lastActivity = now;
+				s.silenceReported = false;
+				setStudentSpeaking(true);
+			}
+			if (content?.interrupted) {
+				// El estudiante habló encima del paciente: se corta el audio.
+				stopPlayback();
+				event("interrupcion_estudiante");
+				flushPatient(true);
+			}
+			for (const part of content?.modelTurn?.parts ?? []) {
+				const data = part.inlineData?.data;
+				if (!data) continue;
+				if (!s.patientTurnStarted) {
+					s.patientTurnStarted = true;
+					// El paciente arranca mientras el estudiante todavía hablaba.
+					if (now - s.lastStudentChunk < 300 && s.studentText.trim())
+						event("interrupcion_paciente");
+					flushStudent();
 				}
-				case "error":
-					console.error("Realtime", e);
-					break;
+				playChunk(data);
+			}
+			if (content?.outputTranscription?.text)
+				s.patientText += content.outputTranscription.text;
+			if (content?.turnComplete) {
+				flushStudent();
+				flushPatient(false);
+			}
+			if (m.toolCall?.functionCalls?.length) {
+				flushStudent();
+				runTools(m.toolCall.functionCalls);
+			}
+			const u = m.usageMetadata;
+			if (u) {
+				const audio = (list?: { modality?: string; tokenCount?: number }[]) =>
+					(list ?? [])
+						.filter((d) => d.modality === "AUDIO")
+						.reduce((n, d) => n + (d.tokenCount ?? 0), 0);
+				post(`/api/sessions/${sessionId}/usage`, {
+					inputTokens: u.promptTokenCount ?? 0,
+					outputTokens: u.responseTokenCount ?? 0,
+					inputAudioTokens: audio(u.promptTokensDetails),
+					outputAudioTokens: audio(u.responseTokensDetails),
+					cachedTokens: u.cachedContentTokenCount ?? 0,
+				}).catch(() => {});
 			}
 		},
-		[event, runTools, saveTurn],
+		[
+			event,
+			flushPatient,
+			flushStudent,
+			playChunk,
+			runTools,
+			sessionId,
+			stopPlayback,
+		],
 	);
 
 	const start = useCallback(async () => {
 		setStatus("connecting");
 		try {
-			const session = await post<{ clientSecret: string; remainingMs: number }>(
-				"/api/realtime/session",
-				{ sessionId },
-			);
-			const peer = new RTCPeerConnection();
-			pc.current = peer;
-			const player = audio.current ?? new Audio();
-			player.autoplay = true;
-			audio.current = player;
-			peer.ontrack = (t) => {
-				const remote = t.streams[0] ?? null;
-				player.srcObject = remote;
-				// Volumen del paciente para mover la boca del avatar (plan.md,
-				// sección 9: AnalyserNode, sin API de terceros).
-				if (remote) {
-					const ctx = new AudioContext();
-					const node = ctx.createAnalyser();
-					node.fftSize = 512;
-					ctx.createMediaStreamSource(remote).connect(node);
-					analyser.current = { ctx, node, buf: new Uint8Array(node.fftSize) };
-				}
+			const token = await post<{
+				token: string;
+				apiVersion: string;
+				model: string;
+				remainingMs: number;
+			}>("/api/voice/session", { sessionId });
+
+			// Salida: 24 kHz, con un AnalyserNode para el avatar.
+			const outCtx = new AudioContext({ sampleRate: OUTPUT_RATE });
+			const analyser = outCtx.createAnalyser();
+			analyser.fftSize = 512;
+			analyser.connect(outCtx.destination);
+			out.current = {
+				ctx: outCtx,
+				analyser,
+				buf: new Uint8Array(analyser.fftSize),
+				sources: new Set(),
+				playHead: 0,
 			};
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-			mic.current = stream;
-			for (const track of stream.getTracks()) peer.addTrack(track, stream);
-			const channel = peer.createDataChannel("oai-events");
-			dc.current = channel;
-			channel.onmessage = onMessage;
-			const offer = await peer.createOffer();
-			await peer.setLocalDescription(offer);
-			const answer = await fetch("https://api.openai.com/v1/realtime/calls", {
-				method: "POST",
-				body: offer.sdp,
-				headers: {
-					Authorization: `Bearer ${session.clientSecret}`,
-					"Content-Type": "application/sdp",
+
+			const ai = new GoogleGenAI({
+				apiKey: token.token,
+				httpOptions: { apiVersion: token.apiVersion },
+			});
+			live.current = await ai.live.connect({
+				model: token.model,
+				// La configuración real va fijada en el token.
+				config: { responseModalities: [Modality.AUDIO] },
+				callbacks: {
+					onmessage: onMessage,
+					onerror: () =>
+						callbacks.current.onError("Se cortó la conexión de voz."),
+					onclose: () => {
+						if (live.current) stop();
+					},
 				},
 			});
-			if (!answer.ok)
-				throw new Error("No se pudo conectar el audio con el paciente");
-			await peer.setRemoteDescription({
-				type: "answer",
-				sdp: await answer.text(),
+
+			// Entrada: micrófono a 16 kHz (si el navegador usa otra frecuencia, Gemini la convierte).
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: { echoCancellation: true, noiseSuppression: true },
 			});
-			flags.current = {
-				student: false,
-				patient: false,
-				overlap: false,
+			mic.current = stream;
+			const ctx = new AudioContext({ sampleRate: INPUT_RATE });
+			inCtx.current = ctx;
+			const url = URL.createObjectURL(
+				new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
+			);
+			await ctx.audioWorklet.addModule(url);
+			URL.revokeObjectURL(url);
+			const node = new AudioWorkletNode(ctx, "p0-capture");
+			ctx.createMediaStreamSource(stream).connect(node);
+			const rate = ctx.sampleRate;
+			const chunk: number[] = [];
+			node.port.onmessage = (e: MessageEvent<Float32Array>) => {
+				for (const v of e.data) chunk.push(v);
+				// Envía de a ~100 ms.
+				if (chunk.length >= rate / 10) {
+					const samples = Float32Array.from(chunk.splice(0, chunk.length));
+					live.current?.sendRealtimeInput({
+						audio: {
+							data: toBase64(floatToPcm16(samples)),
+							mimeType: `audio/pcm;rate=${rate}`,
+						},
+					});
+				}
+			};
+
+			st.current = {
+				studentText: "",
+				patientText: "",
+				lastStudentChunk: 0,
+				patientTurnStarted: false,
 				lastActivity: Date.now(),
 				silenceReported: false,
-				deadline: Date.now() + session.remainingMs,
+				deadline: Date.now() + token.remainingMs,
 			};
-			setRemainingMs(session.remainingMs);
+			setRemainingMs(token.remainingMs);
 			setStatus("live");
 		} catch (e) {
 			stop("error");
@@ -314,40 +406,50 @@ export function useVoice({
 		}
 	}, [onMessage, sessionId, stop]);
 
-	// Reloj: tope de 8 minutos y silencios largos.
+	// Reloj: tope de 8 minutos, indicador de habla y silencios largos.
 	useEffect(() => {
 		if (status !== "live") return;
 		const id = setInterval(() => {
-			const f = flags.current;
+			const s = st.current;
 			const now = Date.now();
-			const left = Math.max(0, f.deadline - now);
+			if (now - s.lastStudentChunk > SPEAKING_WINDOW_MS)
+				setStudentSpeaking(false);
+			const left = Math.max(0, s.deadline - now);
 			setRemainingMs(left);
 			if (left === 0) {
 				stop();
 				callbacks.current.onEnd();
 				return;
 			}
-			const quietFor = now - f.lastActivity;
+			const patientPlaying = (out.current?.sources.size ?? 0) > 0;
+			const studentActive = now - s.lastStudentChunk < SPEAKING_WINDOW_MS;
+			const quietFor = now - s.lastActivity;
 			if (
-				!f.student &&
-				!f.patient &&
-				!f.silenceReported &&
+				!patientPlaying &&
+				!studentActive &&
+				!s.silenceReported &&
 				quietFor > LONG_SILENCE_MS
 			) {
-				f.silenceReported = true;
+				s.silenceReported = true;
 				event("silencio_largo", quietFor);
 				// El paciente vuelve a hablar tras el silencio, según su personalidad.
-				sendEvent({
-					type: "response.create",
-					response: {
-						instructions:
-							"El estudiante lleva un rato en silencio. Reaccioná según tu personalidad: preguntá si pasa algo, mostrate impaciente o esperá con un comentario breve.",
-					},
+				live.current?.sendClientContent({
+					turns: [
+						{
+							role: "user",
+							parts: [
+								{
+									text: "(El estudiante lleva un rato en silencio. Reaccioná según tu personalidad: preguntá si pasa algo, mostrate impaciente o esperá con un comentario breve.)",
+								},
+							],
+						},
+					],
+					turnComplete: true,
 				});
 			}
-		}, 1000);
+		}, 500);
 		return () => clearInterval(id);
-	}, [status, event, sendEvent, stop]);
+	}, [status, event, stop]);
 
 	// Al salir de la pantalla se corta la llamada.
 	useEffect(() => () => stop(), [stop]);
@@ -355,12 +457,12 @@ export function useVoice({
 	// Nivel de voz del paciente de 0 a 1. Pensado para leerlo en un
 	// requestAnimationFrame del avatar, sin re-renderizar.
 	const readPatientLevel = useCallback(() => {
-		const a = analyser.current;
-		if (!a) return 0;
-		a.node.getByteTimeDomainData(a.buf);
+		const o = out.current;
+		if (!o) return 0;
+		o.analyser.getByteTimeDomainData(o.buf);
 		let sum = 0;
-		for (const v of a.buf) sum += ((v - 128) / 128) ** 2;
-		return Math.min(1, Math.sqrt(sum / a.buf.length) * 4);
+		for (const v of o.buf) sum += ((v - 128) / 128) ** 2;
+		return Math.min(1, Math.sqrt(sum / o.buf.length) * 4);
 	}, []);
 
 	return {
