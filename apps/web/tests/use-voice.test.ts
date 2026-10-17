@@ -461,4 +461,11 @@ describe("cliente de voz", () => {
 		expect(events.turns).toEqual([]);
 		expect(events.errors.at(-1)).toContain("cortada");
 	});
+
+	test("una nota al paciente con el socket cerrado no tira excepciones", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.failSends = true;
+		expect(() => voice.sendNote("terminó de revisarte")).not.toThrow();
+	});
 });
