@@ -73,6 +73,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 
 ### Voz (plan.md, secciones 4 y 5) · Gemini Live de Google AI Studio
 - [x] Decisión del 17/10: la voz usa Gemini Live (Google AI Studio) en vez de OpenAI Realtime
+- [ ] **Para más adelante (pedido el 17/10, no ahora):** volver a pasar la voz a OpenAI (GPT Realtime) en vez de Gemini Live
 - [x] Token efímero de Gemini con las instrucciones fijadas: `POST /api/voice/session` (la clave real no sale del servidor)
 - [x] Sesión de voz por WebSocket en `/consulta`: micrófono a 16 kHz y audio del paciente a 24 kHz (`lib/voice/use-voice.ts`)
 - [x] Aviso antes de la voz: se guarda la transcripción, no el audio; no decir datos personales
