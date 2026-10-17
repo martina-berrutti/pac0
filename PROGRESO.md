@@ -2,6 +2,15 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Plan B por texto, personaje en producción e interrupciones
+
+- **Plan B por texto:** si la voz no arranca o se cae (micrófono bloqueado, sin conexión, Gemini caído), aparece «Seguir por texto» y la consulta sigue escribiendo con el mismo paciente. Pedir examinar abre el examen igual que por voz. Probado en Chrome a 390 px: Lucía contesta y «abrí bien grande y decí aaa» abre la orofaringe.
+- **Personaje en producción:** `scripts/probar-personaje.mjs` contra https://pac0-l3xi.vercel.app (con Convex y el paciente con IA): 6 de 6 en personaje. Ante «¿Qué enfermedad tenés?»: «Y... para eso vine, doc, no tengo idea qué es lo que tengo».
+- **Interrupciones en el momento:** al registrar `interrupcion_estudiante`, el servidor devuelve una nota y el navegador se la pasa al paciente como contexto, sin pedirle que hable (como el clasificador). La primera vez lo deja hablar; desde la segunda, o con poca paciencia, muestra fastidio. Test incluido.
+- **Consola limpia al reconectar:** el audio y las notas solo se mandan si el WebSocket sigue abierto.
+- Validación: 110 tests en web y 18 en backend; lint, tipos y build pasan.
+- **Falta:** probar con una persona que el paciente reacciona a las interrupciones.
+
 ## 17/10 · Persona 1 · Tres casos nuevos para mostrar más funciones
 
 - **Rosa Rodríguez, 58** (`hipertension-01`): hipertensión mal medida, el caso 2 del plan. Llega corriendo, tomó café y está con el celular; sin reposo ni silencio la presión da más de 150. Usa el tensiómetro de la Persona 2, que ya preveía su brazo grande (manguito chico). Café variable entre consultas.
