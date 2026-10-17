@@ -619,3 +619,21 @@ test("una medición empezada antes de los 8 minutos se puede terminar", async ()
 	).resolves.toEqual({ ok: true });
 	await expect(startMeasurement(ana, id)).rejects.toThrow("8 minutos");
 });
+
+test("un docente ve la consulta de otro en solo lectura", async () => {
+	const { getSessionView } = await import("@/server/consultation");
+	const docente: Viewer = {
+		uid: "ggl_docente",
+		alias: "Profe",
+		careerYear: "recibido",
+		guest: false,
+		exp: Date.now() + 1e6,
+	};
+	vi.stubEnv("DOCENTES", "ggl_docente");
+	const id = await startSession(ana, lucia.id, "caso");
+	expect((await getSessionView(ana, id)).readOnly).toBe(false);
+	expect((await getSessionView(docente, id)).readOnly).toBe(true);
+	await expect(getSessionView(beto, id)).rejects.toThrow(
+		"Sesión no encontrada",
+	);
+});

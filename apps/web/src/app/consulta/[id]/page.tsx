@@ -139,7 +139,13 @@ export default function ConsultationPage() {
 				</p>
 			</div>
 
-			{!closing && (
+			{view.readOnly && (
+				<p className="border p-3 text-muted-foreground text-sm">
+					Vista de docente: solo lectura.
+				</p>
+			)}
+
+			{!closing && !view.readOnly && (
 				<section className="grid gap-2 border p-3">
 					{voiceLive ? (
 						<div className="flex flex-wrap items-center justify-between gap-2">
@@ -207,7 +213,7 @@ export default function ConsultationPage() {
 				</ol>
 			)}
 
-			{!tool && !closing && (
+			{!tool && !closing && !view.readOnly && (
 				<div className="flex flex-wrap gap-2">
 					<Button variant="outline" onClick={() => setBp({ start: null })}>
 						Tomar la presión
@@ -219,6 +225,7 @@ export default function ConsultationPage() {
 			)}
 
 			{!tool &&
+				!view.readOnly &&
 				(closing ? (
 					<form onSubmit={finish} className="grid gap-2 border p-3">
 						<label htmlFor="hipotesis" className="font-medium">

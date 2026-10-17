@@ -62,6 +62,8 @@ export type SessionView = {
 	examActions: ExamAction[];
 	remainingMs: number;
 	hasReport: boolean;
+	// Un docente puede leer la consulta de otro, pero no hablar ni cerrarla.
+	readOnly: boolean;
 };
 
 export async function ownSession(viewer: Viewer, sessionId: string) {
@@ -207,6 +209,7 @@ export async function getSessionView(
 		examActions,
 		remainingMs: Math.max(0, MAX_SESSION_MS - (Date.now() - session.startedAt)),
 		hasReport: report !== undefined,
+		readOnly: session.userId !== viewer.uid,
 	};
 }
 
