@@ -104,6 +104,24 @@ const EMPATHY = [
 	"vamos a ver juntos",
 ];
 
+// El paciente pidió que le repitan ("¿cómo?", "no le escuché"): repetir la
+// pregunta es lo correcto, no una pregunta repetida. La usa también el
+// evaluador.
+const REPEAT_REQUESTS = [
+	"repet",
+	"no te escuche",
+	"no le escuche",
+	"no escuche",
+	"no te entendi",
+	"no le entendi",
+	"mas fuerte",
+];
+
+export function askedToRepeat(patientText: string) {
+	const t = normalize(patientText);
+	return t === "como" || REPEAT_REQUESTS.some((w) => t.includes(w));
+}
+
 export type Classification = {
 	tags: TurnTag[];
 	delta: Partial<PatientState>;
@@ -131,6 +149,8 @@ const MOTIVOS: Record<TurnTag, string> = {
 export function classifyStudentTurn(
 	text: string,
 	previousStudentTexts: string[],
+	// Lo último que dijo el paciente: si pidió que le repitan, repetir no cuenta.
+	lastPatientText = "",
 ): Classification {
 	const t = normalize(text);
 	const tags: TurnTag[] = [];
@@ -152,6 +172,7 @@ export function classifyStudentTurn(
 	if (
 		isQuestion &&
 		t.length > 8 &&
+		!askedToRepeat(lastPatientText) &&
 		previousStudentTexts.some((p) => normalize(p) === t)
 	)
 		tags.push("repetida");

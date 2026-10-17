@@ -385,10 +385,12 @@ export async function classifyStudent(
 	text: string,
 	atMs: number,
 ): Promise<{ session: Session; tags: TurnTag[]; stateNote: string | null }> {
-	const previous = (await store.listTurns(session.id))
+	const turns = await store.listTurns(session.id);
+	const previous = turns
 		.filter((t) => t.speaker === "estudiante")
 		.map((t) => t.text);
-	const c = classifyStudentTurn(text, previous);
+	const lastPatient = turns.findLast((t) => t.speaker === "paciente");
+	const c = classifyStudentTurn(text, previous, lastPatient?.text);
 	if (!c.motivo) return { session, tags: c.tags, stateNote: null };
 	const before = stateBand(session.state);
 	const next = await store.updateSession(session.id, {

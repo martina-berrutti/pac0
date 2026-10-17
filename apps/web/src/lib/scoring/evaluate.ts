@@ -11,7 +11,10 @@ import {
 
 import { MARK_TOLERANCE, TECHNIQUE } from "@/lib/exam/blood-pressure";
 import { OTOSCOPY_TECHNIQUE } from "@/lib/exam/otoscope";
-import { isLeadingQuestion } from "@/lib/patient/turn-classifier";
+import {
+	askedToRepeat,
+	isLeadingQuestion,
+} from "@/lib/patient/turn-classifier";
 import { dimensionScore, PENALTY_CAP, totalScore, verdictFor } from "./engine";
 import { type Extracted, extract } from "./extractor";
 import { judgeItem, normalize } from "./rule-judge";
@@ -95,7 +98,22 @@ export function reasoningScore(input: EvaluationInput): Reasoning {
 	});
 }
 
-function penalties(extracted: Extracted): Penalty[] {
+function penalties(
+	extracted: Extracted,
+	turns: EvaluationInput["turns"] = [],
+): Penalty[] {
+	// Turnos del estudiante justo después de que el paciente pidió que le
+	// repitan: repetir ahí es lo correcto (misma regla que el clasificador).
+	const afterRepeatRequest = new Set(
+		turns
+			.filter(
+				(t, i) =>
+					t.speaker === "estudiante" &&
+					turns[i - 1]?.speaker === "paciente" &&
+					askedToRepeat(turns[i - 1]?.text ?? ""),
+			)
+			.map((t) => t.id),
+	);
 	const out: Penalty[] = [];
 	// Desde la tercera interrupción, 2 puntos de comunicación por vez.
 	for (const e of extracted.studentInterruptions.slice(2)) {
@@ -121,7 +139,7 @@ function penalties(extracted: Extracted): Penalty[] {
 		const key = normalize(t.text)
 			.replace(/[^a-z ]/g, "")
 			.trim();
-		if (key.length > 8 && asked.has(key)) {
+		if (key.length > 8 && asked.has(key) && !afterRepeatRequest.has(t.id)) {
 			out.push({
 				dimension: "anamnesis",
 				points: 1,
@@ -206,7 +224,7 @@ export function assembleReport(
 	extracted: Extracted = extract(input),
 ): Report {
 	const { clinicalCase } = input;
-	const pens = penalties(extracted);
+	const pens = penalties(extracted, input.turns);
 	const turnText = new Map(extracted.studentTurns.map((t) => [t.id, t.text]));
 
 	const byDim = (d: Dimension) => items.filter((i) => i.dimension === d);

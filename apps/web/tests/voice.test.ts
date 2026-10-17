@@ -674,3 +674,34 @@ test("el token de Gemini se pide con tope", async () => {
 	expect(genai.timeouts[0]).toBeGreaterThan(0);
 	expect(genai.timeouts[0]).toBeLessThan(15_000);
 });
+
+describe("repetir cuando el paciente lo pide no es una pregunta repetida", () => {
+	const ask = "¿Desde cuándo te duele la garganta?";
+	const run = async (patientSays: string) => {
+		const { finishSession } = await import("@/server/consultation");
+		const id = await startSession(ana, lucia.id, "mayor");
+		await recordVoiceTurn(ana, id, "estudiante", ask, false);
+		await recordVoiceTurn(ana, id, "paciente", patientSays, false);
+		await recordVoiceTurn(ana, id, "estudiante", ask, false);
+		const events = await store.listEvents(id);
+		const report = await finishSession(ana, id, "faringitis", []);
+		return {
+			stateRepeat: events.some((e) => e.motivo?.includes("repitió")),
+			reportRepeat: report.mistakes.some((m) => m.tag === "repite-pregunta"),
+		};
+	};
+
+	test("después de '¿cómo? no le escuché', repetir no penaliza", async () => {
+		expect(
+			await run("¿Cómo? Perdón, no le escuché bien. ¿Me lo repite?"),
+		).toEqual({
+			stateRepeat: false,
+			reportRepeat: false,
+		});
+	});
+
+	test("repetir sin que lo pida sigue contando", async () => {
+		const r = await run("Desde hace dos días.");
+		expect(r.stateRepeat).toBe(true);
+	});
+});
