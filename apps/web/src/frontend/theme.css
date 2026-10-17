@@ -92,8 +92,12 @@
 
 /* Fuera de las capas de Tailwind a propósito: gana sobre las clases de
  * packages/ui (que traen bordes rectos) sin editar ese paquete. */
+html,
 body {
 	background-color: var(--background);
+}
+
+body {
 	position: relative;
 }
 

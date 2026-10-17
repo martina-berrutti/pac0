@@ -108,7 +108,7 @@ export function Highlight({
 }) {
 	return (
 		<span
-			className={cn("px-1 [box-decoration-break:clone]", className)}
+			className={cn("-mx-0.5 px-0.5 [box-decoration-break:clone]", className)}
 			style={{
 				backgroundImage:
 					"linear-gradient(100deg, transparent 0.4em, var(--highlighter) 0.5em, var(--highlighter) calc(100% - 0.5em), transparent calc(100% - 0.3em))",
