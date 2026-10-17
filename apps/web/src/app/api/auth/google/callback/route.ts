@@ -4,8 +4,9 @@ import { exchangeCodeForUid, OAUTH_STATE_COOKIE } from "@/server/google";
 import { store } from "@/server/store";
 import { SESSION_COOKIE, signViewer } from "@/server/token";
 
-// Las cuentas duran 30 días; los invitados, 24 horas.
-const ACCOUNT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// Las cuentas duran 7 días (no hay forma de anular un token robado antes);
+// los invitados, 24 horas.
+const ACCOUNT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Vuelta de Google: valida el state, obtiene nuestro id y abre la sesión.
 export async function GET(request: NextRequest) {

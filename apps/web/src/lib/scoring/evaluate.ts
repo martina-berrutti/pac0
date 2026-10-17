@@ -37,7 +37,9 @@ const JUSTIFICATION_WORDS = [
 	"eritema",
 	"mocos",
 ];
-const LEADING_QUESTION = /,?\s*(no|verdad|cierto)\s*\?\s*$/i;
+// Palabra suelta al final ("…, ¿no?"): sin el límite, "¿tenés algún
+// hermano?" contaba como sugestiva.
+const LEADING_QUESTION = /(?:^|[\s,¿])(no|verdad|cierto)\s*\?\s*$/i;
 
 export type Reasoning = { score: number; notes: string[] };
 

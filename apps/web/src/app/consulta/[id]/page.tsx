@@ -91,7 +91,11 @@ export default function ConsultationPage() {
 	// Al cerrar un examen (boca, tensiómetro u otoscopio), se le avisa al
 	// paciente para que la charla siga con naturalidad.
 	const toolWasOpen = useRef(false);
-	const { sendNote } = voice;
+	const { sendNote, setExamining } = voice;
+	// Examinando, el silencio es normal: no se cuenta ni hace hablar al paciente.
+	useEffect(() => {
+		setExamining(tool);
+	}, [tool, setExamining]);
 	useEffect(() => {
 		if (toolWasOpen.current && !tool && voice.status === "live") {
 			sendNote(

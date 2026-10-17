@@ -148,6 +148,10 @@ export function useVoice({
 	});
 	const callbacks = useRef({ onTurn, onTool, onState, onEnd, onError });
 	callbacks.current = { onTurn, onTool, onState, onEnd, onError };
+	// Guarda lo que quedó a medio transcribir al cortar (se define más abajo).
+	const flushPending = useRef<() => void>(() => {});
+	// Con un examen abierto el silencio es normal: no se cuenta ni se interrumpe.
+	const examining = useRef(false);
 
 	const stopPlayback = useCallback(() => {
 		const o = out.current;
@@ -164,6 +168,8 @@ export function useVoice({
 
 	const stop = useCallback(
 		(reason: "ended" | "error" = "ended") => {
+			// Lo último que se dijo antes de cortar también va al informe.
+			flushPending.current();
 			stopPlayback();
 			const session = live.current;
 			live.current = null;
@@ -264,6 +270,11 @@ export function useVoice({
 		[saveTurn],
 	);
 
+	flushPending.current = () => {
+		void flushStudent();
+		void flushPatient(false);
+	};
+
 	const playChunk = useCallback((base64: string) => {
 		const o = out.current;
 		if (!o) return;
@@ -291,6 +302,9 @@ export function useVoice({
 		async (
 			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
 		) => {
+			// Si mientras tanto se reconectó, la respuesta no va a la conexión
+			// nueva (no conoce estas llamadas).
+			const target = live.current;
 			const functionResponses = [];
 			for (const call of calls) {
 				let output: Record<string, unknown>;
@@ -312,7 +326,9 @@ export function useVoice({
 					response: output,
 				});
 			}
-			openSession(live.current)?.sendToolResponse({ functionResponses });
+			// Misma conexión que pidió la herramienta y todavía abierta.
+			if (target && live.current === target)
+				openSession(target)?.sendToolResponse({ functionResponses });
 		},
 		[sessionId],
 	);
@@ -545,6 +561,11 @@ export function useVoice({
 			setRemainingMs(token.remainingMs);
 			setStatus("live");
 		} catch (e) {
+			// Cortó la usuaria mientras conectaba: no es un error.
+			if (e instanceof Error && e.message === "Conexión de voz descartada") {
+				outCtx.close().catch(() => {});
+				return;
+			}
 			stop("error");
 			if (!out.current) outCtx.close().catch(() => {});
 			callbacks.current.onError(
@@ -566,6 +587,10 @@ export function useVoice({
 			if (left === 0) {
 				stop();
 				callbacks.current.onEnd();
+				return;
+			}
+			if (examining.current) {
+				s.lastActivity = now;
 				return;
 			}
 			const patientPlaying = (out.current?.sources.size ?? 0) > 0;
@@ -630,7 +655,13 @@ export function useVoice({
 		});
 	}, []);
 
+	const setExamining = useCallback((value: boolean) => {
+		examining.current = value;
+		st.current.lastActivity = Date.now();
+	}, []);
+
 	return {
+		setExamining,
 		status,
 		remainingMs,
 		studentSpeaking,

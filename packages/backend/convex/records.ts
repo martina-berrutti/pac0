@@ -67,6 +67,80 @@ export const put = mutation({
 	},
 });
 
+// Cambio atómico sobre una sesión (apps/web/src/lib/contracts/session-change.ts:
+// misma lógica, mantener las dos iguales). Al ser una mutación, dos pedidos
+// simultáneos no se pisan. Devuelve la sesión nueva, o null si no existe o no
+// se cumple ifStatus.
+const MAX_INVENTED_FACTS = 40;
+const clamp = (n: number) => Math.min(1, Math.max(0, n));
+
+export const changeSession = mutation({
+	args: { secret: v.string(), appId: v.string(), change: v.any() },
+	handler: async (ctx, { secret, appId, change }) => {
+		checkSecret(secret);
+		const doc = await ctx.db
+			.query("records")
+			.withIndex("by_kind_and_appId", (q) =>
+				q.eq("kind", "session").eq("appId", appId),
+			)
+			.unique();
+		if (!doc) return null;
+		const session = doc.data as Record<string, unknown> & {
+			status: string;
+			state: Record<string, number>;
+			inventedFacts?: Record<string, string>;
+			voiceUsage?: Record<string, number> | null;
+			voiceStarts?: number;
+		};
+		if (change.ifStatus && session.status !== change.ifStatus) return null;
+		const next = { ...session, ...(change.set ?? {}) };
+		if (change.stateDelta) {
+			const state = { ...next.state };
+			for (const [k, d] of Object.entries(
+				change.stateDelta as Record<string, number | undefined>,
+			)) {
+				if (d !== undefined) state[k] = clamp((state[k] ?? 0) + d);
+			}
+			next.state = state;
+		}
+		if (change.usageDelta) {
+			const prev = next.voiceUsage ?? {
+				responses: 0,
+				inputTokens: 0,
+				outputTokens: 0,
+				inputAudioTokens: 0,
+				outputAudioTokens: 0,
+				cachedTokens: 0,
+			};
+			const u = change.usageDelta as Record<string, number>;
+			next.voiceUsage = {
+				responses: (prev.responses ?? 0) + 1,
+				inputTokens: (prev.inputTokens ?? 0) + (u.inputTokens ?? 0),
+				outputTokens: (prev.outputTokens ?? 0) + (u.outputTokens ?? 0),
+				inputAudioTokens:
+					(prev.inputAudioTokens ?? 0) + (u.inputAudioTokens ?? 0),
+				outputAudioTokens:
+					(prev.outputAudioTokens ?? 0) + (u.outputAudioTokens ?? 0),
+				cachedTokens: (prev.cachedTokens ?? 0) + (u.cachedTokens ?? 0),
+			};
+		}
+		if (change.facts) {
+			const facts = { ...(next.inventedFacts ?? {}) };
+			for (const [k, val] of Object.entries(
+				change.facts as Record<string, string>,
+			)) {
+				if (k in facts || Object.keys(facts).length >= MAX_INVENTED_FACTS)
+					continue;
+				facts[k] = val;
+			}
+			next.inventedFacts = facts;
+		}
+		if (change.incVoiceStarts) next.voiceStarts = (next.voiceStarts ?? 0) + 1;
+		await ctx.db.patch(doc._id, { data: next });
+		return next;
+	},
+});
+
 export const get = query({
 	args: { secret: v.string(), kind: recordKind, appId: v.string() },
 	handler: async (ctx, { secret, kind, appId }) => {

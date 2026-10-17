@@ -2,6 +2,21 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Revisión de código y arreglos
+
+Dos revisores independientes (errores; privacidad y seguridad) leyeron el código de la Persona 1. Se arreglaron todos los hallazgos que podían afectar la demo:
+
+- **Cambios que se pisaban** (alta): con pedidos simultáneos (turno + herramienta + uso) se perdían ánimo, consentimiento, datos inventados y tokens; con Jorge podía "olvidar" que se le pidió permiso. Ahora cada pedido manda su cambio y Convex lo aplica en una transacción (`records.changeSession`, `lib/contracts/session-change.ts`). `updateSession` también es atómica.
+- **Historia oculta en el navegador** (media): `GET /api/sessions/[id]` mandaba los valores sorteados de la historia, los datos inventados y la personalidad. Ahora va una lista explícita de campos (`toPublicSession`).
+- **Gasto sin límite** (alta): el tope de conexiones de voz se reserva antes de pedir el token (no se saltea con pedidos en paralelo) y el token dura lo que le queda a la consulta; topes de turnos y eventos por consulta, de contexto para la IA y de pacientes generados por usuario.
+- **Trampas desde la API** (media): `actualizar_estado` acepta un cambio por turno del estudiante y de a ±0,3.
+- **Cierre doble** (baja): cerrar dos veces a la vez ya no evalúa dos veces ni suma los errores doble.
+- **Voz:** al cortar se guarda lo último que se dijo; examinando, el silencio no cuenta ni hace hablar al paciente; la respuesta de una herramienta no va a una conexión nueva tras reconectar; cancelar mientras conecta no muestra error.
+- **Preguntas sugestivas:** "¿tenés algún hermano?" ya no cuenta como sugestiva (también en el evaluador de la Persona 2).
+- `/api/health` público muestra lo mínimo; el detalle, solo a docentes. Las cuentas de Google duran 7 días.
+- **Pendiente:** límite por IP para crear invitados y sesiones; que el evaluador compare la hipótesis en código antes de confiar en la IA (Persona 2, `ai-judge.ts`).
+- Validación: 120 tests en web y 19 en backend; Convex de producción actualizado antes de la web.
+
 ## 17/10 · Persona 1 · Plan B por texto, personaje en producción e interrupciones
 
 - **Plan B por texto:** si la voz no arranca o se cae (micrófono bloqueado, sin conexión, Gemini caído), aparece «Seguir por texto» y la consulta sigue escribiendo con el mismo paciente. Pedir examinar abre el examen igual que por voz. Probado en Chrome a 390 px: Lucía contesta y «abrí bien grande y decí aaa» abre la orofaringe.

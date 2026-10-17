@@ -29,7 +29,7 @@ import {
 } from "@/lib/patient/exam-instruction";
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
-import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
+import { EVENT_DELTAS } from "@/lib/patient/state";
 import {
 	classifyStudentTurn,
 	stateBand,
@@ -45,8 +45,47 @@ import { recordMistakes } from "./mistakes";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
+// Lo que el navegador ve de una sesión. Lista explícita: NO van la historia
+// sorteada (historyOverrides), los datos inventados, la personalidad en
+// números ni los contadores internos (AGENTS.md: lo oculto del caso vive en
+// el servidor). El ánimo (state) sí: el avatar lo muestra en la cara.
+export type PublicSession = Pick<
+	Session,
+	| "id"
+	| "caseId"
+	| "alias"
+	| "personalityKey"
+	| "status"
+	| "startedAt"
+	| "endedAt"
+	| "closing"
+	| "consentGiven"
+	| "voice"
+	| "state"
+>;
+
+export function toPublicSession(s: Session): PublicSession {
+	return {
+		id: s.id,
+		caseId: s.caseId,
+		alias: s.alias,
+		personalityKey: s.personalityKey,
+		status: s.status,
+		startedAt: s.startedAt,
+		endedAt: s.endedAt,
+		closing: s.closing,
+		consentGiven: s.consentGiven,
+		voice: s.voice,
+		state: s.state,
+	};
+}
+
+// Topes de la consulta por texto (cada turno llama a la IA).
+const MAX_TEXT_TURNS = 120;
+const MAX_CONTEXT_TURNS = 30;
+
 export type SessionView = {
-	session: Omit<Session, "userId">;
+	session: PublicSession;
 	case: CaseSummary;
 	turns: Turn[];
 	examActions: ExamAction[];
@@ -176,14 +215,13 @@ export async function getSessionView(
 	sessionId: string,
 ): Promise<SessionView> {
 	const { session, clinicalCase } = await readableSession(viewer, sessionId);
-	const { userId: _userId, ...publicSession } = session;
 	const [turns, examActions, report] = await Promise.all([
 		store.listTurns(sessionId),
 		store.listExamActions(sessionId),
 		store.getReport(sessionId),
 	]);
 	return {
-		session: publicSession,
+		session: toPublicSession(session),
 		case: toSummary(clinicalCase),
 		turns,
 		examActions,
@@ -224,7 +262,8 @@ async function patientReply(
 				role: "system",
 				content: `${buildPatientPrompt(b)}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
 			},
-			...turns.map((t) => ({
+			// Solo lo último: el costo no crece sin límite con la charla.
+			...turns.slice(-MAX_CONTEXT_TURNS).map((t) => ({
 				role:
 					t.speaker === "estudiante"
 						? ("user" as const)
@@ -263,11 +302,17 @@ export async function nudgeState(
 	patch: Partial<Session> = {},
 ) {
 	const delta = EVENT_DELTAS[type];
-	if (!delta) return store.updateSession(session.id, patch);
-	const next = await store.updateSession(session.id, {
-		...patch,
-		state: applyDelta(session.state, delta),
-	});
+	// Sin cambio de ánimo ni otros campos, no se escribe nada.
+	if (!delta)
+		return Object.keys(patch).length
+			? store.updateSession(session.id, patch)
+			: session;
+	// El delta se suma sobre el estado actual (atómico): no pisa otros cambios.
+	const next =
+		(await store.changeSession(session.id, {
+			set: patch,
+			stateDelta: delta,
+		})) ?? session;
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
@@ -359,9 +404,8 @@ export async function classifyStudent(
 	const c = classifyStudentTurn(text, previous);
 	if (!c.motivo) return { session, tags: c.tags, stateNote: null };
 	const before = stateBand(session.state);
-	const next = await store.updateSession(session.id, {
-		state: applyDelta(session.state, c.delta),
-	});
+	const next =
+		(await store.changeSession(session.id, { stateDelta: c.delta })) ?? session;
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
@@ -395,6 +439,8 @@ export async function sendTurn(
 		sessionId,
 	);
 	const clean = text.trim().slice(0, 1000);
+	if ((await store.listTurns(sessionId)).length >= MAX_TEXT_TURNS)
+		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 	if (!clean) throw new HttpError(400, "Escribí algo");
 
 	const classified = await classifyStudent(session, clean, elapsed);
@@ -472,14 +518,27 @@ export async function finishSession(
 	const { clinicalCase } = await ownSession(viewer, sessionId);
 	const existing = await store.getReport(sessionId);
 	if (existing) return existing;
-	const closed = await store.updateSession(sessionId, {
-		status: "evaluada",
-		endedAt: Date.now(),
-		closing: {
-			hypothesis: hypothesis.slice(0, 500),
-			differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
+	// Solo cierra si sigue activa: con dos cierres a la vez, el segundo no
+	// vuelve a evaluar ni suma los errores dos veces.
+	const closed = await store.changeSession(sessionId, {
+		ifStatus: "activa",
+		set: {
+			status: "evaluada",
+			endedAt: Date.now(),
+			closing: {
+				hypothesis: hypothesis.slice(0, 500),
+				differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
+			},
 		},
 	});
+	if (!closed) {
+		const report = await store.getReport(sessionId);
+		if (report) return report;
+		throw new HttpError(
+			409,
+			"La consulta ya se está cerrando. Esperá unos segundos.",
+		);
+	}
 	const [turns, events, examActions, vitals] = await Promise.all([
 		store.listTurns(sessionId),
 		store.listEvents(sessionId),

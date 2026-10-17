@@ -40,6 +40,9 @@ import { type BpStart, createMeasurement } from "./vitals";
 // evita que alguien gaste la clave pidiendo tokens sin parar.
 export const MAX_VOICE_STARTS = 6;
 
+// Turnos o eventos de voz por consulta: más de lo que entra en 8 minutos.
+const MAX_VOICE_RECORDS = 400;
+
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
 // Turnos anteriores que recibe el paciente al reconectar.
@@ -143,8 +146,12 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 		sessionId,
 	);
 	const model = liveModel();
-	const starts = session.voiceStarts ?? 0;
-	if (starts >= MAX_VOICE_STARTS)
+	// Se reserva la conexión ANTES de pedir el token (atómico): con pedidos
+	// simultáneos, cada uno ve su propio número y el tope no se saltea.
+	const reserved = await store.changeSession(sessionId, {
+		incVoiceStarts: true,
+	});
+	if (!reserved || (reserved.voiceStarts ?? 0) > MAX_VOICE_STARTS)
 		throw new HttpError(
 			429,
 			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
@@ -165,7 +172,10 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			const token = await ai.authTokens.create({
 				config: {
 					uses: 1,
-					expireTime: new Date(now + 10 * 60 * 1000).toISOString(),
+					// El token no dura más que lo que le queda a la consulta.
+					expireTime: new Date(
+						now + Math.max(0, MAX_SESSION_MS - elapsed) + VOICE_GRACE_MS,
+					).toISOString(),
 					newSessionExpireTime: new Date(now + 60 * 1000).toISOString(),
 					// Sin lockAdditionalFields el token fija toda la configuración; con
 					// lockAdditionalFields y herramientas Google rechaza el field_mask.
@@ -173,7 +183,6 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 				},
 			});
 			if (token.name) {
-				await store.updateSession(sessionId, { voiceStarts: starts + 1 });
 				return {
 					token: token.name,
 					apiVersion,
@@ -242,15 +251,7 @@ export async function runTool(
 			// El oído se examina con el otoscopio de la pantalla (Persona 2): la
 			// herramienta lo abre y el paciente se queda quieto.
 			if (/o[ií]do|oreja/i.test(args.zona)) {
-				if (args.consentimiento && !session.consentGiven) {
-					await store.addEvent({
-						id: newId("evt"),
-						sessionId,
-						type: "consentimiento",
-						atMs: elapsed,
-					});
-					await store.updateSession(sessionId, { consentGiven: true });
-				}
+				if (args.consentimiento) await giveConsent(session, elapsed);
 				return {
 					output: {
 						disponible: true,
@@ -342,14 +343,35 @@ export async function runTool(
 		}
 		case "actualizar_estado": {
 			const args = toolArgs.actualizar_estado.parse(rawArgs);
-			const next = applyDelta(session.state, args.delta);
-			await store.updateSession(sessionId, { state: next });
+			// Como mucho un cambio de ánimo del modelo por turno del estudiante, y
+			// de a poco (±0,3): así no se puede subir la confianza llamando a la
+			// herramienta muchas veces desde el navegador.
+			const studentTurns = (await store.listTurns(sessionId)).filter(
+				(t) => t.speaker === "estudiante",
+			).length;
+			if (session.stateToolTurn === studentTurns) {
+				return {
+					output: { ok: false, motivo: "Ya cambiaste tu ánimo en este turno." },
+					ui: { kind: "none" },
+				};
+			}
+			const bounded = Object.fromEntries(
+				Object.entries(args.delta).map(([k, d]) => [
+					k,
+					d === undefined ? d : Math.max(-0.3, Math.min(0.3, d)),
+				]),
+			) as typeof args.delta;
+			const updated = await store.changeSession(sessionId, {
+				stateDelta: bounded,
+				set: { stateToolTurn: studentTurns },
+			});
+			const next = updated?.state ?? applyDelta(session.state, bounded);
 			await store.addEvent({
 				id: newId("evt"),
 				sessionId,
 				type: "cambio_animo",
 				atMs: elapsed,
-				delta: args.delta,
+				delta: bounded,
 				motivo: args.motivo,
 			});
 			return {
@@ -359,14 +381,12 @@ export async function runTool(
 		}
 		case "anotar_dato": {
 			const args = toolArgs.anotar_dato.parse(rawArgs);
-			const facts = { ...session.inventedFacts };
-			// Solo datos nuevos: lo que ya estaba en la historia no se pisa.
-			if (
-				Object.keys(facts).length < 40 &&
-				!(args.clave in clinicalCase.hiddenHistory)
-			) {
-				facts[args.clave] = args.valor;
-				await store.updateSession(sessionId, { inventedFacts: facts });
+			// Solo datos nuevos (atómico, máximo 40): lo que ya estaba en la
+			// historia no se pisa.
+			if (!(args.clave in clinicalCase.hiddenHistory)) {
+				await store.changeSession(sessionId, {
+					facts: { [args.clave]: args.valor },
+				});
 			}
 			return { output: { ok: true }, ui: { kind: "none" } };
 		}
@@ -396,6 +416,9 @@ export async function recordVoiceTurn(
 	);
 	const clean = text.trim().slice(0, 2000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
+	// Más de lo que entra en 8 minutos: corta scripts que inflen la consulta.
+	if ((await store.listTurns(sessionId)).length >= MAX_VOICE_RECORDS)
+		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 	// El estudiante pasa por el clasificador antes de guardar su turno.
 	const classified =
 		speaker === "estudiante"
@@ -437,6 +460,9 @@ export async function recordVoiceEvent(
 		sessionId,
 		VOICE_GRACE_MS,
 	);
+	// Tope de eventos por consulta (no cambian la nota más allá de esto).
+	if ((await store.listEvents(sessionId)).length >= MAX_VOICE_RECORDS)
+		return { nota: null };
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId,
@@ -470,23 +496,8 @@ export async function recordVoiceUsage(
 	sessionId: string,
 	usage: UsageInput,
 ) {
-	const { session } = await ownSession(viewer, sessionId);
-	const prev = session.voiceUsage ?? {
-		responses: 0,
-		inputTokens: 0,
-		outputTokens: 0,
-		inputAudioTokens: 0,
-		outputAudioTokens: 0,
-		cachedTokens: 0,
-	};
-	const next: VoiceUsage = {
-		responses: prev.responses + 1,
-		inputTokens: prev.inputTokens + usage.inputTokens,
-		outputTokens: prev.outputTokens + usage.outputTokens,
-		inputAudioTokens: prev.inputAudioTokens + usage.inputAudioTokens,
-		outputAudioTokens: prev.outputAudioTokens + usage.outputAudioTokens,
-		cachedTokens: prev.cachedTokens + usage.cachedTokens,
-	};
-	await store.updateSession(sessionId, { voiceUsage: next });
-	return next;
+	await ownSession(viewer, sessionId);
+	// Se suma sobre el valor actual (atómico): dos avisos cruzados no se pierden.
+	const updated = await store.changeSession(sessionId, { usageDelta: usage });
+	return updated?.voiceUsage ?? null;
 }

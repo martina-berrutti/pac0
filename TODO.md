@@ -231,6 +231,12 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 ---
 
+## Revisión de código (17/10)
+
+- [x] Cambios atómicos de sesión, historia oculta fuera de la vista, topes de gasto y arreglos de voz (ver PROGRESO.md)
+- [ ] Límite por IP para crear invitados y sesiones
+- [ ] Persona 2: en `lib/scoring/ai-judge.ts`, comparar la hipótesis con `truth.acceptable` en código antes de confiar en el sí/no de la IA
+
 ## Fase final · Convex (Persona 1)
 
 - [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
