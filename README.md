@@ -19,27 +19,25 @@ En el plan, `convex/...` es `packages/backend/convex/...` y `app/...` es `apps/w
 
 ## Puesta en marcha
 
-Requiere Node 22 y npm 11 o más (`npm install -g npm@latest`).
+Requiere Node 22 y npm 11 o más (`npm install -g npm@latest`). No hace falta ninguna cuenta ni clave.
 
 ```bash
 npm install
-npm run dev:setup   # una vez: elegir o crear el proyecto de Convex
-npm run dev         # web en http://localhost:3001 y Convex en paralelo
+npm run dev:web     # web y API en http://localhost:3001
 ```
 
-`dev:setup` crea `packages/backend/.env.local`. Copiá `CONVEX_URL` de ahí a `apps/web/.env.local` como `NEXT_PUBLIC_CONVEX_URL`. Los `.env` no se suben al repo y los agentes no los pueden leer (`.claude/settings.json`).
+Hoy no se usa Convex: la API de Next.js guarda todo en memoria (`apps/web/src/server/store.ts`) y se borra al reiniciar. Convex queda para la fase final (`TODO.md`).
 
-### Variables del deployment de Convex
+### Variables opcionales (`apps/web/.env.local`)
 
-Se cargan con `npx convex env set` (desde `packages/backend`), nunca en archivos del repo:
+Los `.env` no se suben al repo y los agentes no los pueden leer (`.claude/settings.json`). La lista completa está en `apps/web/.env.schema`.
 
 | Variable | Para qué |
 |---|---|
-| `JWT_PRIVATE_KEY`, `JWKS` | Firmar las sesiones. Se generan con `npx @convex-dev/auth` |
-| `SITE_URL` | URL de la web (`http://localhost:3001` en dev, la de Vercel en prod) |
-| `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | Credenciales OAuth de Google |
-
-En Google Cloud, la URI de redirección autorizada es `https://<deployment>.convex.site/api/auth/callback/google`.
+| `GEMINI_API_KEY` | Google AI Studio: voz (Gemini Live), paciente por texto con IA y generador. Sin ella, paciente por reglas y solo texto |
+| `SESSION_SECRET` | Firma la cookie de sesión. **Obligatoria en producción** (Vercel) |
+| `LIVE_MODEL`, `LIVE_VOICE`, `AI_MODEL` | Modelos y voz; tienen valores por defecto (`gemini-3.8-live`, `Kore`, `gemini-3.8-flash`) |
+| `OPENAI_API_KEY` | Alternativa opcional solo para el texto |
 
 ## Comandos
 
@@ -47,17 +45,21 @@ En Google Cloud, la URI de redirección autorizada es `https://<deployment>.conv
 npm run build        # build de producción
 npm run check-types  # TypeScript en todos los paquetes
 npm run lint         # Biome (npm run check corrige)
-npm test             # tests de permisos de Convex
+npm test             # tests de la web y de Convex
 ```
 
 ## Despliegue
 
-Vercel, con Root Directory `apps/web`. El build (`apps/web/vercel.json`) publica Convex y después compila Next con la URL del deployment. En Vercel hace falta la variable `CONVEX_DEPLOY_KEY` (clave de producción, desde el dashboard de Convex).
+Vercel, con Root Directory `apps/web`; cada push a `main` publica https://pac0-l3xi.vercel.app. En Vercel hacen falta `SESSION_SECRET` y, para la voz, `GEMINI_API_KEY`.
 
-## Autenticación y privacidad
+## Seguimiento
 
-- Convex Auth con Google y modo invitado (proveedor anónimo).
-- De Google solo se guarda el id opaco de la cuenta: ni nombre, ni correo, ni foto.
-- El invitado entra directo con un alias temporal (`Invitado 1234`). Sus datos se borran a las 24 horas (`crons.ts`).
-- Al primer ingreso con Google se pide alias y año de carrera. El alias rechaza correos y números largos (cédula, teléfono).
-- Cada función pública de Convex valida al usuario con los helpers de `convex/lib/access.ts`. `truth` e `hiddenHistory` solo se leen desde funciones internas (`cases.getFull`).
+- [`TODO.md`](TODO.md): todas las tareas del plan por persona.
+- [`PROGRESO.md`](PROGRESO.md): qué se hizo, cómo se validó y qué falta.
+
+## Privacidad
+
+- Del estudiante solo se guarda un alias y el año de carrera. El alias rechaza correos y números largos (cédula, teléfono).
+- De la voz se guarda la transcripción, nunca el audio.
+- El diagnóstico (`truth`) solo lo lee el servidor: no llega al navegador ni a las instrucciones del paciente.
+- Cada ruta de la API valida al usuario, y una sesión o un informe solo los ve su dueño.

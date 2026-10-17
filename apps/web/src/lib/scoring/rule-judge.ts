@@ -73,10 +73,10 @@ function judgeBloodPressure(
 	extracted: Extracted,
 ): ItemResult {
 	const { bp } = extracted;
-	if (!bp?.marked || !bp.gauge) return { ...base, status: "no", evidence: [] };
+	if (!bp?.marked) return { ...base, status: "no", evidence: [] };
 	const wellRead =
-		Math.abs(bp.marked.systolic - bp.gauge.systolic) <= MARK_TOLERANCE &&
-		Math.abs(bp.marked.diastolic - bp.gauge.diastolic) <= MARK_TOLERANCE;
+		Math.abs(bp.marked.pas - bp.shown.pas) <= MARK_TOLERANCE &&
+		Math.abs(bp.marked.pad - bp.shown.pad) <= MARK_TOLERANCE;
 	const clean = bp.techniqueErrors.length === 0 && wellRead;
 	return {
 		...base,
@@ -84,7 +84,7 @@ function judgeBloodPressure(
 		evidence: [
 			{
 				examActionId: bp.id,
-				quote: `marcó ${bp.marked.systolic}/${bp.marked.diastolic} con ${bp.techniqueErrors.length} errores de técnica`,
+				quote: `marcó ${bp.marked.pas}/${bp.marked.pad} con ${bp.techniqueErrors.length} errores de técnica`,
 			},
 		],
 	};

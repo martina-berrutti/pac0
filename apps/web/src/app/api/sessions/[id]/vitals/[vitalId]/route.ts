@@ -11,7 +11,7 @@ const bodySchema = z.union([
 		cuffSize: z.enum(["chico", "adecuado", "grande"]),
 		overClothes: z.boolean(),
 	}),
-	z.object({ systolic: mmHg, diastolic: mmHg }),
+	z.object({ pas: mmHg, pad: mmHg }),
 ]);
 
 // Coloca el manguito (devuelve qué marca el manómetro) o guarda PAS y PAD.

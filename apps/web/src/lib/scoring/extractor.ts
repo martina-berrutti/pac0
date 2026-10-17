@@ -27,8 +27,9 @@ export type Extracted = {
 	// Primer examen (boca no negada, otoscopia o presión) antes del
 	// consentimiento.
 	examWithoutConsent: { id: string; atMs: number } | null;
-	// Última medición de presión con PAS y PAD marcadas: si el resultado es
-	// inesperado, el afiche pide repetir, y vale la última.
+	// Última medición de presión con PAS y PAD marcadas (si el resultado es
+	// inesperado, el afiche pide repetir, y vale la última); si no marcó
+	// ninguna, la última que empezó.
 	bp: VitalsMeasurement | null;
 	// Otoscopias terminadas (con pasos y errores calculados).
 	otoscopies: ExamAction[];
@@ -69,7 +70,7 @@ export function extract(input: EvaluationInput): Extracted {
 			.map((a) => ({ id: a.id, atMs: a.startMs })),
 		...vitals.map((v) => ({ id: v.id, atMs: v.atMs })),
 	].sort((a, b) => a.atMs - b.atMs);
-	const measured = vitals.filter((v) => v.marked && v.gauge);
+	const measured = vitals.filter((v) => v.marked);
 
 	return {
 		studentTurns: turns.filter((t) => t.speaker === "estudiante"),
@@ -81,7 +82,7 @@ export function extract(input: EvaluationInput): Extracted {
 		firstExamMs: mouth[0]?.startMs ?? null,
 		examWithoutConsent:
 			examined.find((a) => consentAt === null || a.atMs < consentAt) ?? null,
-		bp: measured.at(-1) ?? null,
+		bp: measured.at(-1) ?? vitals.at(-1) ?? null,
 		otoscopies: examActions.filter(
 			(a) => a.maneuver === OTOSCOPY && a.technique !== undefined,
 		),

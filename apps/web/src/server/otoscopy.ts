@@ -13,9 +13,9 @@ import {
 import { assessOtoscopy, otoscopyScenario } from "@/lib/exam/otoscope";
 
 import { HttpError } from "./auth";
+import { activeSession } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
-import { activeSession } from "./vitals";
 
 export type OtoscopyStart = { actionId: string; appearance: EarAppearance };
 

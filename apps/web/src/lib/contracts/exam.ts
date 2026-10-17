@@ -66,28 +66,32 @@ export type CuffSize = "chico" | "adecuado" | "grande";
 export type BpTechniqueError =
 	| "sin-reposo"
 	| "hablando"
-	| "piernas-cruzadas"
 	| "espalda-sin-apoyo"
+	| "pies-sin-apoyo"
+	| "piernas-cruzadas"
 	| "brazo-bajo"
-	| "brazo-alto"
+	| "sobre-ropa"
 	| "manguito-chico"
-	| "manguito-grande"
-	| "sobre-ropa";
+	| "manguito-grande";
 
-export type BpReading = { systolic: number; diastolic: number };
+export type BpReading = { pas: number; pad: number };
 
-// Una medición de presión. El valor del manómetro (gauge) es el verdadero del
-// caso más los ajustes por técnica; el verdadero no se guarda acá.
+// Medición de presión. La crea la herramienta medir_presion (Persona 1) o el
+// botón del tensiómetro. Lo que marca el manómetro (shown) lo calcula el
+// código: verdadero del caso más los ajustes por técnica (lib/exam/
+// blood-pressure.ts). El valor verdadero no se guarda acá.
 export type VitalsMeasurement = {
 	id: string;
 	sessionId: string;
-	// Lo que el estudiante hizo bien, por ejemplo "descruza-piernas".
+	// Pasos de preparación cumplidos (BP_STEPS de lib/patient/tools.ts) y del
+	// manguito.
 	stepsCompleted: string[];
 	techniqueErrors: BpTechniqueError[];
-	cuffSize: CuffSize | null;
-	overClothes: boolean | null;
-	gauge: BpReading | null;
+	shown: BpReading;
+	// Lo que marca el estudiante en el tensiómetro (Persona 2).
 	marked: BpReading | null;
+	// Manguito elegido en el tensiómetro; null hasta colocarlo.
+	cuff: { size: CuffSize; overClothes: boolean } | null;
 	atMs: number;
 };
 

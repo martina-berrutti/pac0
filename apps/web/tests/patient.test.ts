@@ -92,7 +92,9 @@ describe("generador de pacientes", () => {
 		expect(clinicalCase.origin).toBe("generado");
 		expect(clinicalCase.reviewedBy).toBeNull();
 		expect(clinicalCase.patient.age).toBe(60);
-		expect(personalityKey).toBe("ansioso");
+		// La personalidad pedida queda en el caso generado.
+		expect(personalityKey).toBe("caso");
+		expect(clinicalCase.personality.ansiedad).toBeGreaterThan(0.8);
 	});
 
 	test("lo clínico sale de las plantillas (con imágenes del banco)", async () => {

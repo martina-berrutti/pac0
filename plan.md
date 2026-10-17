@@ -106,6 +106,8 @@ Una app web en Next.js que habla por voz con el paciente en tiempo real, guarda 
 
 Cambio respecto del plan inicial: ahora hay login, con modo invitado para el jurado (sección 10).
 
+Decisión del 17/10: para trabajar en paralelo sin cuentas ni claves, **Convex queda para el final**. Mientras tanto la API de Next.js (`apps/web/src/app/api/`) guarda todo en memoria detrás de la interfaz `Store` (`apps/web/src/server/store.ts`), y el invitado usa una cookie firmada. El esquema de Convex ya está escrito en `packages/backend/convex/`. El avance se sigue en `TODO.md` y `PROGRESO.md`.
+
 **Todo pasa por Convex; la voz y el evaluador nunca hablan entre sí.**
 
 ```
@@ -345,6 +347,16 @@ Tres reglas para escribir casos:
 - `truth` solo se lee desde funciones internas del servidor.
 
 **Variación controlada (prioridad 2).** Para que el caso no sea siempre igual, el servidor sortea valores dentro de rangos que define el docente (fiebre entre 37,8 y 39, con o sin tos) sin cambiar el diagnóstico.
+
+### Generador de pacientes a pedido (agregado el 17/10)
+
+Además del banco, el estudiante puede pedir un paciente con sus palabras: "dame un paciente con algo de garganta, que sea ansioso y de unos 60 años". El generador:
+
+1. Elige una **plantilla clínica** del equipo según lo pedido (`cases/templates.ts`). La plantilla trae diagnóstico, historia relevante, signos vitales y variantes de examen con imágenes del banco con licencia.
+2. Elige la **personalidad** según el pedido (ansioso, hostil, mayor, directo) y toma la edad y el sexo si se mencionan.
+3. **Inventa a la persona**: nombre, ocupación, motivo de consulta con sus palabras y datos sociales. Lo hace con IA si hay clave, si no al azar. Todos los datos son ficticios.
+
+Reglas: la IA nunca inventa contenido clínico ni imágenes. Los casos generados quedan marcados como "generado" y "sin revisar" hasta que un médico revise la plantilla. Si se pide algo que no tiene plantilla (por ejemplo, rodilla), se responde con un error claro. A acordar en el equipo: cómo encaja con la regla de `AGENTS.md` de que todo caso lo valida un médico.
 
 ### Casos a construir
 

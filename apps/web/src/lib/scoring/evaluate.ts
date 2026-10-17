@@ -154,9 +154,10 @@ function otoscopyPenalties({ otoscopies }: Extracted): Penalty[] {
 }
 
 // Tensiómetro: 2 puntos de examen por cada error de técnica y por cada valor
-// mal marcado (plan.md, sección 8).
+// mal marcado (plan.md, sección 8). La técnica cuenta aunque no haya llegado a
+// marcar; la lectura, solo si marcó.
 function bloodPressurePenalties({ bp }: Extracted): Penalty[] {
-	if (!bp?.marked || !bp.gauge) return [];
+	if (!bp) return [];
 	const out: Penalty[] = bp.techniqueErrors.map((e) => ({
 		dimension: "examen",
 		points: 2,
@@ -165,18 +166,19 @@ function bloodPressurePenalties({ bp }: Extracted): Penalty[] {
 		why: TECHNIQUE[e].effect,
 		nextTime: TECHNIQUE[e].tip,
 	}));
+	if (!bp.marked) return out;
 	const marks = [
 		{
 			name: "PAS",
-			marked: bp.marked.systolic,
-			real: bp.gauge.systolic,
+			marked: bp.marked.pas,
+			real: bp.shown.pas,
 			sound: "apareció el primer ruido",
 			why: "La PAS es el primer ruido de Korotkoff.",
 		},
 		{
 			name: "PAD",
-			marked: bp.marked.diastolic,
-			real: bp.gauge.diastolic,
+			marked: bp.marked.pad,
+			real: bp.shown.pad,
 			sound: "desaparecieron los ruidos",
 			why: "La PAD es cuando desaparecen los ruidos de Korotkoff.",
 		},
@@ -265,11 +267,11 @@ export function assembleReport(
 	}
 	// Qué hubiera marcado el manómetro con buena técnica.
 	const { bp } = extracted;
-	if (bp?.gauge && bp.techniqueErrors.length > 0) {
+	if (bp && bp.techniqueErrors.length > 0) {
 		const [sys, dia] = clinicalCase.vitals.pa;
 		mistakes.push({
 			tag: "presion-lectura",
-			what: `El manómetro marcó ${bp.gauge.systolic}/${bp.gauge.diastolic}; con buena técnica hubiera marcado ${sys}/${dia}.`,
+			what: `El manómetro marcó ${bp.shown.pas}/${bp.shown.pad}; con buena técnica hubiera marcado ${sys}/${dia}.`,
 			why: "Los errores de técnica cambian la lectura y pueden llevar a un diagnóstico equivocado de hipertensión.",
 			nextTime: "Prepará al paciente y revisá la posición antes de inflar.",
 			critical: false,

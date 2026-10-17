@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { ApiError, api } from "@/lib/api-client";
 import type { BpReading, CuffSize } from "@/lib/contracts/exam";
+import type { BpStart } from "@/server/vitals";
 
 const CUFFS: { size: CuffSize; label: string }[] = [
 	{ size: "chico", label: "Chico (17 a 22 cm)" },
@@ -40,14 +41,19 @@ function thump(ctx: AudioContext) {
 
 export function TensiometroView({
 	sessionId,
+	start,
 	onClose,
 }: {
 	sessionId: string;
+	// Medición que ya creó medir_presion (voz); sin ella, se crea al abrir.
+	start: BpStart | null;
 	onClose: () => void;
 }) {
-	const [stage, setStage] = useState<Stage>("cargando");
-	const [measurementId, setMeasurementId] = useState<string | null>(null);
-	const [armCm, setArmCm] = useState<number | null>(null);
+	const [stage, setStage] = useState<Stage>(start ? "colocar" : "cargando");
+	const [measurementId, setMeasurementId] = useState<string | null>(
+		start?.measurementId ?? null,
+	);
+	const [armCm, setArmCm] = useState<number | null>(start?.armCm ?? null);
 	const [cuff, setCuff] = useState<CuffSize | null>(null);
 	const [rolledUp, setRolledUp] = useState(false);
 	const [drag, setDrag] = useState<{
@@ -76,7 +82,7 @@ export function TensiometroView({
 
 	useEffect(() => {
 		// Una sola medición aunque React monte dos veces en desarrollo.
-		if (started.current) return;
+		if (started.current || measurementId) return;
 		started.current = true;
 		api
 			.startBp(sessionId)
@@ -93,7 +99,7 @@ export function TensiometroView({
 				);
 				onClose();
 			});
-	}, [sessionId, onClose]);
+	}, [sessionId, onClose, measurementId]);
 
 	async function startMeasuring() {
 		if (!measurementId || !cuff) return;
@@ -128,8 +134,8 @@ export function TensiometroView({
 			const audible =
 				g !== null &&
 				!inflating.current &&
-				pressure.current <= g.systolic &&
-				pressure.current >= g.diastolic;
+				pressure.current <= g.pas &&
+				pressure.current >= g.pad;
 			if (audible && now - lastBeat.current > 60_000 / pulse.current) {
 				lastBeat.current = now;
 				if (audio.current) thump(audio.current);
@@ -176,8 +182,8 @@ export function TensiometroView({
 		setStage("guardando");
 		try {
 			await api.markBp(sessionId, measurementId, {
-				systolic: marked.s,
-				diastolic: marked.d,
+				pas: marked.s,
+				pad: marked.d,
 			});
 			onClose();
 		} catch (e) {

@@ -60,9 +60,15 @@ export const caseSchema = z.object({
 		occupation: z.string(),
 	}),
 	personality: personalitySchema,
+	// Cómo habla con la personalidad propia del caso (opcional).
+	personalityStyle: z.string().optional(),
 	chiefComplaint: z.string(),
 	profile: z.record(z.string(), z.string()),
 	hiddenHistory: z.record(z.string(), z.string()),
+	// Variación controlada (plan.md, sección 7): para cada clave de
+	// hiddenHistory, opciones que se sortean al empezar sin cambiar el
+	// diagnóstico. Las define y valida el docente.
+	variations: z.record(z.string(), z.array(z.string()).min(1)).default({}),
 	vitals: z.object({
 		pa: z.tuple([z.number(), z.number()]),
 		fc: z.number(),

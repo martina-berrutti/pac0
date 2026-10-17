@@ -1,20 +1,22 @@
 // Tensiómetro virtual (plan.md, sección 6, afiche HC-01). El manómetro marca
-// el valor verdadero del caso más los ajustes por errores de técnica. Lo
-// calcula este código, no la IA. Las magnitudes en mmHg son valores iniciales
-// a calibrar con un docente: es un modelo educativo simplificado.
+// el valor verdadero del caso más los ajustes por cada paso de técnica que
+// faltó. Lo calcula este código, no la IA. Las magnitudes en mmHg son valores
+// iniciales a calibrar con un docente: es un modelo educativo simplificado.
+//
+// Los pasos de preparación salen de la herramienta medir_presion (el modelo de
+// voz dice cuáles indicó el estudiante, lib/patient/tools.ts) o, con el botón
+// del tensiómetro, de buscar frases en la transcripción. El manguito lo elige
+// el estudiante en la vista.
 import type {
 	BpReading,
 	BpTechniqueError,
 	CuffSize,
+	VitalsMeasurement,
 } from "@/lib/contracts/exam";
 import type { Turn } from "@/lib/contracts/session";
+import { BP_STEPS } from "@/lib/patient/tools";
 
-function normalize(s: string) {
-	return s
-		.toLowerCase()
-		.normalize("NFD")
-		.replace(/\p{Diacritic}/gu, "");
-}
+type BpStep = (typeof BP_STEPS)[number];
 
 type Technique = {
 	// Completa "Tomaste la presión con ...".
@@ -24,120 +26,105 @@ type Technique = {
 	adjust: BpReading;
 	// Qué hacer la próxima vez.
 	tip: string;
-	// Paso que lo corrige y las frases del estudiante que lo cumplen.
-	fix?: { step: string; keywords: string[] };
 };
 
 export const TECHNIQUE: Record<BpTechniqueError, Technique> = {
 	"sin-reposo": {
-		label: "la paciente sin descansar 5 minutos",
+		label: "el paciente sin descansar 5 minutos",
 		effect: "La actividad reciente sube la presión de forma transitoria.",
-		adjust: { systolic: 15, diastolic: 8 },
+		adjust: { pas: 15, pad: 8 },
 		tip: "Pedile que se siente y descanse 5 minutos antes de medir.",
-		fix: {
-			step: "indica-reposo",
-			keywords: ["descans", "repos", "5 minutos", "cinco minutos", "esperemos"],
-		},
 	},
 	hablando: {
-		label: "la paciente hablando",
+		label: "el paciente hablando",
 		effect: "Hablar durante la medición sube la presión.",
-		adjust: { systolic: 10, diastolic: 8 },
-		tip: "Pedile que corte el teléfono y no hable mientras medís.",
-		fix: {
-			step: "pide-silencio",
-			keywords: ["no hables", "sin hablar", "silencio", "colga", "corta"],
-		},
-	},
-	"piernas-cruzadas": {
-		label: "las piernas cruzadas",
-		effect: "Las piernas cruzadas suben la sistólica.",
-		adjust: { systolic: 6, diastolic: 2 },
-		tip: "Pedile que descruce las piernas y apoye los pies en el piso.",
-		fix: {
-			step: "descruza-piernas",
-			keywords: ["descruz", "sin cruzar", "no cruces", "piernas apoyadas"],
-		},
+		adjust: { pas: 10, pad: 7 },
+		tip: "Pedile que no hable mientras medís.",
 	},
 	"espalda-sin-apoyo": {
 		label: "la espalda sin apoyar",
 		effect: "Sin respaldo sube la diastólica.",
-		adjust: { systolic: 2, diastolic: 6 },
+		adjust: { pas: 5, pad: 6 },
 		tip: "Pedile que apoye la espalda en el respaldo.",
-		fix: {
-			step: "apoya-espalda",
-			keywords: ["apoya la espalda", "espalda apoyada", "respaldo"],
-		},
+	},
+	"pies-sin-apoyo": {
+		label: "los pies sin apoyar",
+		effect: "Con los pies colgando sube un poco la presión.",
+		adjust: { pas: 3, pad: 2 },
+		tip: "Pedile que apoye los pies en el piso.",
+	},
+	"piernas-cruzadas": {
+		label: "las piernas cruzadas",
+		effect: "Las piernas cruzadas suben la sistólica.",
+		adjust: { pas: 7, pad: 2 },
+		tip: "Pedile que descruce las piernas.",
 	},
 	"brazo-bajo": {
 		label: "el brazo por debajo del corazón",
 		effect: "El brazo por debajo del corazón sobreestima la presión.",
-		adjust: { systolic: 8, diastolic: 6 },
+		adjust: { pas: 8, pad: 6 },
 		tip: "Apoyá el brazo sobre la mesa, a la altura del corazón.",
-		fix: {
-			step: "brazo-a-la-altura-del-corazon",
-			keywords: [
-				"altura del corazon",
-				"apoya el brazo",
-				"brazo apoyado",
-				"apoyar el brazo",
-			],
-		},
 	},
-	"brazo-alto": {
-		label: "el brazo por encima del corazón",
-		effect: "El brazo por encima del corazón subestima la presión.",
-		adjust: { systolic: -8, diastolic: -6 },
-		tip: "Bajá el brazo y apoyalo a la altura del corazón.",
+	"sobre-ropa": {
+		label: "el manguito sobre la ropa",
+		effect: "El manguito sobre ropa gruesa altera la lectura.",
+		adjust: { pas: 5, pad: 3 },
+		tip: "Pedile que se arremangue y colocá el manguito sobre la piel.",
 	},
 	"manguito-chico": {
 		label: "un manguito chico para el brazo",
 		effect: "Un manguito chico da valores falsamente elevados.",
-		adjust: { systolic: 10, diastolic: 8 },
+		adjust: { pas: 10, pad: 8 },
 		tip: "Medí el perímetro del brazo: el manguito tiene que cubrir cerca del 80%.",
 	},
 	"manguito-grande": {
 		label: "un manguito grande para el brazo",
 		effect: "Un manguito grande da valores falsamente bajos.",
-		adjust: { systolic: -8, diastolic: -6 },
+		adjust: { pas: -8, pad: -6 },
 		tip: "Medí el perímetro del brazo: el manguito tiene que cubrir cerca del 80%.",
 	},
-	"sobre-ropa": {
-		label: "el manguito sobre la ropa",
-		effect: "El manguito sobre ropa gruesa altera la lectura.",
-		adjust: { systolic: 5, diastolic: 3 },
-		tip: "Pedile que se arremangue y colocá el manguito sobre la piel.",
+};
+
+// Paso de preparación -> error si falta, y frases que lo cumplen (para el
+// botón del tensiómetro, sin la herramienta de voz).
+const STEPS: Record<BpStep, { error: BpTechniqueError; keywords: string[] }> = {
+	descanso: {
+		error: "sin-reposo",
+		keywords: ["descans", "repos", "5 minutos", "cinco minutos", "esperemos"],
+	},
+	sin_hablar: {
+		error: "hablando",
+		keywords: ["no hables", "sin hablar", "silencio", "colga", "corta"],
+	},
+	espalda_apoyada: {
+		error: "espalda-sin-apoyo",
+		keywords: ["apoya la espalda", "espalda apoyada", "respaldo"],
+	},
+	pies_apoyados: {
+		error: "pies-sin-apoyo",
+		keywords: ["pies en el piso", "pies apoyados", "apoya los pies"],
+	},
+	piernas_descruzadas: {
+		error: "piernas-cruzadas",
+		keywords: ["descruz", "sin cruzar", "no cruces"],
+	},
+	brazo_altura_corazon: {
+		error: "brazo-bajo",
+		keywords: [
+			"altura del corazon",
+			"apoya el brazo",
+			"brazo apoyado",
+			"apoyar el brazo",
+		],
+	},
+	manguito_sobre_piel: {
+		error: "sobre-ropa",
+		keywords: ["arremang", "sobre la piel", "subi la manga"],
 	},
 };
-
-// Cómo encuentra el estudiante al paciente al ir a tomarle la presión.
-export type BpScenario = {
-	armCm: number;
-	pulse: number;
-	initial: BpTechniqueError[];
-};
-
-const DEFAULT_SCENARIO: Omit<BpScenario, "pulse"> = {
-	armCm: 26,
-	initial: ["piernas-cruzadas", "brazo-bajo"],
-};
-
-// Caso trampa del afiche (Rosa Rodríguez, estación 3): llegó corriendo y
-// espera hablando por teléfono. Cuando la Persona 3 agregue el caso 2, se
-// puede pasar al JSON del caso.
-const SCENARIOS: Record<string, Omit<BpScenario, "pulse">> = {
-	"hipertension-01": {
-		armCm: 35,
-		initial: ["sin-reposo", "hablando", "piernas-cruzadas", "brazo-bajo"],
-	},
-};
-
-export function scenarioFor(caseId: string, pulse: number): BpScenario {
-	return { ...(SCENARIOS[caseId] ?? DEFAULT_SCENARIO), pulse };
-}
 
 // Preguntas de preparación del afiche: suman como pasos, no cambian la lectura.
-const PREP_STEPS: Record<string, string[]> = {
+const PREP_QUESTIONS: Record<string, string[]> = {
 	"pregunta-sustancias": [
 		"cafe",
 		"mate",
@@ -151,6 +138,15 @@ const PREP_STEPS: Record<string, string[]> = {
 	"pregunta-vejiga": ["vejiga", "al bano", "orinar", "hacer pis"],
 };
 
+// Perímetro del brazo y pulso de cada caso. Rosa (caso 2, trampa del afiche)
+// tiene el brazo grande: el manguito de adulto le queda chico.
+const ARM_CM: Record<string, number> = { "hipertension-01": 35 };
+const DEFAULT_ARM_CM = 26;
+
+export function armFor(caseId: string) {
+	return ARM_CM[caseId] ?? DEFAULT_ARM_CM;
+}
+
 export function correctCuff(armCm: number): CuffSize {
 	if (armCm < 22) return "chico";
 	return armCm <= 32 ? "adecuado" : "grande";
@@ -158,57 +154,62 @@ export function correctCuff(armCm: number): CuffSize {
 
 const CUFF_ORDER: CuffSize[] = ["chico", "adecuado", "grande"];
 
+function normalize(s: string) {
+	return s
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
+}
+
 function says(turns: Turn[], keywords: string[]) {
 	return turns.some((t) =>
 		keywords.some((k) => normalize(t.text).includes(normalize(k))),
 	);
 }
 
-// Errores y pasos según lo que dijo el estudiante antes de medir.
-export function assessConversation(studentTurns: Turn[], scenario: BpScenario) {
-	const steps: string[] = [];
-	for (const [step, keywords] of Object.entries(PREP_STEPS)) {
-		if (says(studentTurns, keywords)) steps.push(step);
-	}
-	for (const t of Object.values(TECHNIQUE)) {
-		if (t.fix && says(studentTurns, t.fix.keywords)) steps.push(t.fix.step);
-	}
-	const errors = scenario.initial.filter((e) => {
-		const fix = TECHNIQUE[e].fix;
-		return !fix || !steps.includes(fix.step);
-	});
-	return { steps, errors };
+// Pasos que el estudiante indicó en la conversación (sin herramienta de voz).
+export function stepsFromConversation(studentTurns: Turn[]): string[] {
+	return [
+		...BP_STEPS.filter((s) => says(studentTurns, STEPS[s].keywords)),
+		...Object.keys(PREP_QUESTIONS).filter((q) =>
+			says(studentTurns, PREP_QUESTIONS[q] ?? []),
+		),
+	];
 }
 
-// Errores del manguito, según lo que eligió en la vista.
-export function assessCuff(
-	cuffSize: CuffSize,
-	overClothes: boolean,
-	armCm: number,
-) {
-	const steps: string[] = [];
-	const errors: BpTechniqueError[] = [];
-	const diff =
-		CUFF_ORDER.indexOf(cuffSize) - CUFF_ORDER.indexOf(correctCuff(armCm));
-	if (diff < 0) errors.push("manguito-chico");
-	else if (diff > 0) errors.push("manguito-grande");
-	else steps.push("manguito-adecuado");
-	if (overClothes) errors.push("sobre-ropa");
-	else steps.push("manguito-sobre-piel");
-	return { steps, errors };
-}
+export type Cuff = NonNullable<VitalsMeasurement["cuff"]>;
 
-export function gaugeReading(
+// Lectura del manómetro. Sin manguito colocado, "sobre la piel" sale de lo
+// que indicó el estudiante; con manguito, de lo que eligió en la vista.
+export function measure(
 	truth: [number, number],
-	errors: BpTechniqueError[],
-): BpReading {
-	return errors.reduce(
-		(r, e) => ({
-			systolic: r.systolic + TECHNIQUE[e].adjust.systolic,
-			diastolic: r.diastolic + TECHNIQUE[e].adjust.diastolic,
-		}),
-		{ systolic: truth[0], diastolic: truth[1] },
+	steps: readonly string[],
+	cuff: Cuff | null,
+	armCm: number,
+): Pick<VitalsMeasurement, "shown" | "stepsCompleted" | "techniqueErrors"> {
+	const done = new Set(steps.filter((s) => s !== "manguito-adecuado"));
+	if (cuff) {
+		if (cuff.overClothes) done.delete("manguito_sobre_piel");
+		else done.add("manguito_sobre_piel");
+	}
+	const errors: BpTechniqueError[] = BP_STEPS.filter((s) => !done.has(s)).map(
+		(s) => STEPS[s].error,
 	);
+	if (cuff) {
+		const diff =
+			CUFF_ORDER.indexOf(cuff.size) - CUFF_ORDER.indexOf(correctCuff(armCm));
+		if (diff < 0) errors.push("manguito-chico");
+		else if (diff > 0) errors.push("manguito-grande");
+		else done.add("manguito-adecuado");
+	}
+	const shown = errors.reduce(
+		(r, e) => ({
+			pas: r.pas + TECHNIQUE[e].adjust.pas,
+			pad: r.pad + TECHNIQUE[e].adjust.pad,
+		}),
+		{ pas: truth[0], pad: truth[1] },
+	);
+	return { shown, stepsCompleted: [...done], techniqueErrors: errors };
 }
 
 // Margen para dar por bien marcada una lectura (los manómetros van de 2 en 2).

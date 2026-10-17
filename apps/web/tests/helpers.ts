@@ -40,6 +40,9 @@ function session(over: Partial<Session> = {}): Session {
 		endedAt: 1,
 		closing: null,
 		consentGiven: false,
+		historyOverrides: {},
+		inventedFacts: {},
+		voiceUsage: null,
 		...over,
 	};
 }

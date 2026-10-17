@@ -4,11 +4,11 @@ import type { ClinicalCase } from "@/cases/schema";
 import type { VitalsMeasurement } from "@/lib/contracts/exam";
 import type { Turn } from "@/lib/contracts/session";
 import {
-	assessConversation,
-	assessCuff,
-	gaugeReading,
-	scenarioFor,
+	armFor,
+	measure,
+	stepsFromConversation,
 } from "@/lib/exam/blood-pressure";
+import { BP_STEPS } from "@/lib/patient/tools";
 import { evaluate } from "@/lib/scoring/evaluate";
 
 import { goodStudent, lucia } from "./helpers";
@@ -25,68 +25,79 @@ function said(...texts: string[]): Turn[] {
 	}));
 }
 
+const PREP = BP_STEPS.filter((s) => s !== "manguito_sobre_piel");
+const goodCuff = { size: "adecuado" as const, overClothes: false };
+
 function measurement(over: Partial<VitalsMeasurement>): VitalsMeasurement {
 	return {
 		id: "bp1",
 		sessionId: "s1",
-		stepsCompleted: [],
+		stepsCompleted: [...BP_STEPS],
 		techniqueErrors: [],
-		cuffSize: "adecuado",
-		overClothes: false,
-		gauge: { systolic: 112, diastolic: 70 },
-		marked: { systolic: 112, diastolic: 70 },
+		shown: { pas: 112, pad: 70 },
+		marked: { pas: 112, pad: 70 },
+		cuff: goodCuff,
 		atMs: 120_000,
 		...over,
 	};
 }
 
 describe("tensiómetro", () => {
-	test("el manómetro suma los ajustes de cada error de técnica", () => {
-		expect(gaugeReading([112, 70], [])).toEqual({
-			systolic: 112,
-			diastolic: 70,
-		});
-		expect(gaugeReading([112, 70], ["piernas-cruzadas", "brazo-bajo"])).toEqual(
-			{ systolic: 126, diastolic: 78 },
-		);
+	test("con todos los pasos y buen manguito marca el valor verdadero", () => {
+		const r = measure([112, 70], PREP, goodCuff, 26);
+		expect(r.techniqueErrors).toEqual([]);
+		expect(r.shown).toEqual({ pas: 112, pad: 70 });
 	});
 
-	test("lo que dice el estudiante corrige la postura", () => {
-		const scenario = scenarioFor("garganta-01", 96);
-		const none = assessConversation([], scenario);
-		expect(none.errors).toEqual(["piernas-cruzadas", "brazo-bajo"]);
-		const fixed = assessConversation(
+	test("cada paso que falta suma su ajuste", () => {
+		const r = measure(
+			[112, 70],
+			PREP.filter((s) => s !== "piernas_descruzadas"),
+			goodCuff,
+			26,
+		);
+		expect(r.techniqueErrors).toEqual(["piernas-cruzadas"]);
+		expect(r.shown).toEqual({ pas: 119, pad: 72 });
+	});
+
+	test("lo que dice el estudiante cuenta como pasos (sin la voz)", () => {
+		const steps = stepsFromConversation(
 			said(
-				"Descruzá las piernas, por favor.",
+				"Sentate y descansá 5 minutos, sin hablar.",
+				"Apoyá la espalda, los pies en el piso y descruzá las piernas.",
 				"Apoyá el brazo acá, a la altura del corazón.",
 				"¿Tomaste café o fumaste en la última media hora?",
 			),
-			scenario,
 		);
-		expect(fixed.errors).toEqual([]);
-		expect(fixed.steps).toContain("pregunta-sustancias");
-		expect(fixed.steps).toContain("descruza-piernas");
+		expect(measure([112, 70], steps, goodCuff, 26).techniqueErrors).toEqual([]);
+		expect(steps).toContain("pregunta-sustancias");
 	});
 
 	test("caso trampa: sin reposo y hablando da alto", () => {
-		const scenario = scenarioFor("hipertension-01", 88);
-		const { errors } = assessConversation([], scenario);
-		expect(errors).toContain("sin-reposo");
-		expect(errors).toContain("hablando");
-		const reading = gaugeReading([130, 84], errors);
-		expect(reading.systolic).toBeGreaterThan(160);
+		const r = measure([130, 84], [], null, armFor("hipertension-01"));
+		expect(r.techniqueErrors).toContain("sin-reposo");
+		expect(r.techniqueErrors).toContain("hablando");
+		expect(r.shown.pas).toBeGreaterThan(160);
 	});
 
-	test("el manguito tiene que corresponder al brazo y ir sobre la piel", () => {
-		expect(assessCuff("adecuado", false, 26).errors).toEqual([]);
-		expect(assessCuff("chico", false, 26).errors).toEqual(["manguito-chico"]);
-		expect(assessCuff("adecuado", false, 35).errors).toEqual([
+	test("el manguito de la vista manda sobre lo que dijo de la ropa", () => {
+		const said = [...PREP, "manguito_sobre_piel"];
+		expect(measure([112, 70], said, null, 26).techniqueErrors).toEqual([]);
+		expect(
+			measure([112, 70], said, { size: "adecuado", overClothes: true }, 26)
+				.techniqueErrors,
+		).toEqual(["sobre-ropa"]);
+	});
+
+	test("el manguito tiene que corresponder al brazo", () => {
+		const errors = (size: "chico" | "adecuado" | "grande", arm: number) =>
+			measure([112, 70], PREP, { size, overClothes: false }, arm)
+				.techniqueErrors;
+		expect(errors("chico", 26)).toEqual(["manguito-chico"]);
+		expect(errors("adecuado", armFor("hipertension-01"))).toEqual([
 			"manguito-chico",
 		]);
-		expect(assessCuff("grande", true, 26).errors).toEqual([
-			"manguito-grande",
-			"sobre-ropa",
-		]);
+		expect(errors("grande", 26)).toEqual(["manguito-grande"]);
 	});
 });
 
@@ -106,8 +117,8 @@ describe("evaluación de la presión", () => {
 			vitals: [
 				measurement({
 					techniqueErrors: ["piernas-cruzadas", "sobre-ropa"],
-					gauge: { systolic: 123, diastolic: 75 },
-					marked: { systolic: 124, diastolic: 76 },
+					shown: { pas: 124, pad: 75 },
+					marked: { pas: 124, pad: 76 },
 				}),
 			],
 		};
@@ -122,10 +133,26 @@ describe("evaluación de la presión", () => {
 		);
 	});
 
+	test("la técnica cuenta aunque no haya marcado", () => {
+		const input = {
+			...goodStudent(),
+			vitals: [
+				measurement({
+					techniqueErrors: ["hablando"],
+					marked: null,
+					cuff: null,
+				}),
+			],
+		};
+		const tags = evaluate(input).mistakes.map((m) => m.tag);
+		expect(tags).toContain("tecnica-hablando");
+		expect(tags.some((t) => t.startsWith("lectura-"))).toBe(false);
+	});
+
 	test("marcar lejos del primer ruido es un error de lectura", () => {
 		const input = {
 			...goodStudent(),
-			vitals: [measurement({ marked: { systolic: 130, diastolic: 70 } })],
+			vitals: [measurement({ marked: { pas: 130, pad: 70 } })],
 		};
 		const tags = evaluate(input).mistakes.map((m) => m.tag);
 		expect(tags).toContain("lectura-pas");

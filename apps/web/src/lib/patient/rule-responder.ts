@@ -146,7 +146,7 @@ export function ruleRespond(
 	}
 	if (has(text, DIAGNOSIS_FISHING)) {
 		return {
-			text: "Y no sé, para eso vine. ¿Usted qué piensa que puede ser?",
+			text: "Y no sé, para eso vine. ¿Vos qué pensás que puede ser?",
 			delta: null,
 		};
 	}
