@@ -17,13 +17,13 @@ import {
 } from "@/lib/exam/otoscope";
 import { evaluate } from "@/lib/scoring/evaluate";
 
-import { lucia, goodStudent as luciaStudent } from "./helpers";
+import { amigdalitis, goodStudent as luciaStudent } from "./helpers";
 
 // Acá se mide solo la técnica: con todos los exámenes indicados, examinar
 // algo que no es del problema no resta (eso se prueba en cases.test.ts).
 const goodStudent = () => ({
 	...luciaStudent(),
-	clinicalCase: { ...lucia, relevantExams: [...EXAM_KINDS] },
+	clinicalCase: { ...amigdalitis, relevantExams: [...EXAM_KINDS] },
 });
 
 const explained: Turn[] = [
@@ -159,9 +159,9 @@ describe("evaluación de la otoscopia", () => {
 
 	test("un caso con el ítem de otoscopia lo juzga con la técnica", () => {
 		const withItem: ClinicalCase = {
-			...lucia,
+			...amigdalitis,
 			expectedChecklist: [
-				...lucia.expectedChecklist,
+				...amigdalitis.expectedChecklist,
 				{
 					id: "otoscopia",
 					item: "realiza la otoscopia con buena técnica",
@@ -242,9 +242,9 @@ describe("hallazgos de oído por caso", () => {
 
 	test("sin oído afectado en el caso, un solo oído no resta", () => {
 		expect(
-			evaluate(withDiego([ear("oido-derecho", 100_000)], lucia)).mistakes.map(
-				(m) => m.tag,
-			),
+			evaluate(
+				withDiego([ear("oido-derecho", 100_000)], amigdalitis),
+			).mistakes.map((m) => m.tag),
 		).not.toContain("otoscopia-un-oido");
 	});
 

@@ -205,6 +205,54 @@
 			"otitis media aguda",
 			"forúnculo del conducto",
 			"tapón de cerumen"
+		],
+		"keyClues": [
+			{
+				"itemId": "agua",
+				"clue": "Piscina todos los días y uso de hisopos",
+				"why": "El agua y los hisopos irritan el conducto: son la causa típica de la otitis externa.",
+				"keywords": ["piscina", "agua", "hisopo", "nadar"]
+			},
+			{
+				"itemId": "caracteristicas-dolor",
+				"clue": "Duele al tocar la oreja o al masticar",
+				"why": "Que duela al mover la oreja ubica el problema en el conducto, no detrás del tímpano.",
+				"keywords": [
+					"tocar la oreja",
+					"toca la oreja",
+					"oreja",
+					"traccion",
+					"mastic"
+				]
+			},
+			{
+				"itemId": "secrecion",
+				"clue": "Secreción y oído tapado",
+				"why": "La secreción en el conducto con el tímpano sano es de la otitis externa.",
+				"keywords": ["secrecion", "liquido", "supura", "tapado"]
+			},
+			{
+				"itemId": "otoscopia",
+				"clue": "Conducto rojo con secreción y tímpano sano",
+				"why": "La otoscopia confirma que el problema está en el conducto.",
+				"keywords": ["conducto", "timpano sano", "timpano normal"]
+			}
+		],
+		"differentialHints": {
+			"otitis media aguda": "La otitis media viene después de un resfrío, da fiebre y un dolor profundo; tocar la oreja no lo empeora y el tímpano está rojo y abombado.",
+			"forúnculo del conducto": "El forúnculo es un bulto puntual en la entrada del conducto, muy doloroso, sin tanta secreción.",
+			"tapón de cerumen": "El tapón da oído tapado sin dolor fuerte ni secreción; en la otoscopia se ve la cera."
+		},
+		"conduct": [
+			"gotas",
+			"otico",
+			"topico",
+			"no mojar",
+			"evitar el agua",
+			"sin hisopo",
+			"no usar hisopo",
+			"ciprofloxacina",
+			"analges"
 		]
 	}
 }

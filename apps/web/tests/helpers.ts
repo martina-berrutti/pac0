@@ -1,11 +1,17 @@
 // Estudiantes simulados para probar el evaluador (plan.md, sección 8).
 import { caseBank } from "@/cases";
-import type { ClinicalCase } from "@/cases/schema";
+import { type ClinicalCase, caseSchema } from "@/cases/schema";
 import type { ExamAction } from "@/lib/contracts/exam";
 import type { Session, Turn } from "@/lib/contracts/session";
 import type { EvaluationInput } from "@/lib/scoring/types";
 
+import faringoamigdalitis from "./fixtures/faringoamigdalitis.json";
+
+// Primer caso del banco: para las consultas de punta a punta.
 export const lucia = caseBank[0] as ClinicalCase;
+// Faringoamigdalitis con placas: ya no está en el banco, pero los estudiantes
+// simulados del evaluador (bueno, mediocre y malo) están escritos para ella.
+export const amigdalitis = caseSchema.parse(faringoamigdalitis);
 
 let n = 0;
 function turn(
@@ -92,7 +98,7 @@ export function goodStudent(): EvaluationInput {
 	];
 	const turns = lines.map((t, i) => turn("s1", "estudiante", t, i * 10_000));
 	return {
-		clinicalCase: lucia,
+		clinicalCase: amigdalitis,
 		session: session({
 			consentGiven: true,
 			closing: {
@@ -116,7 +122,7 @@ export function averageStudent(): EvaluationInput {
 		"¿Puedo revisarte? Abrí la boca.",
 	];
 	return {
-		clinicalCase: lucia,
+		clinicalCase: amigdalitis,
 		session: session({
 			consentGiven: true,
 			closing: { hypothesis: "faringitis", differentials: ["viral"] },
@@ -130,7 +136,7 @@ export function averageStudent(): EvaluationInput {
 
 export function badStudent(): EvaluationInput {
 	return {
-		clinicalCase: lucia,
+		clinicalCase: amigdalitis,
 		session: session({
 			consentGiven: false,
 			closing: { hypothesis: "gripe", differentials: [] },

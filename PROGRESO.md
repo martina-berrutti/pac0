@@ -2,6 +2,21 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Evaluación del diagnóstico, informe para el estudiante y dos problemas por paciente
+
+- **Problemas:** se sacaron el Problema 1 de garganta (faringoamigdalitis) y el Problema 3 de oído (dolor que viene de la mandíbula). Quedan Lucía con faringitis viral (Problema 1) y mononucleosis (Problema 2), y Diego con otitis externa (Problema 1) y otitis media aguda (Problema 2).
+- **Sobre lo de la Persona 2:** el evaluador sigue igual (juez por ítem, jerga, pistas ignoradas, salto al diagnóstico, errores críticos, técnica de presión y otoscopio). Sus estudiantes simulados estaban escritos para la faringoamigdalitis: ese caso quedó como fixture de tests (`tests/fixtures/faringoamigdalitis.json`) y sus tests no cambiaron.
+- **¿Encontró el problema?** (`lib/scoring/diagnosis.ts`, con los dos jueces):
+  - Resultado: acertaste, estuviste cerca («otitis» cuando era otitis media), planteaste un diferencial (y qué lo distingue del diagnóstico) o sin diagnóstico. Si juzga la IA, su decisión manda.
+  - Datos clave de cada caso (`truth.keyClues`): cuáles encontró, con la cita de su turno, cuáles no buscó y por qué importaban, y si los usó para justificar el cierre.
+  - Diferenciales que pensó y que le faltaron, con qué distingue a cada uno (`truth.differentialHints`).
+  - Lo que le dijo al paciente: si le dijo un diagnóstico equivocado, es un error (sin puntos) con la cita. Preguntas y descartes no cuentan.
+- **Razonamiento por caso:** la justificación cuenta con los datos clave del caso y la conducta con la del caso (`truth.conduct`: antibiótico sin penicilina en la otitis media, gotas en la externa, monotest en la mononucleosis, sin antibiótico en la viral). Antes en los casos de oído nunca contaban, porque las palabras eran solo de garganta.
+- **Informe:** «Tu diagnóstico», puntajes, «Lo que hiciste bien» (lo destacado y todo lo demás que cumplió), «Lo que hiciste mal» (críticos primero, con la cita), «Puntos a mejorar» (los 5 más importantes, en orden) y «Datos clave del caso».
+- `scripts/probar-consulta.mjs` (Puerta 2) ahora usa a Lucía con faringitis viral y chequea la evaluación del diagnóstico.
+- Validación: 276 tests en web (16 nuevos del diagnóstico); lint, tipos y build pasan.
+- **Para revisar con un médico:** los datos clave, los diferenciales y la conducta de los cuatro problemas son borrador.
+
 ## 17/10 · Persona 2 · Evaluador completo, abatelenguas y listo para las fotos
 
 - **Puntaje:** penalizaciones nuevas (jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico), errores críticos nuevos (insistir contra la negativa, omitir una señal de alarma, trato irrespetuoso) y +5 de comunicación por ganar la confianza de un paciente difícil. Todo lo calcula el código, también con el juez con IA.

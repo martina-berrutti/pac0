@@ -2,7 +2,7 @@
 	"id": "garganta-03",
 	"title": "Dolor de garganta",
 	"group": "lucia",
-	"problem": "Problema 3",
+	"problem": "Problema 2",
 	"relevantExams": ["orofaringe"],
 	"origin": "banco",
 	"reviewedBy": null,
@@ -235,6 +235,56 @@
 	"truth": {
 		"diagnosis": "mononucleosis infecciosa",
 		"acceptable": ["mononucleosis", "enfermedad del beso", "epstein"],
-		"differentials": ["faringoamigdalitis estreptocócica", "citomegalovirus"]
+		"differentials": ["faringoamigdalitis estreptocócica", "citomegalovirus"],
+		"keyClues": [
+			{
+				"itemId": "cansancio",
+				"clue": "Cansancio intenso desde hace más de una semana",
+				"why": "El cansancio marcado y largo es típico de la mononucleosis.",
+				"keywords": ["cansancio", "cansada", "agotad", "astenia", "decaimiento"]
+			},
+			{
+				"itemId": "ganglios",
+				"clue": "Ganglios dolorosos en el cuello",
+				"why": "Los ganglios grandes en el cuello, sobre todo atrás, orientan a mononucleosis.",
+				"keywords": ["ganglio", "adenopat", "cuello"]
+			},
+			{
+				"itemId": "medicacion",
+				"clue": "Manchas en la piel después de tomar amoxicilina",
+				"why": "En la mononucleosis la amoxicilina suele dar un sarpullido: es una pista fuerte.",
+				"keywords": ["amoxicilina", "manchas", "sarpullido", "exantema", "rash"]
+			},
+			{
+				"itemId": "inicio",
+				"clue": "Diez días sin mejorar",
+				"why": "Una angina común mejora en pocos días; diez días sin mejorar hacen pensar en otra causa.",
+				"keywords": ["diez dias", "10 dias", "semana", "no mejora"]
+			},
+			{
+				"itemId": "orofaringe",
+				"clue": "Amígdalas grandes con placas",
+				"why": "Las placas aparecen en la mononucleosis y en la angina estreptocócica: solas no alcanzan para diferenciarlas.",
+				"keywords": ["placas", "exudado"]
+			}
+		],
+		"differentialHints": {
+			"faringoamigdalitis estreptocócica": "La estreptocócica dura pocos días y no da tanto cansancio ni ganglios en todo el cuello. El sarpullido después de la amoxicilina apunta a mononucleosis.",
+			"citomegalovirus": "El citomegalovirus da un cuadro parecido, pero con menos dolor de garganta y casi sin ganglios."
+		},
+		"conduct": [
+			"monotest",
+			"mono test",
+			"paul bunnell",
+			"hemograma",
+			"serologia",
+			"linfocitos",
+			"no antibiot",
+			"sin antibiot",
+			"suspender la amoxicilina",
+			"deporte",
+			"bazo",
+			"reposo"
+		]
 	}
 }

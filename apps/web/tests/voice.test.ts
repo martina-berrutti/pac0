@@ -159,10 +159,10 @@ describe("herramientas del paciente", () => {
 		});
 		expect(completa.output.variante).toBe("completa");
 		expect(completa.ui.kind === "exam" && completa.ui.exam.assetKey).toBe(
-			"throat-exudate-01",
+			lucia.exam.orofaringe?.variants.completa,
 		);
 		// Al modelo no le llega el hallazgo.
-		expect(JSON.stringify(completa.output)).not.toContain("exudado");
+		expect(JSON.stringify(completa.output)).not.toContain("eritema");
 		expect(await store.listExamActions(id)).toHaveLength(2);
 	});
 
@@ -195,9 +195,10 @@ describe("herramientas del paciente", () => {
 			pasos_cumplidos: [...BP_STEPS],
 		});
 		const saved = (await store.listVitals(id))[0];
-		expect(saved?.shown).toEqual({ pas: 112, pad: 70 });
+		const [pas, pad] = lucia.vitals.pa;
+		expect(saved?.shown).toEqual({ pas, pad });
 		// Ni el modelo ni la pantalla reciben el valor: lo mide el estudiante.
-		expect(JSON.stringify(run.output)).not.toContain("112");
+		expect(JSON.stringify(run.output)).not.toContain(String(pas));
 		expect(JSON.stringify(run.ui)).not.toContain("112");
 		expect(run.ui.kind === "vitals" && run.ui.measurementId).toBe(saved?.id);
 		const bad = measure([112, 70], [], null, 26);
@@ -294,7 +295,9 @@ describe("pendientes de la Persona 1", () => {
 
 	test("variación controlada: se sortea un valor del caso y llega al paciente", async () => {
 		const { pickVariations } = await import("@/server/consultation");
-		expect(pickVariations(lucia, () => 0.99).fiebre).toBe("tuve 39 anoche");
+		expect(pickVariations(lucia, () => 0.99).fiebre).toBe(
+			lucia.variations.fiebre?.at(-1),
+		);
 		const id = await startSession(ana, lucia.id, "caso");
 		const fiebre = (await store.getSession(id))?.historyOverrides.fiebre;
 		expect(lucia.variations.fiebre).toContain(fiebre);
