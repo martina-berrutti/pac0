@@ -1,0 +1,41 @@
+{
+	"name": "pac0",
+	"private": true,
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"type": "module",
+	"scripts": {
+		"dev": "turbo run dev",
+		"build": "turbo run build",
+		"check-types": "turbo run check-types",
+		"dev:web": "turbo run dev -F web --",
+		"dev:server": "turbo run dev -F @pac0/backend --",
+		"dev:setup": "turbo run dev:setup -F @pac0/backend --",
+		"env:generate": "varlock codegen --path ./apps/web/",
+		"postinstall": "varlock codegen --path ./apps/web/",
+		"check": "biome check --write .",
+		"lint": "biome check .",
+		"test": "turbo run test"
+	},
+	"dependencies": {
+		"zod": "^4.5.4"
+	},
+	"devDependencies": {
+		"@pac0/config": "*",
+		"@types/node": "^26.4.1",
+		"turbo": "^2.11.7",
+		"typescript": "^6.0.3",
+		"varlock": "1.18.0",
+		"@biomejs/biome": "^2.5.15"
+	},
+	"overrides": {
+		"@next/env": "npm:@varlock/nextjs-integration@1.2.2"
+	},
+	"packageManager": "npm@11.21.1",
+	"allowScripts": {
+		"esbuild": true,
+		"sharp": true
+	}
+}
