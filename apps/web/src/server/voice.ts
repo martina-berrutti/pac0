@@ -9,6 +9,7 @@ import type {
 	PatientState,
 	SessionEventType,
 	Turn,
+	VoiceUsage,
 } from "@/lib/contracts/session";
 import { bloodPressureReading } from "@/lib/patient/blood-pressure";
 import { buildPatientPrompt } from "@/lib/patient/brief";
@@ -21,6 +22,7 @@ import {
 	brief,
 	defaultZone,
 	noteConsent,
+	ownSession,
 	recordExam,
 } from "./consultation";
 import { newId, store } from "./store";
@@ -41,6 +43,7 @@ const VOICE_RULES = [
 	"- Si te pide mostrar otra parte del cuerpo, llamá a mostrar_region.",
 	"- Si algo que hace el estudiante te cae bien o mal, llamá a actualizar_estado con un cambio chico.",
 	"- Si el estudiante se despide o da por terminada la consulta, llamá a terminar_consulta.",
+	"- Si inventás un dato sobre vos que no estaba en tu historia, llamá a anotar_dato.",
 ].join("\n");
 
 export function voiceInstructions(viewer: Viewer, sessionId: string) {
@@ -301,6 +304,19 @@ export function runTool(
 			});
 			return { output: { ok: true, estado: next }, ui: { kind: "none" } };
 		}
+		case "anotar_dato": {
+			const args = toolArgs.anotar_dato.parse(rawArgs);
+			const facts = { ...session.inventedFacts };
+			// Solo datos nuevos: lo que ya estaba en la historia no se pisa.
+			if (
+				Object.keys(facts).length < 40 &&
+				!(args.clave in clinicalCase.hiddenHistory)
+			) {
+				facts[args.clave] = args.valor;
+				store.updateSession(sessionId, { inventedFacts: facts });
+			}
+			return { output: { ok: true }, ui: { kind: "none" } };
+		}
 		case "terminar_consulta": {
 			toolArgs.terminar_consulta.parse(rawArgs ?? {});
 			return { output: { ok: true }, ui: { kind: "end" } };
@@ -352,4 +368,33 @@ export function recordVoiceEvent(
 		atMs: elapsed,
 		...(durationMs === undefined ? {} : { durationMs }),
 	});
+}
+
+type UsageInput = Omit<VoiceUsage, "responses">;
+
+// Suma los tokens de cada respuesta de la voz para medir el costo por sesión.
+export function recordVoiceUsage(
+	viewer: Viewer,
+	sessionId: string,
+	usage: UsageInput,
+) {
+	const { session } = ownSession(viewer, sessionId);
+	const prev = session.voiceUsage ?? {
+		responses: 0,
+		inputTokens: 0,
+		outputTokens: 0,
+		inputAudioTokens: 0,
+		outputAudioTokens: 0,
+		cachedTokens: 0,
+	};
+	const next: VoiceUsage = {
+		responses: prev.responses + 1,
+		inputTokens: prev.inputTokens + usage.inputTokens,
+		outputTokens: prev.outputTokens + usage.outputTokens,
+		inputAudioTokens: prev.inputAudioTokens + usage.inputAudioTokens,
+		outputAudioTokens: prev.outputAudioTokens + usage.outputAudioTokens,
+		cachedTokens: prev.cachedTokens + usage.cachedTokens,
+	};
+	store.updateSession(sessionId, { voiceUsage: next });
+	return next;
 }

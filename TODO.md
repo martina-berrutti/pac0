@@ -54,8 +54,9 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Datos sensibles (alcohol, tabaco, drogas) solo con confianza alta
 - [x] Paciente por reglas sin IA, como respaldo (`lib/patient/rule-responder.ts`)
 - [x] Paciente con IA por texto si hay `OPENAI_API_KEY`
-- [ ] Guardar los hechos que el paciente inventa para no contradecirse (P2)
-- [ ] Variación controlada: sortear valores dentro de rangos sin cambiar el diagnóstico (P2)
+- [x] Guardar los hechos que el paciente inventa para no contradecirse (P2): herramienta `anotar_dato` en la voz
+- [x] Variación controlada: sortear valores dentro de rangos sin cambiar el diagnóstico (P2): campo `variations` del caso
+- [ ] Persona 3: revisar con un médico las variaciones del caso 1 (fiebre y contactos)
 - [ ] Clasificador rápido por turno (pregunta abierta o cerrada, jerga, empatía) que actualice el estado (versión 2, P3)
 
 ### Voz (plan.md, secciones 4 y 5)
@@ -71,7 +72,8 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [ ] **Probar la voz de verdad con una clave de OpenAI** (todavía no se probó en vivo)
 - [ ] Verificar en la documentación de OpenAI Realtime los parámetros de detección de turno del modelo elegido
 - [ ] Probar 3 voces (OpenAI y ElevenLabs) y elegir la más rioplatense; cargarla en `REALTIME_VOICE`
-- [ ] Medir el costo por sesión de 8 minutos
+- [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
+- [ ] Medir el costo por sesión de 8 minutos con una consulta real (tokens × precio vigente)
 
 ### Herramientas del paciente (plan.md, secciones 4 y 6)
 - [x] `examinar(zona, maniobra, claridad, consentimiento)`: el caso decide la variante; al modelo no le llega el hallazgo
@@ -83,18 +85,20 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 
 ### Seguridad del personaje
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
-- [ ] Repetir esas pruebas con IA (texto y voz) y anotar el resultado en PROGRESO.md
+- [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
+- [ ] Correr el script con `OPENAI_API_KEY` (paciente con IA) y probar lo mismo por voz
 
 ### Generador "pedime un paciente" (feature nueva)
 - [x] `POST /api/cases/generate`: "dame un paciente con algo de garganta, que sea ansioso, de 60 años"
 - [x] Inventa a la persona (con IA si hay clave, si no al azar); lo clínico sale de `cases/templates.ts`
 - [x] Personalidad, edad y sexo desde el pedido; marcado como "generado" y "sin revisar"
 - [x] Pedidos fuera de alcance (rodilla) devuelven un error claro
-- [ ] Pedir personalidad con más detalle ("que no quiera abrir la boca", "que hable mucho")
+- [x] Pedir personalidad con más detalle ("que no quiera abrir la boca", "que hable mucho")
 - [ ] Acordar con el equipo la regla de `AGENTS.md` para casos generados
 
 ### Avatar (P3)
-- [ ] Pasar el audio remoto de la voz a un `AnalyserNode` para mover la boca del retrato (con la Persona 3)
+- [x] Nivel de voz del paciente con `AnalyserNode`: `readPatientLevel()` en `useVoice`
+- [ ] Persona 3: usar `readPatientLevel()` en el avatar para mover la boca
 
 ### Si la Persona 1 termina antes
 - [ ] Tomar el tensiómetro con la Persona 2

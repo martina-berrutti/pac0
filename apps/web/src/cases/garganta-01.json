@@ -3,7 +3,11 @@
 	"title": "Dolor de garganta",
 	"origin": "banco",
 	"reviewedBy": null,
-	"patient": { "name": "Lucía", "age": 24, "occupation": "estudiante" },
+	"patient": {
+		"name": "Lucía",
+		"age": 24,
+		"occupation": "estudiante"
+	},
 	"personality": {
 		"cooperacion": 0.9,
 		"ansiedad": 0.3,
@@ -34,7 +38,23 @@
 		"tabaco": "no fumo",
 		"drogas": "no"
 	},
-	"vitals": { "pa": [112, 70], "fc": 96, "fr": 16, "tax": 37.8 },
+	"variations": {
+		"fiebre": [
+			"anoche tuve 38,5",
+			"ayer a la noche tuve 38 y pico",
+			"tuve 39 anoche"
+		],
+		"contactos": [
+			"una amiga estuvo con algo parecido la semana pasada",
+			"no que yo sepa"
+		]
+	},
+	"vitals": {
+		"pa": [112, 70],
+		"fc": 96,
+		"fr": 16,
+		"tax": 37.8
+	},
 	"exam": {
 		"orofaringe": {
 			"variants": {

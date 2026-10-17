@@ -39,6 +39,10 @@ export const toolArgs = {
 		motivo: z.string().max(200),
 	}),
 	terminar_consulta: z.object({ motivo: z.string().max(200).optional() }),
+	anotar_dato: z.object({
+		clave: z.string().min(1).max(40),
+		valor: z.string().min(1).max(200),
+	}),
 } as const;
 
 export type ToolName = keyof typeof toolArgs;
@@ -131,5 +135,22 @@ export const PATIENT_TOOLS = [
 		description:
 			"Llamala cuando el estudiante da por terminada la consulta o se despide.",
 		parameters: { type: "object", properties: { motivo: { type: "string" } } },
+	},
+	{
+		type: "function",
+		name: "anotar_dato",
+		description:
+			"Llamala cada vez que inventes un dato sobre vos que no estaba en tu historia (por ejemplo, a qué te dedicás exactamente o cuántos hermanos tenés), para no contradecirte después.",
+		parameters: {
+			type: "object",
+			properties: {
+				clave: {
+					type: "string",
+					description: "Tema corto, por ejemplo hermanos.",
+				},
+				valor: { type: "string", description: "Lo que dijiste." },
+			},
+			required: ["clave", "valor"],
+		},
 	},
 ] as const;

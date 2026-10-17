@@ -68,6 +68,7 @@ describe("sesión de voz", () => {
 			"mostrar_region",
 			"actualizar_estado",
 			"terminar_consulta",
+			"anotar_dato",
 		]);
 		// La transcripción va activada: se guarda el texto, no el audio.
 		expect(parsed.session.audio.input.transcription.model).toBeTruthy();
@@ -211,5 +212,74 @@ describe("turnos de voz", () => {
 		expect(() => recordVoiceTurn(ana, id, "estudiante", "hola", false)).toThrow(
 			"8 minutos",
 		);
+	});
+});
+
+describe("pendientes de la Persona 1", () => {
+	test("el generador entiende pedidos de personalidad con palabras", async () => {
+		const { generateCase } = await import("@/lib/patient/generator");
+		const { clinicalCase, personalityKey } = await generateCase({
+			text: "un paciente con dolor de garganta que hable mucho y no quiera abrir la boca",
+		});
+		expect(personalityKey).toBe("caso");
+		expect(clinicalCase.personality.locuacidad).toBeGreaterThan(0.9);
+		expect(clinicalCase.personality.cooperacion).toBeLessThan(0.5);
+		expect(clinicalCase.personalityStyle).toContain("No te dejás examinar");
+		// La sesión usa la personalidad ajustada: no abre sin permiso.
+		store.addGeneratedCase(ana.uid, clinicalCase);
+		const id = startSession(ana, clinicalCase.id, personalityKey);
+		expect(
+			runTool(ana, id, "examinar", {
+				zona: "boca",
+				claridad: "alta",
+				consentimiento: false,
+			}).output.variante,
+		).toBe("negado");
+	});
+
+	test("variación controlada: se sortea un valor del caso y llega al paciente", async () => {
+		const { pickVariations } = await import("@/server/consultation");
+		expect(pickVariations(lucia, () => 0.99).fiebre).toBe("tuve 39 anoche");
+		const id = startSession(ana, lucia.id, "caso");
+		const fiebre = store.getSession(id)?.historyOverrides.fiebre;
+		expect(lucia.variations.fiebre).toContain(fiebre);
+		expect(voiceInstructions(ana, id)).toContain(fiebre);
+	});
+
+	test("anotar_dato: lo inventado queda en las instrucciones y no pisa la historia", () => {
+		const id = startSession(ana, lucia.id, "caso");
+		runTool(ana, id, "anotar_dato", {
+			clave: "hermanos",
+			valor: "tengo dos hermanos",
+		});
+		runTool(ana, id, "anotar_dato", {
+			clave: "fiebre",
+			valor: "nunca tuve fiebre",
+		});
+		const facts = store.getSession(id)?.inventedFacts;
+		expect(facts).toEqual({ hermanos: "tengo dos hermanos" });
+		expect(voiceInstructions(ana, id)).toContain("tengo dos hermanos");
+	});
+
+	test("los tokens de la voz se suman por sesión", async () => {
+		const { recordVoiceUsage } = await import("@/server/voice");
+		const id = startSession(ana, lucia.id, "caso");
+		const u = {
+			inputTokens: 100,
+			outputTokens: 50,
+			inputAudioTokens: 80,
+			outputAudioTokens: 40,
+			cachedTokens: 10,
+		};
+		recordVoiceUsage(ana, id, u);
+		expect(recordVoiceUsage(ana, id, u)).toEqual({
+			responses: 2,
+			inputTokens: 200,
+			outputTokens: 100,
+			inputAudioTokens: 160,
+			outputAudioTokens: 80,
+			cachedTokens: 20,
+		});
+		expect(() => recordVoiceUsage(beto, id, u)).toThrow("Sesión no encontrada");
 	});
 });

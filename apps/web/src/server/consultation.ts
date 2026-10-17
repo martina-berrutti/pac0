@@ -65,6 +65,7 @@ export function startSession(
 	const { key, personality } = resolvePersonality(
 		personalityKey,
 		clinicalCase.personality,
+		clinicalCase.personalityStyle,
 	);
 	const state: PatientState = {
 		confianza: 1 - personality.desconfianza,
@@ -85,9 +86,26 @@ export function startSession(
 		endedAt: null,
 		closing: null,
 		consentGiven: false,
+		historyOverrides: pickVariations(clinicalCase),
+		inventedFacts: {},
+		voiceUsage: null,
 	};
 	store.createSession(session);
 	return session.id;
+}
+
+// Variación controlada: una opción al azar por clave, sin cambiar el
+// diagnóstico (las opciones las define el docente en el caso).
+export function pickVariations(
+	clinicalCase: ClinicalCase,
+	rand: () => number = Math.random,
+): Record<string, string> {
+	return Object.fromEntries(
+		Object.entries(clinicalCase.variations ?? {}).map(([k, options]) => [
+			k,
+			options[Math.floor(rand() * options.length)] as string,
+		]),
+	);
 }
 
 export function getSessionView(viewer: Viewer, sessionId: string): SessionView {
@@ -109,8 +127,9 @@ export function brief(session: Session): PatientBrief {
 	const { style } = resolvePersonality(
 		session.personalityKey,
 		clinicalCase.personality,
+		clinicalCase.personalityStyle,
 	);
-	return buildPatientBrief(clinicalCase, session.personality, style);
+	return buildPatientBrief(clinicalCase, session.personality, style, session);
 }
 
 async function patientReply(

@@ -94,10 +94,88 @@ export function getArchetype(key: string): Archetype | undefined {
 	return ARCHETYPES.find((a) => a.key === key);
 }
 
+// Ajustes de personalidad pedidos con palabras ("que no quiera abrir la
+// boca", "que hable mucho"). Cada uno cambia un parámetro y suma una nota al
+// estilo para el prompt.
+const PERSONALITY_TWEAKS: {
+	words: string[];
+	apply: Partial<Personality>;
+	note: string;
+}[] = [
+	{
+		words: [
+			"no quiera abrir",
+			"no quiere abrir",
+			"no se deje examinar",
+			"no se deja examinar",
+		],
+		apply: { cooperacion: 0.2 },
+		note: "No te dejás examinar hasta que te expliquen para qué y te pidan permiso.",
+	},
+	{
+		words: ["colaborador", "amable", "que colabore"],
+		apply: { cooperacion: 0.9 },
+		note: "Colaborás con todo lo que te piden.",
+	},
+	{
+		words: [
+			"hable mucho",
+			"habla mucho",
+			"charlat",
+			"por las ramas",
+			"cuente de más",
+		],
+		apply: { locuacidad: 0.95 },
+		note: "Hablás de más y te vas por las ramas.",
+	},
+	{
+		words: ["hable poco", "habla poco", "callad", "monosílab", "cortante"],
+		apply: { locuacidad: 0.15 },
+		note: "Respondés con muy pocas palabras.",
+	},
+	{
+		words: ["no escuch", "sord", "escucha mal"],
+		apply: { audicion: "reducida" },
+		note: "No escuchás bien y pedís que te repitan.",
+	},
+	{
+		words: ["impacient", "apurad", "con prisa"],
+		apply: { paciencia: 0.15 },
+		note: "Estás apurado y te impacientás si tardan.",
+	},
+	{
+		words: ["desconfiad", "que no cuente", "oculte"],
+		apply: { desconfianza: 0.85 },
+		note: "Desconfiás y no contás datos íntimos hasta sentirte en confianza.",
+	},
+	{
+		words: ["muy ansios", "muy nervios", "asustadísim"],
+		apply: { ansiedad: 0.95 },
+		note: "Estás muy nervioso y preguntás seguido si es grave.",
+	},
+];
+
+export function applyPersonalityRequest(
+	text: string,
+	base: Personality,
+): { personality: Personality; notes: string[] } {
+	const t = text.toLowerCase();
+	let personality = { ...base };
+	const notes: string[] = [];
+	for (const tweak of PERSONALITY_TWEAKS) {
+		if (tweak.words.some((w) => t.includes(w))) {
+			personality = { ...personality, ...tweak.apply };
+			notes.push(tweak.note);
+		}
+	}
+	return { personality, notes };
+}
+
 // "caso" usa la personalidad propia del caso.
 export function resolvePersonality(
 	key: string,
 	casePersonality: Personality,
+	caseStyle?: string,
 ): { key: string; personality: Personality; style: string } {
 	const archetype = getArchetype(key);
 	if (archetype) {
@@ -110,6 +188,6 @@ export function resolvePersonality(
 	return {
 		key: "caso",
 		personality: casePersonality,
-		style: "Responde con voseo rioplatense, frases cortas.",
+		style: caseStyle ?? "Responde con voseo rioplatense, frases cortas.",
 	};
 }

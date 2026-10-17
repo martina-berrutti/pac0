@@ -27,6 +27,22 @@ export type Session = {
 	closing: { hypothesis: string; differentials: string[] } | null;
 	// Si el paciente ya aceptó que lo examinen.
 	consentGiven: boolean;
+	// Valores sorteados de la variación controlada (clave de hiddenHistory).
+	historyOverrides: Record<string, string>;
+	// Datos que el paciente inventó porque el caso no los define, para no
+	// contradecirse (plan.md, sección 5).
+	inventedFacts: Record<string, string>;
+	// Tokens de la voz, para medir el costo por sesión.
+	voiceUsage: VoiceUsage | null;
+};
+
+export type VoiceUsage = {
+	responses: number;
+	inputTokens: number;
+	outputTokens: number;
+	inputAudioTokens: number;
+	outputAudioTokens: number;
+	cachedTokens: number;
 };
 
 export type Turn = {

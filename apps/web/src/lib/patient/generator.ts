@@ -13,7 +13,11 @@ import {
 } from "@/cases/templates";
 import { completeJson } from "@/server/ai";
 
-import { ARCHETYPES, type Archetype } from "./personalities";
+import {
+	ARCHETYPES,
+	type Archetype,
+	applyPersonalityRequest,
+} from "./personalities";
 
 export type GenerationRequest = { text: string; personalityKey?: string };
 
@@ -171,6 +175,12 @@ export async function generateCase(
 		(await aiPersona(req.text, tpl, archetype, sex, age).catch(() => null)) ??
 		randomPersona(tpl, sex, age, rand);
 
+	// Arquetipo más los ajustes pedidos con palabras ("que hable mucho").
+	const { personality, notes } = applyPersonalityRequest(
+		req.text,
+		archetype.personality,
+	);
+
 	const id = `gen-${tpl.id}-${Date.now().toString(36)}${Math.floor(rand() * 1e4).toString(36)}`;
 	const clinicalCase = caseSchema.parse({
 		id,
@@ -178,7 +188,8 @@ export async function generateCase(
 		origin: "generado",
 		reviewedBy: null,
 		patient: { name: persona.name, age, occupation: persona.occupation },
-		personality: archetype.personality,
+		personality,
+		personalityStyle: [archetype.style, ...notes].join(" "),
 		chiefComplaint: persona.chiefComplaint,
 		profile: {
 			...persona.profile,
@@ -198,5 +209,6 @@ export async function generateCase(
 		criticalErrors: tpl.criticalErrors,
 		truth: tpl.truth,
 	});
-	return { clinicalCase, personalityKey: archetype.key };
+	// "caso": la sesión usa la personalidad ya ajustada del caso generado.
+	return { clinicalCase, personalityKey: "caso" };
 }

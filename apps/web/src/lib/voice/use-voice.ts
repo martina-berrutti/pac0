@@ -37,6 +37,12 @@ type RealtimeEvent = {
 	transcript?: string;
 	response?: {
 		status?: string;
+		usage?: {
+			input_tokens?: number;
+			output_tokens?: number;
+			input_token_details?: { audio_tokens?: number; cached_tokens?: number };
+			output_token_details?: { audio_tokens?: number };
+		};
 		output?: {
 			type: string;
 			name?: string;
@@ -62,6 +68,11 @@ export function useVoice({
 	const dc = useRef<RTCDataChannel | null>(null);
 	const mic = useRef<MediaStream | null>(null);
 	const audio = useRef<HTMLAudioElement | null>(null);
+	const analyser = useRef<{
+		ctx: AudioContext;
+		node: AnalyserNode;
+		buf: Uint8Array<ArrayBuffer>;
+	} | null>(null);
 	const flags = useRef({
 		student: false,
 		patient: false,
@@ -77,6 +88,8 @@ export function useVoice({
 		dc.current?.close();
 		pc.current?.close();
 		for (const track of mic.current?.getTracks() ?? []) track.stop();
+		analyser.current?.ctx.close().catch(() => {});
+		analyser.current = null;
 		dc.current = null;
 		pc.current = null;
 		mic.current = null;
@@ -204,6 +217,16 @@ export function useVoice({
 					saveTurn("paciente", e.transcript ?? "", false);
 					break;
 				case "response.done": {
+					const u = e.response?.usage;
+					if (u) {
+						post(`/api/sessions/${sessionId}/usage`, {
+							inputTokens: u.input_tokens ?? 0,
+							outputTokens: u.output_tokens ?? 0,
+							inputAudioTokens: u.input_token_details?.audio_tokens ?? 0,
+							outputAudioTokens: u.output_token_details?.audio_tokens ?? 0,
+							cachedTokens: u.input_token_details?.cached_tokens ?? 0,
+						}).catch(() => {});
+					}
 					if (e.response?.status === "cancelled") {
 						f.patient = false;
 						setPatientSpeaking(false);
@@ -239,7 +262,17 @@ export function useVoice({
 			player.autoplay = true;
 			audio.current = player;
 			peer.ontrack = (t) => {
-				player.srcObject = t.streams[0] ?? null;
+				const remote = t.streams[0] ?? null;
+				player.srcObject = remote;
+				// Volumen del paciente para mover la boca del avatar (plan.md,
+				// sección 9: AnalyserNode, sin API de terceros).
+				if (remote) {
+					const ctx = new AudioContext();
+					const node = ctx.createAnalyser();
+					node.fftSize = 512;
+					ctx.createMediaStreamSource(remote).connect(node);
+					analyser.current = { ctx, node, buf: new Uint8Array(node.fftSize) };
+				}
 			};
 			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 			mic.current = stream;
@@ -319,5 +352,24 @@ export function useVoice({
 	// Al salir de la pantalla se corta la llamada.
 	useEffect(() => () => stop(), [stop]);
 
-	return { status, remainingMs, studentSpeaking, patientSpeaking, start, stop };
+	// Nivel de voz del paciente de 0 a 1. Pensado para leerlo en un
+	// requestAnimationFrame del avatar, sin re-renderizar.
+	const readPatientLevel = useCallback(() => {
+		const a = analyser.current;
+		if (!a) return 0;
+		a.node.getByteTimeDomainData(a.buf);
+		let sum = 0;
+		for (const v of a.buf) sum += ((v - 128) / 128) ** 2;
+		return Math.min(1, Math.sqrt(sum / a.buf.length) * 4);
+	}, []);
+
+	return {
+		status,
+		remainingMs,
+		studentSpeaking,
+		patientSpeaking,
+		start,
+		stop,
+		readPatientLevel,
+	};
 }
