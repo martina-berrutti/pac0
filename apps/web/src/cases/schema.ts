@@ -102,6 +102,24 @@ export const caseSchema = z.object({
 		diagnosis: z.string(),
 		acceptable: z.array(z.string()),
 		differentials: z.array(z.string()),
+		// Datos que llevan al diagnóstico, para el informe (lib/scoring/
+		// diagnosis.ts). Se encuentra si el ítem itemId de la lista de cotejo se
+		// cumplió; keywords sirven para ver si el cierre lo usa como argumento.
+		keyClues: z
+			.array(
+				z.object({
+					itemId: z.string(),
+					clue: z.string(),
+					why: z.string(),
+					keywords: z.array(z.string()).default([]),
+				}),
+			)
+			.default([]),
+		// Por diferencial: qué lo distingue del diagnóstico del caso.
+		differentialHints: z.record(z.string(), z.string()).default({}),
+		// Palabras de una conducta o estudio razonable para este caso. Vacío:
+		// las de garganta (test rápido, hisopado).
+		conduct: z.array(z.string()).default([]),
 	}),
 });
 export type ClinicalCase = z.infer<typeof caseSchema>;

@@ -2,7 +2,7 @@
 	"id": "garganta-02",
 	"title": "Dolor de garganta",
 	"group": "lucia",
-	"problem": "Problema 2",
+	"problem": "Problema 1",
 	"relevantExams": ["orofaringe"],
 	"origin": "banco",
 	"reviewedBy": null,
@@ -243,6 +243,48 @@
 			"faringoamigdalitis estreptocócica",
 			"rinitis alérgica",
 			"gripe"
+		],
+		"keyClues": [
+			{
+				"itemId": "tos-catarro",
+				"clue": "Tos, mocos y disfonía",
+				"why": "Los síntomas de catarro orientan a un virus; en la angina bacteriana casi no hay tos ni mocos.",
+				"keywords": ["tos", "mocos", "catarro", "disfon", "estornud"]
+			},
+			{
+				"itemId": "fiebre",
+				"clue": "Fiebre baja (37,5)",
+				"why": "La fiebre alta es más de la angina bacteriana; acá apenas hay febrícula.",
+				"keywords": ["febricula", "fiebre baja", "poca fiebre", "37"]
+			},
+			{
+				"itemId": "contactos",
+				"clue": "Su compañera de apartamento está resfriada",
+				"why": "Un contacto con resfrío apoya un cuadro viral.",
+				"keywords": ["compañera", "contacto", "resfriad", "contagi"]
+			},
+			{
+				"itemId": "orofaringe",
+				"clue": "Garganta roja sin placas",
+				"why": "Sin exudado ni amígdalas grandes, una angina estreptocócica es poco probable.",
+				"keywords": ["sin placas", "sin exudado", "eritema", "roja"]
+			}
+		],
+		"differentialHints": {
+			"faringoamigdalitis estreptocócica": "La estreptocócica da fiebre alta, placas en las amígdalas y casi nunca tos ni mocos. Acá había catarro y no había placas.",
+			"rinitis alérgica": "La rinitis alérgica no da fiebre ni dolor de garganta fuerte, y se repite con la misma época o el mismo desencadenante.",
+			"gripe": "La gripe empieza de golpe con fiebre alta, dolor en todo el cuerpo y mucho decaimiento."
+		},
+		"conduct": [
+			"sintomatic",
+			"reposo",
+			"hidrat",
+			"liquidos",
+			"paracetamol",
+			"no antibiot",
+			"sin antibiot",
+			"no necesita antibiot",
+			"gargaras"
 		]
 	}
 }

@@ -203,6 +203,47 @@
 	"truth": {
 		"diagnosis": "otitis media aguda derecha",
 		"acceptable": ["otitis media"],
-		"differentials": ["otitis externa", "otitis media con efusión"]
+		"differentials": ["otitis externa", "otitis media con efusión"],
+		"keyClues": [
+			{
+				"itemId": "resfrio",
+				"clue": "Resfrío de una semana antes del dolor",
+				"why": "La otitis media suele aparecer después de un resfrío.",
+				"keywords": ["resfri", "mocos", "catarro"]
+			},
+			{
+				"itemId": "fiebre",
+				"clue": "Fiebre de 38,3",
+				"why": "La fiebre es más de la otitis media que de la externa.",
+				"keywords": ["fiebre", "38"]
+			},
+			{
+				"itemId": "caracteristicas-dolor",
+				"clue": "Dolor profundo que late, y tocar la oreja no duele",
+				"why": "Si tocar la oreja no duele, el problema no está en el conducto sino detrás del tímpano.",
+				"keywords": ["profundo", "late", "no duele al tocar", "oreja"]
+			},
+			{
+				"itemId": "otoscopia",
+				"clue": "Tímpano rojo y abombado",
+				"why": "El tímpano abombado es el hallazgo que confirma la otitis media aguda.",
+				"keywords": ["timpano", "abombad"]
+			}
+		],
+		"differentialHints": {
+			"otitis externa": "En la otitis externa duele al tocar la oreja, hay secreción en el conducto y el tímpano está sano. Acá el conducto estaba sano y el tímpano abombado.",
+			"otitis media con efusión": "La otitis media con efusión da oído tapado, pero sin dolor fuerte ni fiebre."
+		},
+		"conduct": [
+			"analges",
+			"paracetamol",
+			"ibuprofeno",
+			"antibiot",
+			"alergi",
+			"penicilina",
+			"macrolido",
+			"azitromicina",
+			"control"
+		]
 	}
 }

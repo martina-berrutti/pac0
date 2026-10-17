@@ -39,7 +39,8 @@ await call("/api/auth/guest");
 const { cases } = await call("/api/cases", { method: "GET" });
 check(cases.length >= 1, "hay casos para elegir", `${cases.length}`);
 const { sessionId } = await call("/api/sessions", {
-	body: { caseId: "garganta-01", personalityKey: "caso" },
+	// Lucía, problema 1 (faringitis viral).
+	body: { caseId: "garganta-02", personalityKey: "caso" },
 });
 
 // 3. La voz: el servidor entrega un token efímero (no abre la llamada).
@@ -86,7 +87,7 @@ if (exam) {
 }
 await call(`/api/sessions/${sessionId}/turns`, {
 	body: {
-		text: "Veo las amígdalas rojas con placas blancas. Si entendí bien, hace tres días que te duele y tuviste fiebre, ¿es así?",
+		text: "Veo la garganta roja, sin placas. Si entendí bien, hace dos días que te duele y estás con mocos y tos, ¿es así?",
 	},
 });
 
@@ -94,8 +95,12 @@ await call(`/api/sessions/${sessionId}/turns`, {
 const { report } = await call(`/api/sessions/${sessionId}/finish`, {
 	body: {
 		hypothesis:
-			"Faringoamigdalitis aguda, por la fiebre, el dolor al tragar y las placas en las amígdalas",
-		differentials: ["viral", "estreptocócica", "mononucleosis"],
+			"Faringitis viral, por la tos, los mocos y la garganta roja sin placas; tratamiento sintomático, sin antibiótico",
+		differentials: [
+			"faringoamigdalitis estreptocócica",
+			"rinitis alérgica",
+			"gripe",
+		],
 	},
 });
 const view = await call(`/api/sessions/${sessionId}`, { method: "GET" });
@@ -131,6 +136,16 @@ check(ghost.length === 0, "ningún error cita un turno inexistente");
 check(
 	!report.mistakes.some((m) => m.critical),
 	"sin errores críticos (pidió permiso antes de examinar)",
+);
+check(
+	report.diagnosis?.result === "acertaste",
+	"evalúa el diagnóstico",
+	report.diagnosis?.message,
+);
+check(
+	Array.isArray(report.improvements),
+	"trae puntos a mejorar",
+	`${report.improvements?.length ?? 0}`,
 );
 console.log(
 	`        juez: ${report.judge}; ${report.mistakes.length} error(es) u omisión(es)`,

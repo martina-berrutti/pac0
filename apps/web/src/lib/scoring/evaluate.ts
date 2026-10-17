@@ -18,7 +18,11 @@ import {
 	askedToRepeat,
 	isLeadingQuestion,
 } from "@/lib/patient/turn-classifier";
-
+import {
+	diagnosisFeedback,
+	improvementsFor,
+	toldPatientMistake,
+} from "./diagnosis";
 import {
 	dimensionScore,
 	MIN_ANAMNESIS_FOR_DIAGNOSIS,
@@ -71,7 +75,12 @@ export const SOURCES = {
 	caso: "Lista de cotejo del caso",
 } as const;
 
-export type Reasoning = { score: number; notes: string[] };
+// parts: lo que decidió el juez, para la devolución del diagnóstico.
+export type Reasoning = {
+	score: number;
+	notes: string[];
+	parts?: ReasoningParts;
+};
 
 // Lo que el juez (reglas o IA) decide del cierre; el puntaje lo pone el código.
 export type ReasoningParts = {
@@ -106,7 +115,7 @@ export function reasoningFromParts(p: ReasoningParts): Reasoning {
 		notes.push(
 			"Podés proponer un estudio o conducta (por ejemplo, test rápido).",
 		);
-	return { score, notes };
+	return { score, notes, parts: p };
 }
 
 export function reasoningScore(input: EvaluationInput): Reasoning {
@@ -123,8 +132,16 @@ export function reasoningScore(input: EvaluationInput): Reasoning {
 			diffs.some((x) => x.includes(normalize(d)) || normalize(d).includes(x)),
 		).length,
 		differentialsExpected: truth.differentials.length,
-		justified: JUSTIFICATION_WORDS.some((w) => hyp.includes(w)),
-		studies: STUDIES.some((s) => hyp.includes(normalize(s))),
+		// Justifica si cita un dato de la consulta: las palabras generales o
+		// las de los datos clave del caso.
+		justified: [
+			...JUSTIFICATION_WORDS,
+			...truth.keyClues.flatMap((k) => k.keywords),
+		].some((w) => hyp.includes(normalize(w))),
+		// Conducta razonable para este caso; sin lista propia, la de garganta.
+		studies: (truth.conduct.length > 0 ? truth.conduct : STUDIES).some((s) =>
+			hyp.includes(normalize(s)),
+		),
 	});
 }
 
@@ -586,6 +603,16 @@ export function assembleReport(
 		});
 	}
 
+	const diagnosis = diagnosisFeedback(
+		clinicalCase,
+		items,
+		input.session.closing,
+		input.turns,
+		reasoning.parts?.hypothesisMatches,
+	);
+	const told = toldPatientMistake(clinicalCase, diagnosis);
+	if (told) mistakes.push(told);
+
 	const pct = (x: number) => `${Math.round(x * 100)}%`;
 	const strengths = [
 		...(wonTrust
@@ -625,6 +652,8 @@ export function assembleReport(
 			differentials: clinicalCase.truth.differentials,
 		},
 		notMeasurable: ["Contacto ocular", "Expresión facial y postura"],
+		diagnosis,
+		improvements: improvementsFor(clinicalCase, diagnosis, mistakes),
 		judge,
 		createdAt: Date.now(),
 	});

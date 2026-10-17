@@ -23,25 +23,26 @@ const byId = (id: string) => {
 };
 
 describe("banco de casos", () => {
-	test("Lucía y Diego, tres problemas cada uno, sin revisar y con sexo para la voz", () => {
+	test("Lucía y Diego, dos problemas cada uno, sin revisar y con sexo para la voz", () => {
 		expect(caseBank.map((c) => c.id)).toEqual([
-			"garganta-01",
 			"garganta-02",
 			"garganta-03",
 			"oido-01",
 			"oido-02",
-			"oido-03",
 		]);
 		for (const [group, name] of [
 			["lucia", "Lucía"],
 			["diego", "Diego"],
 		]) {
 			const problems = caseBank.filter((c) => c.group === group);
-			expect(problems).toHaveLength(3);
+			expect(problems.map((c) => c.problem)).toEqual([
+				"Problema 1",
+				"Problema 2",
+			]);
 			expect(new Set(problems.map((c) => c.patient.name))).toEqual(
 				new Set([name]),
 			);
-			expect(new Set(problems.map((c) => c.truth.diagnosis)).size).toBe(3);
+			expect(new Set(problems.map((c) => c.truth.diagnosis)).size).toBe(2);
 		}
 		for (const c of caseBank) {
 			expect(c.reviewedBy).toBeNull();
@@ -100,7 +101,7 @@ describe("banco de casos", () => {
 		);
 	});
 
-	test("Diego, problemas 2 y 3: tímpano abombado; oídos normales", () => {
+	test("Diego, problema 2: tímpano derecho abombado, izquierdo normal", () => {
 		const ear = (id: string) =>
 			otoscopyScenario(id, byId(id).patient.age).appearance;
 		expect(ear("oido-02").derecho).toEqual({
@@ -108,10 +109,6 @@ describe("banco de casos", () => {
 			tympanum: "abombado",
 		});
 		expect(ear("oido-02").izquierdo.tympanum).toBe("nacarado");
-		expect(ear("oido-03").derecho).toEqual({
-			canal: "sano",
-			tympanum: "nacarado",
-		});
 	});
 
 	test("Diego por voz: pedir revisar el oído abre el otoscopio", async () => {

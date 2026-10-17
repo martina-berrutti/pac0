@@ -57,9 +57,9 @@ const criticalTags = (report: Report) =>
 	report.mistakes.filter((m) => m.critical).map((m) => m.tag);
 
 describe("consulta completa por caso", () => {
-	test("Lucía (garganta-01): anamnesis, orofaringe con permiso e informe", async () => {
+	test("Lucía (garganta-03): anamnesis, orofaringe con permiso e informe", async () => {
 		const ana = student();
-		const id = await startSession(ana, "garganta-01", "caso");
+		const id = await startSession(ana, "garganta-03", "caso");
 		await talk(ana, id, [
 			"Hola, soy Ana, estudiante de medicina. ¿Qué te trae por acá?",
 			"¿Desde cuándo te duele?",
@@ -73,18 +73,24 @@ describe("consulta completa por caso", () => {
 		);
 		expect(exam?.action.variant).toBe("completa");
 
-		const report = await finishSession(ana, id, "faringoamigdalitis aguda", [
-			"viral",
-			"mononucleosis",
-		]);
-		checkReport(report, "garganta-01");
+		const report = await finishSession(
+			ana,
+			id,
+			"Mononucleosis infecciosa por el cansancio y los ganglios",
+			["faringoamigdalitis estreptocócica"],
+		);
+		checkReport(report, "garganta-03");
+		// Devolución del diagnóstico y puntos a mejorar.
+		expect(report.diagnosis?.result).toBe("acertaste");
+		expect(report.diagnosis?.cluesMissed.length).toBeGreaterThan(0);
+		expect(report.improvements?.length).toBeGreaterThan(0);
 		expect(status(report, "alergias")).toBe("si");
 		expect(criticalTags(report)).toEqual([]);
 	});
 
-	test("Lucía (garganta-01): puede medir la presión y mirar el oído, y cada uno resta un punto", async () => {
+	test("Lucía (garganta-02): puede medir la presión y mirar el oído, y cada uno resta un punto", async () => {
 		const ana = student();
-		const id = await startSession(ana, "garganta-01", "caso");
+		const id = await startSession(ana, "garganta-02", "caso");
 		await talk(ana, id, [
 			"Hola, soy Ana, estudiante de medicina. ¿Qué te trae por acá?",
 			"¿Desde cuándo te duele? ¿Tuviste fiebre?",
@@ -108,8 +114,8 @@ describe("consulta completa por caso", () => {
 			"adecuado",
 			false,
 		);
-		expect(reading.gauge).toEqual({ pas: 112, pad: 70 });
-		await markReading(ana, id, bp.ui.measurementId, { pas: 112, pad: 70 });
+		expect(reading.gauge).toEqual({ pas: 110, pad: 70 });
+		await markReading(ana, id, bp.ui.measurementId, { pas: 110, pad: 70 });
 
 		// El oído: el otoscopio abre y los dos oídos son normales.
 		const ear = await runTool(ana, id, "examinar", {
@@ -131,8 +137,10 @@ describe("consulta completa por caso", () => {
 			tympanumMs: 2000,
 		});
 
-		const report = await finishSession(ana, id, "faringoamigdalitis", []);
-		checkReport(report, "garganta-01");
+		const report = await finishSession(ana, id, "faringitis viral", []);
+		checkReport(report, "garganta-02");
+		expect(report.diagnosis?.result).toBe("acertaste");
+		expect(report.diagnosis?.differentialsMissed.length).toBe(3);
 		const tags = report.mistakes.map((m) => m.tag);
 		expect(tags).toContain("examen-no-indicado-presion");
 		expect(tags).toContain("examen-no-indicado-oido");

@@ -41,7 +41,7 @@ describe("el paciente no conoce el diagnóstico", () => {
 
 	test("responde desde su historia", () => {
 		expect(ruleRespond(brief, state, "¿Tuviste fiebre?", 2).text).toContain(
-			"38,5",
+			"37 y medio",
 		);
 	});
 
