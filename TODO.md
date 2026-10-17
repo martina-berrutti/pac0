@@ -36,7 +36,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Base con Better-T-Stack (Next.js, shadcn/ui, Turborepo) y Biome
 - [x] `AGENTS.md` y `.claude/settings.json` que bloquea los `.env` de todo el repo
 - [x] Deploy en Vercel: https://pac0-l3xi.vercel.app
-- [ ] Cargar `SESSION_SECRET` en Vercel (sin eso no anda el invitado en producción)
+- [x] Cargar `SESSION_SECRET` en Vercel
 - [x] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
 
 ### Usuarios y acceso (plan.md, sección 10)
@@ -204,13 +204,15 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 ## Fase final · Convex (Persona 1)
 
-- [ ] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts`, sin tocar rutas ni pantallas
+- [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
+- [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel
 - [ ] Usuarios, Google y modo invitado con Convex Auth (ya escritos en `packages/backend/convex/auth.ts`)
 - [ ] Borrado de invitados a las 24 horas (`crons.ts`, ya escrito)
 - [ ] `mistakeProfile`: perfil de errores entre sesiones
 - [ ] Imágenes en Convex storage y tabla `assets`
 - [ ] Credenciales de Google en Convex dev y prod
-- [ ] Recomendado: conectar Convex como almacenamiento **antes de la prueba con estudiantes del sábado a la noche**, porque en Vercel la memoria se pierde entre pedidos
+- [x] Conectar Convex como almacenamiento (adelantado el 17/10: en Vercel la consulta fallaba con "Sesión no encontrada")
+- [ ] Más adelante: pasar de `records` a las tablas tipadas del esquema
 
 ## Puertas (plan.md, sección 13)
 

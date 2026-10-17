@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 		const body = await readBody(req, bodySchema);
 		try {
 			const { clinicalCase, personalityKey } = await generateCase(body);
-			store.addGeneratedCase(viewer.uid, clinicalCase);
+			await store.addGeneratedCase(viewer.uid, clinicalCase);
 			return { case: toSummary(clinicalCase), personalityKey };
 		} catch (error) {
 			if (error instanceof GenerationError)

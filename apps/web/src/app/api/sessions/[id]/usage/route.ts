@@ -22,7 +22,11 @@ export async function POST(
 		const viewer = await requireViewer();
 		const { id } = await ctx.params;
 		return {
-			usage: recordVoiceUsage(viewer, id, await readBody(req, bodySchema)),
+			usage: await recordVoiceUsage(
+				viewer,
+				id,
+				await readBody(req, bodySchema),
+			),
 		};
 	});
 }

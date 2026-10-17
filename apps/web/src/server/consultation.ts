@@ -44,24 +44,24 @@ export type SessionView = {
 	hasReport: boolean;
 };
 
-export function ownSession(viewer: Viewer, sessionId: string) {
-	const session = store.getSession(sessionId);
+export async function ownSession(viewer: Viewer, sessionId: string) {
+	const session = await store.getSession(sessionId);
 	// Mismo error si no existe o es de otro: no se revela cuál.
 	if (!session || session.userId !== viewer.uid)
 		throw new HttpError(404, "Sesión no encontrada");
-	const clinicalCase = store.getCase(session.caseId);
+	const clinicalCase = await store.getCase(session.caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
 	return { session, clinicalCase };
 }
 
-export function startSession(
+export async function startSession(
 	viewer: Viewer & { alias: string },
 	caseId: string,
 	personalityKey: string,
 ) {
-	const clinicalCase = store.getCase(caseId);
-	const visible = store.listCases(viewer.uid).some((c) => c.id === caseId);
-	if (!clinicalCase || !visible) throw new HttpError(404, "Caso no encontrado");
+	const visible = await store.listCases(viewer.uid);
+	const clinicalCase = visible.find((c) => c.id === caseId);
+	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
 	const { key, personality } = resolvePersonality(
 		personalityKey,
 		clinicalCase.personality,
@@ -90,7 +90,7 @@ export function startSession(
 		inventedFacts: {},
 		voiceUsage: null,
 	};
-	store.createSession(session);
+	await store.createSession(session);
 	return session.id;
 }
 
@@ -108,22 +108,31 @@ export function pickVariations(
 	);
 }
 
-export function getSessionView(viewer: Viewer, sessionId: string): SessionView {
-	const { session, clinicalCase } = ownSession(viewer, sessionId);
+export async function getSessionView(
+	viewer: Viewer,
+	sessionId: string,
+): Promise<SessionView> {
+	const { session, clinicalCase } = await ownSession(viewer, sessionId);
 	const { userId: _userId, ...publicSession } = session;
+	const [turns, examActions, report] = await Promise.all([
+		store.listTurns(sessionId),
+		store.listExamActions(sessionId),
+		store.getReport(sessionId),
+	]);
 	return {
 		session: publicSession,
 		case: toSummary(clinicalCase),
-		turns: store.listTurns(sessionId),
-		examActions: store.listExamActions(sessionId),
+		turns,
+		examActions,
 		remainingMs: Math.max(0, MAX_SESSION_MS - (Date.now() - session.startedAt)),
-		hasReport: store.getReport(sessionId) !== undefined,
+		hasReport: report !== undefined,
 	};
 }
 
-export function brief(session: Session): PatientBrief {
-	const clinicalCase = store.getCase(session.caseId);
-	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
+export function brief(
+	session: Session,
+	clinicalCase: ClinicalCase,
+): PatientBrief {
 	const { style } = resolvePersonality(
 		session.personalityKey,
 		clinicalCase.personality,
@@ -134,14 +143,15 @@ export function brief(session: Session): PatientBrief {
 
 async function patientReply(
 	session: Session,
+	clinicalCase: ClinicalCase,
 	studentText: string,
 ): Promise<{
 	text: string;
 	delta: Partial<PatientState> | null;
 	motivo?: string;
 }> {
-	const b = brief(session);
-	const turns = store.listTurns(session.id);
+	const b = brief(session, clinicalCase);
+	const turns = await store.listTurns(session.id);
 	const studentCount = turns.filter((t) => t.speaker === "estudiante").length;
 	const rules = ruleRespond(b, session.state, studentText, studentCount - 1);
 	if (!aiEnabled()) return rules;
@@ -167,8 +177,12 @@ async function patientReply(
 
 // Exige una sesión activa y dentro del tope de 8 minutos (más un margen para
 // que lleguen las últimas transcripciones de la voz).
-export function activeSession(viewer: Viewer, sessionId: string, graceMs = 0) {
-	const owned = ownSession(viewer, sessionId);
+export async function activeSession(
+	viewer: Viewer,
+	sessionId: string,
+	graceMs = 0,
+) {
+	const owned = await ownSession(viewer, sessionId);
 	if (owned.session.status !== "activa")
 		throw new HttpError(409, "La consulta ya terminó");
 	const elapsed = Date.now() - owned.session.startedAt;
@@ -178,9 +192,13 @@ export function activeSession(viewer: Viewer, sessionId: string, graceMs = 0) {
 }
 
 // Si el estudiante explica o pide permiso, queda registrado el consentimiento.
-export function noteConsent(session: Session, text: string, atMs: number) {
+export async function noteConsent(
+	session: Session,
+	text: string,
+	atMs: number,
+) {
 	if (session.consentGiven || !asksConsent(text)) return session;
-	store.addEvent({
+	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
 		type: "consentimiento",
@@ -197,13 +215,13 @@ export function defaultZone(clinicalCase: ClinicalCase) {
 
 // Registra una acción de examen. El caso decide qué se ve: el cliente nunca
 // manda la variante ni el hallazgo.
-export function recordExam(
+export async function recordExam(
 	clinicalCase: ClinicalCase,
 	sessionId: string,
 	zone: string,
 	decision: { clarity: InstructionClarity; variant: ExamVariant },
 	atMs: number,
-): ExamResult {
+): Promise<ExamResult> {
 	const action: ExamAction = {
 		id: newId("exam"),
 		sessionId,
@@ -215,7 +233,7 @@ export function recordExam(
 		startMs: atMs,
 		endMs: null,
 	};
-	store.addExamAction(action);
+	await store.addExamAction(action);
 	const zoneData = clinicalCase.exam[zone];
 	return {
 		action,
@@ -239,12 +257,16 @@ export type TurnResult = {
 	exam: ExamResult | null;
 };
 
+// Turno por texto. Sin pantalla: lo usan los tests y scripts/probar-personaje.mjs.
 export async function sendTurn(
 	viewer: Viewer,
 	sessionId: string,
 	text: string,
 ): Promise<TurnResult> {
-	const { session, clinicalCase, elapsed } = activeSession(viewer, sessionId);
+	const { session, clinicalCase, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+	);
 	const clean = text.trim().slice(0, 1000);
 	if (!clean) throw new HttpError(400, "Escribí algo");
 
@@ -257,9 +279,9 @@ export async function sendTurn(
 		endMs: elapsed,
 		overlap: false,
 	};
-	store.addTurn(studentTurn);
+	await store.addTurn(studentTurn);
 
-	const current = noteConsent(session, clean, elapsed);
+	const current = await noteConsent(session, clean, elapsed);
 
 	let reply: string;
 	let exam: ExamResult | null = null;
@@ -270,16 +292,16 @@ export async function sendTurn(
 			current.personality,
 			current.consentGiven,
 		);
-		exam = recordExam(clinicalCase, sessionId, zone, decision, elapsed);
+		exam = await recordExam(clinicalCase, sessionId, zone, decision, elapsed);
 		reply = exam.patientReaction;
 	} else {
-		const r = await patientReply(current, clean);
+		const r = await patientReply(current, clinicalCase, clean);
 		reply = r.text;
 		if (r.delta) {
-			store.updateSession(sessionId, {
+			await store.updateSession(sessionId, {
 				state: { ...current.state, ...r.delta },
 			});
-			store.addEvent({
+			await store.addEvent({
 				id: newId("evt"),
 				sessionId,
 				type: "cambio_animo",
@@ -300,21 +322,20 @@ export async function sendTurn(
 		endMs: end,
 		overlap: false,
 	};
-	store.addTurn(patientTurn);
+	await store.addTurn(patientTurn);
 	return { studentTurn, patientTurn, exam };
 }
 
-export function saveExamTimes(
+export async function saveExamTimes(
 	viewer: Viewer,
 	sessionId: string,
 	actionId: string,
 	hotspotTimesMs: Record<string, number>,
 ) {
-	ownSession(viewer, sessionId);
-	const action = store
-		.listExamActions(sessionId)
-		.find((a) => a.id === actionId);
-	if (!action) throw new HttpError(404, "Acción de examen no encontrada");
+	const { session } = await ownSession(viewer, sessionId);
+	const actions = await store.listExamActions(sessionId);
+	if (!actions.some((a) => a.id === actionId))
+		throw new HttpError(404, "Acción de examen no encontrada");
 	const clean = Object.fromEntries(
 		Object.entries(hotspotTimesMs)
 			.filter(([, v]) => Number.isFinite(v) && v >= 0)
@@ -322,20 +343,20 @@ export function saveExamTimes(
 	);
 	return store.updateExamAction(actionId, {
 		hotspotTimesMs: clean,
-		endMs: Date.now() - (store.getSession(sessionId)?.startedAt ?? Date.now()),
+		endMs: Date.now() - session.startedAt,
 	});
 }
 
-export function finishSession(
+export async function finishSession(
 	viewer: Viewer,
 	sessionId: string,
 	hypothesis: string,
 	differentials: string[],
-): Report {
-	const { session, clinicalCase } = ownSession(viewer, sessionId);
-	const existing = store.getReport(sessionId);
+): Promise<Report> {
+	const { clinicalCase } = await ownSession(viewer, sessionId);
+	const existing = await store.getReport(sessionId);
 	if (existing) return existing;
-	const closed = store.updateSession(sessionId, {
+	const closed = await store.updateSession(sessionId, {
 		status: "evaluada",
 		endedAt: Date.now(),
 		closing: {
@@ -343,20 +364,25 @@ export function finishSession(
 			differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
 		},
 	});
+	const [turns, events, examActions] = await Promise.all([
+		store.listTurns(sessionId),
+		store.listEvents(sessionId),
+		store.listExamActions(sessionId),
+	]);
 	const report = evaluate({
 		clinicalCase,
 		session: closed,
-		turns: store.listTurns(sessionId),
-		events: store.listEvents(sessionId),
-		examActions: store.listExamActions(session.id),
+		turns,
+		events,
+		examActions,
 	});
-	store.saveReport(report);
+	await store.saveReport(report);
 	return report;
 }
 
-export function getReport(viewer: Viewer, sessionId: string) {
-	ownSession(viewer, sessionId);
-	const report = store.getReport(sessionId);
+export async function getReport(viewer: Viewer, sessionId: string) {
+	await ownSession(viewer, sessionId);
+	const report = await store.getReport(sessionId);
 	if (!report) throw new HttpError(404, "Todavía no hay informe");
 	return report;
 }

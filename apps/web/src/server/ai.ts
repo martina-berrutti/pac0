@@ -49,7 +49,7 @@ async function callGemini(
 					...(system ? { systemInstruction: system } : {}),
 					temperature: json ? 0.2 : 0.8,
 					...(json ? { responseMimeType: "application/json" } : {}),
-					abortSignal: AbortSignal.timeout(20_000),
+					abortSignal: AbortSignal.timeout(10_000),
 				},
 			});
 			if (res.text) return res.text;

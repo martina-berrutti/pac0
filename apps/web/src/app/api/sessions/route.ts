@@ -15,7 +15,7 @@ export async function POST(req: Request) {
 		const viewer = await requireProfile();
 		const body = await readBody(req, bodySchema);
 		return {
-			sessionId: startSession(viewer, body.caseId, body.personalityKey),
+			sessionId: await startSession(viewer, body.caseId, body.personalityKey),
 		};
 	});
 }
@@ -25,7 +25,7 @@ export async function GET() {
 	return handle(async () => {
 		const viewer = await requireViewer();
 		return {
-			sessions: store.listSessions(viewer.uid).map((s) => ({
+			sessions: (await store.listSessions(viewer.uid)).map((s) => ({
 				id: s.id,
 				caseId: s.caseId,
 				status: s.status,

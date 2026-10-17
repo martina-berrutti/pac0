@@ -18,6 +18,6 @@ export async function POST(
 		const viewer = await requireViewer();
 		const { id } = await ctx.params;
 		const body = await readBody(req, bodySchema);
-		recordVoiceEvent(viewer, id, body.type, body.durationMs);
+		await recordVoiceEvent(viewer, id, body.type, body.durationMs);
 	});
 }

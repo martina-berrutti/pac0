@@ -10,6 +10,6 @@ export async function GET(
 	return handle(async () => {
 		const viewer = await requireViewer();
 		const { id } = await ctx.params;
-		return { report: getReport(viewer, id) };
+		return { report: await getReport(viewer, id) };
 	});
 }

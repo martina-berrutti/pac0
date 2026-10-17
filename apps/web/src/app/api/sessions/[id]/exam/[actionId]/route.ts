@@ -17,6 +17,8 @@ export async function PATCH(
 		const viewer = await requireViewer();
 		const { id, actionId } = await ctx.params;
 		const body = await readBody(req, bodySchema);
-		return { action: saveExamTimes(viewer, id, actionId, body.hotspotTimesMs) };
+		return {
+			action: await saveExamTimes(viewer, id, actionId, body.hotspotTimesMs),
+		};
 	});
 }

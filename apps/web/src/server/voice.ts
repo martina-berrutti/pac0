@@ -49,9 +49,9 @@ const VOICE_RULES = [
 	"- Si inventás un dato sobre vos que no estaba en tu historia, llamá a anotar_dato.",
 ].join("\n");
 
-export function voiceInstructions(viewer: Viewer, sessionId: string) {
-	const { session } = activeSession(viewer, sessionId);
-	const b = brief(session);
+export async function voiceInstructions(viewer: Viewer, sessionId: string) {
+	const { session, clinicalCase } = await activeSession(viewer, sessionId);
+	const b = brief(session, clinicalCase);
 	const hearing =
 		b.personality.audicion === "reducida"
 			? "\n- No escuchás bien: cada tanto pedí que te repitan."
@@ -103,10 +103,10 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			503,
 			"La voz no está configurada: falta GEMINI_API_KEY en el servidor.",
 		);
-	const { session, elapsed } = activeSession(viewer, sessionId);
+	const { session, elapsed } = await activeSession(viewer, sessionId);
 	const model = liveModel();
 	const config = liveConfig(
-		voiceInstructions(viewer, sessionId),
+		await voiceInstructions(viewer, sessionId),
 		session.personality.paciencia < 0.4,
 	);
 	const now = Date.now();
@@ -170,15 +170,15 @@ function zoneFor(requested: string, available: string[]) {
 
 // Ejecuta una herramienta que pidió el modelo. El resultado va al modelo
 // (output) y a la pantalla (ui). El caso decide qué se ve.
-export function runTool(
+export async function runTool(
 	viewer: Viewer,
 	sessionId: string,
 	name: string,
 	rawArgs: unknown,
-): ToolRun {
+): Promise<ToolRun> {
 	if (!isToolName(name))
 		throw new HttpError(400, `Herramienta desconocida: ${name}`);
-	const { session, clinicalCase, elapsed } = activeSession(
+	const { session, clinicalCase, elapsed } = await activeSession(
 		viewer,
 		sessionId,
 		VOICE_GRACE_MS,
@@ -202,20 +202,20 @@ export function runTool(
 			}
 			let current = session;
 			if (args.consentimiento && !current.consentGiven) {
-				store.addEvent({
+				await store.addEvent({
 					id: newId("evt"),
 					sessionId,
 					type: "consentimiento",
 					atMs: elapsed,
 				});
-				current = store.updateSession(sessionId, { consentGiven: true });
+				current = await store.updateSession(sessionId, { consentGiven: true });
 			}
 			const variant = decideExam(
 				args.claridad,
 				current.personality,
 				current.consentGiven,
 			);
-			const exam = recordExam(
+			const exam = await recordExam(
 				clinicalCase,
 				sessionId,
 				zone,
@@ -254,7 +254,7 @@ export function runTool(
 				marked: null,
 				atMs: elapsed,
 			};
-			store.addVitals(vitals);
+			await store.addVitals(vitals);
 			// El paciente no sabe su presión: el valor va solo a la pantalla.
 			return {
 				output: {
@@ -289,8 +289,8 @@ export function runTool(
 			][]) {
 				if (d !== undefined) next[k] = clamp(next[k] + d);
 			}
-			store.updateSession(sessionId, { state: next });
-			store.addEvent({
+			await store.updateSession(sessionId, { state: next });
+			await store.addEvent({
 				id: newId("evt"),
 				sessionId,
 				type: "cambio_animo",
@@ -309,7 +309,7 @@ export function runTool(
 				!(args.clave in clinicalCase.hiddenHistory)
 			) {
 				facts[args.clave] = args.valor;
-				store.updateSession(sessionId, { inventedFacts: facts });
+				await store.updateSession(sessionId, { inventedFacts: facts });
 			}
 			return { output: { ok: true }, ui: { kind: "none" } };
 		}
@@ -320,14 +320,18 @@ export function runTool(
 	}
 }
 
-export function recordVoiceTurn(
+export async function recordVoiceTurn(
 	viewer: Viewer,
 	sessionId: string,
 	speaker: Turn["speaker"],
 	text: string,
 	overlap: boolean,
-): Turn {
-	const { session, elapsed } = activeSession(viewer, sessionId, VOICE_GRACE_MS);
+): Promise<Turn> {
+	const { session, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+		VOICE_GRACE_MS,
+	);
 	const clean = text.trim().slice(0, 2000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
 	const turn: Turn = {
@@ -339,8 +343,8 @@ export function recordVoiceTurn(
 		endMs: elapsed,
 		overlap,
 	};
-	store.addTurn(turn);
-	if (speaker === "estudiante") noteConsent(session, clean, elapsed);
+	await store.addTurn(turn);
+	if (speaker === "estudiante") await noteConsent(session, clean, elapsed);
 	return turn;
 }
 
@@ -350,14 +354,14 @@ export const VOICE_EVENTS = [
 	"silencio_largo",
 ] as const satisfies readonly SessionEventType[];
 
-export function recordVoiceEvent(
+export async function recordVoiceEvent(
 	viewer: Viewer,
 	sessionId: string,
 	type: (typeof VOICE_EVENTS)[number],
 	durationMs?: number,
 ) {
-	const { elapsed } = activeSession(viewer, sessionId, VOICE_GRACE_MS);
-	store.addEvent({
+	const { elapsed } = await activeSession(viewer, sessionId, VOICE_GRACE_MS);
+	await store.addEvent({
 		id: newId("evt"),
 		sessionId,
 		type,
@@ -369,12 +373,12 @@ export function recordVoiceEvent(
 type UsageInput = Omit<VoiceUsage, "responses">;
 
 // Suma los tokens de cada respuesta de la voz para medir el costo por sesión.
-export function recordVoiceUsage(
+export async function recordVoiceUsage(
 	viewer: Viewer,
 	sessionId: string,
 	usage: UsageInput,
 ) {
-	const { session } = ownSession(viewer, sessionId);
+	const { session } = await ownSession(viewer, sessionId);
 	const prev = session.voiceUsage ?? {
 		responses: 0,
 		inputTokens: 0,
@@ -391,6 +395,6 @@ export function recordVoiceUsage(
 		outputAudioTokens: prev.outputAudioTokens + usage.outputAudioTokens,
 		cachedTokens: prev.cachedTokens + usage.cachedTokens,
 	};
-	store.updateSession(sessionId, { voiceUsage: next });
+	await store.updateSession(sessionId, { voiceUsage: next });
 	return next;
 }

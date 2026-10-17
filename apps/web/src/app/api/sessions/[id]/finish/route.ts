@@ -19,7 +19,12 @@ export async function POST(
 		const { id } = await ctx.params;
 		const body = await readBody(req, bodySchema);
 		return {
-			report: finishSession(viewer, id, body.hypothesis, body.differentials),
+			report: await finishSession(
+				viewer,
+				id,
+				body.hypothesis,
+				body.differentials,
+			),
 		};
 	});
 }

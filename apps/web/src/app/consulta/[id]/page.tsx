@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
+import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
 import type { ExamResult, VitalsMeasurement } from "@/lib/contracts/exam";
@@ -22,6 +23,7 @@ export default function ConsultationPage() {
 	const { id } = useParams<{ id: string }>();
 	const router = useRouter();
 	const [view, setView] = useState<SessionView | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [sending, setSending] = useState(false);
 	const [exam, setExam] = useState<ExamResult | null>(null);
 	const [closing, setClosing] = useState(false);
@@ -60,7 +62,7 @@ export default function ConsultationPage() {
 				setView(v);
 			})
 			.catch((e) =>
-				toast.error(
+				setLoadError(
 					e instanceof ApiError ? e.message : "No pudimos abrir la consulta.",
 				),
 			);
@@ -98,6 +100,7 @@ export default function ConsultationPage() {
 		}
 	}
 
+	if (loadError) return <LoadError message={loadError} />;
 	if (!view) return <Loader />;
 
 	return (
