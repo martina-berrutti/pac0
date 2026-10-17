@@ -432,4 +432,19 @@ describe("cliente de voz", () => {
 		expect(live.closed).toBe(1);
 		vi.useRealTimers();
 	});
+
+	test("si el navegador nunca reanuda el audio, la voz conecta igual", async () => {
+		vi.useFakeTimers();
+		const neverResume = () => new Promise<void>(() => {});
+		class StuckAudioContext extends FakeAudioContext {
+			resume = neverResume;
+		}
+		vi.stubGlobal("AudioContext", StuckAudioContext);
+		const { voice } = mount();
+		const started = voice.start();
+		await vi.advanceTimersByTimeAsync(1_100);
+		await started;
+		expect(live.connects).toBe(1);
+		vi.useRealTimers();
+	});
 });

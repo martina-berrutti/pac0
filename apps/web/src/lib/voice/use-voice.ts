@@ -35,6 +35,8 @@ const OUTPUT_RATE = 24_000;
 const MAX_RECONNECTS = 3;
 // Tope para que Google abra la conexión de voz.
 const CONNECT_TIMEOUT_MS = 15_000;
+// Cuánto se espera a que arranque el audio antes de seguir conectando.
+const RESUME_WAIT_MS = 1_000;
 
 type LiveToken = {
 	token: string;
@@ -261,6 +263,8 @@ export function useVoice({
 	const playChunk = useCallback((base64: string) => {
 		const o = out.current;
 		if (!o) return;
+		// Si el navegador dejó el audio suspendido al conectar, otro intento.
+		if (o.ctx.state === "suspended") o.ctx.resume().catch(() => {});
 		const samples = pcm16ToFloat(base64);
 		const buffer = o.ctx.createBuffer(1, samples.length, OUTPUT_RATE);
 		buffer.copyToChannel(samples, 0);
@@ -496,6 +500,11 @@ export function useVoice({
 		const ctx = new AudioContext();
 		out.current = null;
 		inCtx.current = ctx;
+		// resume() también en el mismo clic: fuera del gesto, Safari puede dejar
+		// la promesa pendiente para siempre.
+		const resumed = Promise.all([outCtx.resume(), ctx.resume()]).catch(
+			() => {},
+		);
 		try {
 			// Primero el micrófono: si se niega, no se gasta un token.
 			let stream: MediaStream;
@@ -520,7 +529,12 @@ export function useVoice({
 				return;
 			}
 			mic.current = stream;
-			await Promise.all([outCtx.resume(), ctx.resume()]);
+			// Se espera un momento a que arranque el audio, sin trabar la conexión
+			// si el navegador no lo deja (se intenta de nuevo al reproducir).
+			await Promise.race([
+				resumed,
+				new Promise((resolve) => setTimeout(resolve, RESUME_WAIT_MS)),
+			]);
 
 			// Salida del paciente, con un AnalyserNode para el avatar.
 			const analyser = outCtx.createAnalyser();
