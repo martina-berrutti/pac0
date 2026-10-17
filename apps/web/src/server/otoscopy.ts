@@ -19,12 +19,12 @@ import type { Viewer } from "./token";
 
 export type OtoscopyStart = { actionId: string; appearance: EarAppearance };
 
-export function startOtoscopy(
+export async function startOtoscopy(
 	viewer: Viewer,
 	sessionId: string,
 	ear: Ear,
-): OtoscopyStart {
-	const { clinicalCase, elapsed } = activeSession(viewer, sessionId);
+): Promise<OtoscopyStart> {
+	const { clinicalCase, elapsed } = await activeSession(viewer, sessionId);
 	const action: ExamAction = {
 		id: newId("exam"),
 		sessionId,
@@ -36,36 +36,39 @@ export function startOtoscopy(
 		startMs: elapsed,
 		endMs: null,
 	};
-	store.addExamAction(action);
+	await store.addExamAction(action);
 	const scenario = otoscopyScenario(clinicalCase.id, clinicalCase.patient.age);
 	// Solo lo que se ve en ese oído; la técnica correcta no sale del servidor.
 	return { actionId: action.id, appearance: scenario.appearance[ear] };
 }
 
-export function finishOtoscopy(
+export async function finishOtoscopy(
 	viewer: Viewer,
 	sessionId: string,
 	actionId: string,
 	record: OtoscopyRecord,
 ) {
-	const { session, clinicalCase, elapsed } = activeSession(viewer, sessionId);
-	const action = store
-		.listExamActions(sessionId)
-		.find((a) => a.id === actionId && a.maneuver === OTOSCOPY);
+	const { session, clinicalCase, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+	);
+	const action = (await store.listExamActions(sessionId)).find(
+		(a) => a.id === actionId && a.maneuver === OTOSCOPY,
+	);
 	if (!action) throw new HttpError(404, "Otoscopia no encontrada");
 	if (action.endMs !== null)
 		throw new HttpError(409, "Esta otoscopia ya terminó");
 	const ear: Ear = action.zone === "oido-izquierdo" ? "izquierdo" : "derecho";
-	const before = store
-		.listTurns(session.id)
-		.filter((t) => t.speaker === "estudiante" && t.startMs <= action.startMs);
+	const before = (await store.listTurns(session.id)).filter(
+		(t) => t.speaker === "estudiante" && t.startMs <= action.startMs,
+	);
 	const technique = assessOtoscopy(
 		ear,
 		record,
 		before,
 		otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
 	);
-	store.updateExamAction(actionId, {
+	await store.updateExamAction(actionId, {
 		hotspotTimesMs: { conducto: record.canalMs, timpano: record.tympanumMs },
 		endMs: elapsed,
 		technique,

@@ -36,8 +36,8 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Base con Better-T-Stack (Next.js, shadcn/ui, Turborepo) y Biome
 - [x] `AGENTS.md` y `.claude/settings.json` que bloquea los `.env` de todo el repo
 - [x] Deploy en Vercel: https://pac0-l3xi.vercel.app
-- [ ] Cargar `SESSION_SECRET` en Vercel (sin eso no anda el invitado en producción)
-- [ ] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
+- [x] Cargar `SESSION_SECRET` en Vercel
+- [x] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
 
 ### Usuarios y acceso (plan.md, sección 10)
 - [x] Invitado con alias temporal y cookie firmada, en menos de 10 s
@@ -71,8 +71,9 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Tope de 8 minutos en el servidor y reloj en pantalla
 - [x] Decisión del 17/10: la consulta es **solo por voz**; se sacó el campo para escribir (la transcripción se ve para leer)
 - [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
-- [ ] **Probar la voz de verdad con la clave de Google AI Studio** (todavía no se probó en vivo)
-- [ ] Verificar en vivo qué versión de API acepta el token efímero (`v1beta` o `v1alpha`; el servidor prueba las dos)
+- [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
+- [ ] Probar con micrófono en el navegador (computadora y celular)
+- [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [ ] Verificar que `usageMetadata` de Gemini Live no se cuente dos veces (si es acumulado o por turno)
 - [ ] Probar 3 voces de Gemini y elegir la más rioplatense; cargarla en `LIVE_VOICE`
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
@@ -204,13 +205,15 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 ## Fase final · Convex (Persona 1)
 
-- [ ] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts`, sin tocar rutas ni pantallas
+- [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
+- [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel
 - [ ] Usuarios, Google y modo invitado con Convex Auth (ya escritos en `packages/backend/convex/auth.ts`)
 - [ ] Borrado de invitados a las 24 horas (`crons.ts`, ya escrito)
 - [ ] `mistakeProfile`: perfil de errores entre sesiones
 - [ ] Imágenes en Convex storage y tabla `assets`
 - [ ] Credenciales de Google en Convex dev y prod
-- [ ] Recomendado: conectar Convex como almacenamiento **antes de la prueba con estudiantes del sábado a la noche**, porque en Vercel la memoria se pierde entre pedidos
+- [x] Conectar Convex como almacenamiento (adelantado el 17/10: en Vercel la consulta fallaba con "Sesión no encontrada")
+- [ ] Más adelante: pasar de `records` a las tablas tipadas del esquema
 
 ## Puertas (plan.md, sección 13)
 

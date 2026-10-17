@@ -7,6 +7,6 @@ import { store } from "@/server/store";
 export async function GET() {
 	return handle(async () => {
 		const viewer = await requireViewer();
-		return { cases: store.listCases(viewer.uid).map(toSummary) };
+		return { cases: (await store.listCases(viewer.uid)).map(toSummary) };
 	});
 }

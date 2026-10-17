@@ -4,8 +4,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 
+import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
 import type { Report } from "@/lib/contracts/report";
@@ -21,18 +21,20 @@ const STATUS = { si: "Sí", parcial: "Parcial", no: "No" } as const;
 export default function ReportPage() {
 	const { id } = useParams<{ id: string }>();
 	const [report, setReport] = useState<Report | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	useEffect(() => {
 		api
 			.report(id)
 			.then((r) => setReport(r.report))
 			.catch((e) =>
-				toast.error(
+				setLoadError(
 					e instanceof ApiError ? e.message : "No pudimos abrir el informe.",
 				),
 			);
 	}, [id]);
 
+	if (loadError) return <LoadError message={loadError} />;
 	if (!report) return <Loader />;
 
 	return (

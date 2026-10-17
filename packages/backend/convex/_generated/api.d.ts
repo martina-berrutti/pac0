@@ -13,6 +13,7 @@ import type * as cases from "../cases.js";
 import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as lib_access from "../lib/access.js";
+import type * as records from "../records.js";
 import type * as sessions from "../sessions.js";
 import type * as users from "../users.js";
 import type * as validators from "../validators.js";
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   crons: typeof crons;
   http: typeof http;
   "lib/access": typeof lib_access;
+  records: typeof records;
   sessions: typeof sessions;
   users: typeof users;
   validators: typeof validators;

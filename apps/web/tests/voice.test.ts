@@ -54,7 +54,7 @@ afterEach(() => {
 describe("sesión de voz (Gemini Live)", () => {
 	test("sin GEMINI_API_KEY avisa qué falta configurar", async () => {
 		vi.stubEnv("GEMINI_API_KEY", "");
-		const id = startSession(ana, lucia.id, "caso");
+		const id = await startSession(ana, lucia.id, "caso");
 		await expect(createLiveSession(ana, id)).rejects.toThrow(
 			"falta GEMINI_API_KEY",
 		);
@@ -63,7 +63,7 @@ describe("sesión de voz (Gemini Live)", () => {
 	test("el token efímero fija las instrucciones sin el diagnóstico y con las herramientas", async () => {
 		vi.stubEnv("GEMINI_API_KEY", "AIza-test-servidor");
 		genai.create.mockResolvedValueOnce({ name: "auth_tokens/efimero" });
-		const id = startSession(ana, lucia.id, "caso");
+		const id = await startSession(ana, lucia.id, "caso");
 
 		const result = await createLiveSession(ana, id);
 
@@ -106,7 +106,7 @@ describe("sesión de voz (Gemini Live)", () => {
 		genai.create
 			.mockRejectedValueOnce(new Error("no soportado"))
 			.mockResolvedValueOnce({ name: "auth_tokens/2" });
-		const id = startSession(ana, lucia.id, "hostil");
+		const id = await startSession(ana, lucia.id, "hostil");
 		const result = await createLiveSession(ana, id);
 		expect(result.apiVersion).toBe("v1alpha");
 		const live = (
@@ -127,24 +127,24 @@ describe("sesión de voz (Gemini Live)", () => {
 		).toBe(500);
 	});
 
-	test("las instrucciones de voz siguen sin el diagnóstico", () => {
-		const id = startSession(ana, lucia.id, "mayor");
-		const text = voiceInstructions(ana, id);
+	test("las instrucciones de voz siguen sin el diagnóstico", async () => {
+		const id = await startSession(ana, lucia.id, "mayor");
+		const text = await voiceInstructions(ana, id);
 		expect(text).not.toContain(lucia.truth.diagnosis);
 		expect(text).toContain("repitan");
 	});
 });
 
 describe("herramientas del paciente", () => {
-	test("examinar: la claridad decide la apertura", () => {
-		const id = startSession(ana, lucia.id, "caso");
-		const parcial = runTool(ana, id, "examinar", {
+	test("examinar: la claridad decide la apertura", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		const parcial = await runTool(ana, id, "examinar", {
 			zona: "garganta",
 			claridad: "media",
 			consentimiento: true,
 		});
 		expect(parcial.output.variante).toBe("parcial");
-		const completa = runTool(ana, id, "examinar", {
+		const completa = await runTool(ana, id, "examinar", {
 			zona: "orofaringe",
 			claridad: "alta",
 			consentimiento: true,
@@ -155,34 +155,38 @@ describe("herramientas del paciente", () => {
 		);
 		// Al modelo no le llega el hallazgo.
 		expect(JSON.stringify(completa.output)).not.toContain("exudado");
-		expect(store.listExamActions(id)).toHaveLength(2);
+		expect(await store.listExamActions(id)).toHaveLength(2);
 	});
 
-	test("examinar: el paciente hostil no abre sin permiso", () => {
-		const id = startSession(ana, lucia.id, "hostil");
+	test("examinar: el paciente hostil no abre sin permiso", async () => {
+		const id = await startSession(ana, lucia.id, "hostil");
 		expect(
-			runTool(ana, id, "examinar", {
-				zona: "boca",
-				claridad: "alta",
-				consentimiento: false,
-			}).output.variante,
+			(
+				await runTool(ana, id, "examinar", {
+					zona: "boca",
+					claridad: "alta",
+					consentimiento: false,
+				})
+			).output.variante,
 		).toBe("negado");
 		expect(
-			runTool(ana, id, "examinar", {
-				zona: "boca",
-				claridad: "alta",
-				consentimiento: true,
-			}).output.variante,
+			(
+				await runTool(ana, id, "examinar", {
+					zona: "boca",
+					claridad: "alta",
+					consentimiento: true,
+				})
+			).output.variante,
 		).toBe("completa");
-		expect(store.getSession(id)?.consentGiven).toBe(true);
+		expect((await store.getSession(id))?.consentGiven).toBe(true);
 	});
 
-	test("medir_presion: el valor lo calcula el código y no va al modelo", () => {
-		const id = startSession(ana, lucia.id, "caso");
-		const run = runTool(ana, id, "medir_presion", {
+	test("medir_presion: el valor lo calcula el código y no va al modelo", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		const run = await runTool(ana, id, "medir_presion", {
 			pasos_cumplidos: [...BP_STEPS],
 		});
-		const saved = store.listVitals(id)[0];
+		const saved = (await store.listVitals(id))[0];
 		expect(saved?.shown).toEqual({ pas: 112, pad: 70 });
 		// Ni el modelo ni la pantalla reciben el valor: lo mide el estudiante.
 		expect(JSON.stringify(run.output)).not.toContain("112");
@@ -193,62 +197,64 @@ describe("herramientas del paciente", () => {
 		expect(bad.techniqueErrors).toContain("piernas-cruzadas");
 	});
 
-	test("actualizar_estado: queda entre 0 y 1 y se registra el evento", () => {
-		const id = startSession(ana, lucia.id, "caso");
-		runTool(ana, id, "actualizar_estado", {
+	test("actualizar_estado: queda entre 0 y 1 y se registra el evento", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "actualizar_estado", {
 			delta: { confianza: 0.5 },
 			motivo: "empatía",
 		});
-		expect(store.getSession(id)?.state.confianza).toBe(1);
-		expect(store.listEvents(id).some((e) => e.type === "cambio_animo")).toBe(
-			true,
-		);
+		expect((await store.getSession(id))?.state.confianza).toBe(1);
+		expect(
+			(await store.listEvents(id)).some((e) => e.type === "cambio_animo"),
+		).toBe(true);
 	});
 
-	test("mostrar_region y terminar_consulta", () => {
-		const id = startSession(ana, lucia.id, "caso");
+	test("mostrar_region y terminar_consulta", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
 		expect(
-			runTool(ana, id, "mostrar_region", { region: "rodilla" }).output
+			(await runTool(ana, id, "mostrar_region", { region: "rodilla" })).output
 				.disponible,
 		).toBe(false);
-		expect(runTool(ana, id, "terminar_consulta", {}).ui.kind).toBe("end");
+		expect((await runTool(ana, id, "terminar_consulta", {})).ui.kind).toBe(
+			"end",
+		);
 	});
 
-	test("una herramienta desconocida o de otra persona se rechaza", () => {
-		const id = startSession(ana, lucia.id, "caso");
-		expect(() => runTool(ana, id, "dar_diagnostico", {})).toThrow(
+	test("una herramienta desconocida o de otra persona se rechaza", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await expect(runTool(ana, id, "dar_diagnostico", {})).rejects.toThrow(
 			"desconocida",
 		);
-		expect(() =>
+		await expect(
 			runTool(beto, id, "examinar", {
 				zona: "boca",
 				claridad: "alta",
 				consentimiento: true,
 			}),
-		).toThrow("Sesión no encontrada");
+		).rejects.toThrow("Sesión no encontrada");
 	});
 });
 
 describe("turnos de voz", () => {
-	test("se guarda la transcripción y el permiso pedido por voz", () => {
-		const id = startSession(ana, lucia.id, "caso");
-		recordVoiceTurn(
+	test("se guarda la transcripción y el permiso pedido por voz", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await recordVoiceTurn(
 			ana,
 			id,
 			"estudiante",
 			"¿Te puedo revisar la garganta?",
 			false,
 		);
-		expect(store.listTurns(id)[0]?.text).toContain("revisar");
-		expect(store.getSession(id)?.consentGiven).toBe(true);
+		expect((await store.listTurns(id))[0]?.text).toContain("revisar");
+		expect((await store.getSession(id))?.consentGiven).toBe(true);
 	});
 
-	test("después de los 8 minutos (más el margen) no se acepta", () => {
-		const id = startSession(ana, lucia.id, "caso");
-		store.updateSession(id, { startedAt: Date.now() - 9 * 60 * 1000 });
-		expect(() => recordVoiceTurn(ana, id, "estudiante", "hola", false)).toThrow(
-			"8 minutos",
-		);
+	test("después de los 8 minutos (más el margen) no se acepta", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await store.updateSession(id, { startedAt: Date.now() - 9 * 60 * 1000 });
+		await expect(
+			recordVoiceTurn(ana, id, "estudiante", "hola", false),
+		).rejects.toThrow("8 minutos");
 	});
 });
 
@@ -263,44 +269,46 @@ describe("pendientes de la Persona 1", () => {
 		expect(clinicalCase.personality.cooperacion).toBeLessThan(0.5);
 		expect(clinicalCase.personalityStyle).toContain("No te dejás examinar");
 		// La sesión usa la personalidad ajustada: no abre sin permiso.
-		store.addGeneratedCase(ana.uid, clinicalCase);
-		const id = startSession(ana, clinicalCase.id, personalityKey);
+		await store.addGeneratedCase(ana.uid, clinicalCase);
+		const id = await startSession(ana, clinicalCase.id, personalityKey);
 		expect(
-			runTool(ana, id, "examinar", {
-				zona: "boca",
-				claridad: "alta",
-				consentimiento: false,
-			}).output.variante,
+			(
+				await runTool(ana, id, "examinar", {
+					zona: "boca",
+					claridad: "alta",
+					consentimiento: false,
+				})
+			).output.variante,
 		).toBe("negado");
 	});
 
 	test("variación controlada: se sortea un valor del caso y llega al paciente", async () => {
 		const { pickVariations } = await import("@/server/consultation");
 		expect(pickVariations(lucia, () => 0.99).fiebre).toBe("tuve 39 anoche");
-		const id = startSession(ana, lucia.id, "caso");
-		const fiebre = store.getSession(id)?.historyOverrides.fiebre;
+		const id = await startSession(ana, lucia.id, "caso");
+		const fiebre = (await store.getSession(id))?.historyOverrides.fiebre;
 		expect(lucia.variations.fiebre).toContain(fiebre);
-		expect(voiceInstructions(ana, id)).toContain(fiebre);
+		expect(await voiceInstructions(ana, id)).toContain(fiebre);
 	});
 
-	test("anotar_dato: lo inventado queda en las instrucciones y no pisa la historia", () => {
-		const id = startSession(ana, lucia.id, "caso");
-		runTool(ana, id, "anotar_dato", {
+	test("anotar_dato: lo inventado queda en las instrucciones y no pisa la historia", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await runTool(ana, id, "anotar_dato", {
 			clave: "hermanos",
 			valor: "tengo dos hermanos",
 		});
-		runTool(ana, id, "anotar_dato", {
+		await runTool(ana, id, "anotar_dato", {
 			clave: "fiebre",
 			valor: "nunca tuve fiebre",
 		});
-		const facts = store.getSession(id)?.inventedFacts;
+		const facts = (await store.getSession(id))?.inventedFacts;
 		expect(facts).toEqual({ hermanos: "tengo dos hermanos" });
-		expect(voiceInstructions(ana, id)).toContain("tengo dos hermanos");
+		expect(await voiceInstructions(ana, id)).toContain("tengo dos hermanos");
 	});
 
 	test("los tokens de la voz se suman por sesión", async () => {
 		const { recordVoiceUsage } = await import("@/server/voice");
-		const id = startSession(ana, lucia.id, "caso");
+		const id = await startSession(ana, lucia.id, "caso");
 		const u = {
 			inputTokens: 100,
 			outputTokens: 50,
@@ -308,8 +316,8 @@ describe("pendientes de la Persona 1", () => {
 			outputAudioTokens: 40,
 			cachedTokens: 10,
 		};
-		recordVoiceUsage(ana, id, u);
-		expect(recordVoiceUsage(ana, id, u)).toEqual({
+		await recordVoiceUsage(ana, id, u);
+		expect(await recordVoiceUsage(ana, id, u)).toEqual({
 			responses: 2,
 			inputTokens: 200,
 			outputTokens: 100,
@@ -317,6 +325,8 @@ describe("pendientes de la Persona 1", () => {
 			outputAudioTokens: 80,
 			cachedTokens: 20,
 		});
-		expect(() => recordVoiceUsage(beto, id, u)).toThrow("Sesión no encontrada");
+		await expect(recordVoiceUsage(beto, id, u)).rejects.toThrow(
+			"Sesión no encontrada",
+		);
 	});
 });

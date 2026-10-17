@@ -20,7 +20,13 @@ export async function POST(
 		const { id } = await ctx.params;
 		const body = await readBody(req, bodySchema);
 		return {
-			turn: recordVoiceTurn(viewer, id, body.speaker, body.text, body.overlap),
+			turn: await recordVoiceTurn(
+				viewer,
+				id,
+				body.speaker,
+				body.text,
+				body.overlap,
+			),
 		};
 	});
 }

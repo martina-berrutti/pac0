@@ -164,6 +164,27 @@ export default defineSchema({
 		validatedBy: v.optional(v.string()),
 	}).index("by_key", ["key"]),
 
+	// Almacenamiento de la app web mientras se migra a las tablas de arriba
+	// (records.ts). data tiene la forma de los contratos de apps/web.
+	records: defineTable({
+		kind: v.union(
+			v.literal("case"),
+			v.literal("session"),
+			v.literal("turn"),
+			v.literal("event"),
+			v.literal("exam"),
+			v.literal("vitals"),
+			v.literal("report"),
+		),
+		appId: v.string(),
+		sessionId: v.optional(v.string()),
+		ownerId: v.optional(v.string()),
+		data: v.any(),
+	})
+		.index("by_kind_and_appId", ["kind", "appId"])
+		.index("by_kind_and_sessionId", ["kind", "sessionId"])
+		.index("by_kind_and_ownerId", ["kind", "ownerId"]),
+
 	mistakeProfile: defineTable({
 		userId: v.id("users"),
 		tag: v.string(),
