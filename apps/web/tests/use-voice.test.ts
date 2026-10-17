@@ -75,6 +75,10 @@ class FakeAudioContext {
 	createMediaStreamSource() {
 		return { connect() {} };
 	}
+	// Copia del audio del paciente para el avatar.
+	createMediaStreamDestination() {
+		return { stream: {} };
+	}
 	createBuffer(_c: number, length: number, rate: number) {
 		return { duration: length / rate, copyToChannel() {} };
 	}

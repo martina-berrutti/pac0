@@ -59,10 +59,40 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
     - El permiso por voz para el oído no subía la confianza como el de la garganta.
     - Llamadas a herramientas canceladas por Gemini (el estudiante interrumpió) se ejecutaban igual.
     - En Safari el audio puede quedar "interrupted" (no solo "suspended") al volver de segundo plano.
-  - **Sin arreglar, conocido:** con la misma consulta abierta en dos pestañas, las escrituras de Convex se pueden pisar (se pierden cambios de ánimo) y el tope de conexiones de voz se puede saltear pidiendo tokens en paralelo. La fila del cliente lo evita en una pestaña; arreglarlo del todo pide mutaciones atómicas en Convex (`records.patch`), que hay que desplegar.
+  - Sexta integración con `main`, que trajo cambios atómicos de sesión (`records.changeSession`): resuelven lo que había quedado pendiente (escrituras que se pisaban entre pestañas y el tope de conexiones de voz en paralelo). Se combinó con lo de esta rama:
+    - Cierre de la consulta: el de `main` marcaba "evaluada" antes de evaluar; si el evaluador con IA fallaba, cada reintento daba "ya se está cerrando" para siempre. Ahora reclama el cierre de forma atómica pasando a "finalizada", vuelve a "activa" si la evaluación falla, y queda "evaluada" recién con el informe guardado y los errores sumados una vez. Un cierre cortado por Vercel se retoma pasados 2 minutos.
+    - Pregunta sugestiva: la regla de `main` arreglaba "hermano" pero seguía contando "¿fumás o no?"; quedó `isLeadingQuestion`.
+    - `anotar_dato`: escritura atómica de `main` más la clave en ASCII y la protección del perfil y lo sorteado.
+    - Pedido de examen: patrones de `main` ("nombrar la garganta no abre el examen") más el subjuntivo ("¿querés que te revise?").
+    - Token de voz: se mantiene el mínimo de 60 s (con el de `main`, cerca del final podía vencer antes que el plazo para abrir la sesión).
+    - Cliente de voz: sobre los arreglos de `main` (guardar al cortar, sin silencio en el examen, avatar) se mantienen la fila, la cancelación por intento, las herramientas canceladas y los envíos protegidos.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).
+
+## 17/10 · Persona 1 · Chequeo de la Puerta 2, personaje en los cuatro casos y tests por caso
+
+- **Chequeo de la Puerta 2:** `node apps/web/scripts/probar-consulta.mjs [url]` recorre una consulta completa contra la URL pública (Convex, token de voz, entrevista, examen con permiso, cierre e informe) y verifica puntaje, cuatro dimensiones, veredicto, diagnóstico, que cada ítem cumplido cite un turno o examen real y que otro usuario no vea el informe. En producción: todo en verde, 90%, «Lo hiciste bien». Sirve como chequeo de dos minutos antes de la demo.
+- **Error encontrado con el chequeo:** por texto, «¿Desde cuándo te duele la garganta?» se tomaba como pedido de examen: se registraba un examen sin permiso y el informe marcaba un error crítico falso. Ahora hace falta una acción (abrí, decí aaa, te reviso, linterna); «te revisó» o «al abrir la boca» no cuentan. Con test.
+- **Personaje en los cuatro casos:** `scripts/probar-personaje.mjs` prueba a Lucía, Rosa, Diego y Jorge, cada uno con sus palabras prohibidas. En producción: 24 de 24 sin fugas; 2 ecos («¿de qué bata blanca me habla?»), que no cuentan.
+- **Tests por caso** (`tests/casos-completos.test.ts`): Lucía con orofaringe, Rosa con presión alta sin preparar y real bien preparada, Diego con otoscopio pedido por voz y Jorge que se niega sin permiso y abre al explicarle. El permiso para el oído ahora sube la confianza como en la garganta.
+- **Para la Persona 2:** en producción el informe sale con el juez por reglas aunque hay clave de Gemini; el evaluador con IA falla y usa el respaldo. Ver «Evaluador con IA falló» en los logs de Vercel.
+- Validación: 145 tests en web y 19 en backend; lint, tipos y build pasan.
+
+## 17/10 · Persona 1 · Revisión de código y arreglos
+
+Dos revisores independientes (errores; privacidad y seguridad) leyeron el código de la Persona 1. Se arreglaron todos los hallazgos que podían afectar la demo:
+
+- **Cambios que se pisaban** (alta): con pedidos simultáneos (turno + herramienta + uso) se perdían ánimo, consentimiento, datos inventados y tokens; con Jorge podía "olvidar" que se le pidió permiso. Ahora cada pedido manda su cambio y Convex lo aplica en una transacción (`records.changeSession`, `lib/contracts/session-change.ts`). `updateSession` también es atómica.
+- **Historia oculta en el navegador** (media): `GET /api/sessions/[id]` mandaba los valores sorteados de la historia, los datos inventados y la personalidad. Ahora va una lista explícita de campos (`toPublicSession`).
+- **Gasto sin límite** (alta): el tope de conexiones de voz se reserva antes de pedir el token (no se saltea con pedidos en paralelo) y el token dura lo que le queda a la consulta; topes de turnos y eventos por consulta, de contexto para la IA y de pacientes generados por usuario.
+- **Trampas desde la API** (media): `actualizar_estado` acepta un cambio por turno del estudiante y de a ±0,3.
+- **Cierre doble** (baja): cerrar dos veces a la vez ya no evalúa dos veces ni suma los errores doble.
+- **Voz:** al cortar se guarda lo último que se dijo; examinando, el silencio no cuenta ni hace hablar al paciente; la respuesta de una herramienta no va a una conexión nueva tras reconectar; cancelar mientras conecta no muestra error.
+- **Preguntas sugestivas:** "¿tenés algún hermano?" ya no cuenta como sugestiva (también en el evaluador de la Persona 2).
+- `/api/health` público muestra lo mínimo; el detalle, solo a docentes. Las cuentas de Google duran 7 días.
+- **Pendiente:** límite por IP para crear invitados y sesiones; que el evaluador compare la hipótesis en código antes de confiar en la IA (Persona 2, `ai-judge.ts`).
+- Validación: 120 tests en web y 19 en backend; Convex de producción actualizado antes de la web.
 
 ## 17/10 · Persona 1 · Plan B por texto, personaje en producción e interrupciones
 

@@ -1,14 +1,12 @@
 import { z } from "zod";
 
-import { caseBank } from "@/cases";
 import { toSummary } from "@/cases/schema";
 import { GenerationError, generateCase } from "@/lib/patient/generator";
 import { HttpError, requireViewer } from "@/server/auth";
 import { handle, readBody } from "@/server/http";
 import { store } from "@/server/store";
 
-// Cada caso generado llama a la IA y queda guardado: tope por usuario.
-const MAX_GENERATED_PER_USER = 30;
+const MAX_GENERATED_PER_USER = 15;
 
 const bodySchema = z.object({
 	text: z.string().min(3).max(300),
@@ -20,11 +18,15 @@ export async function POST(req: Request) {
 	return handle(async () => {
 		const viewer = await requireViewer();
 		const body = await readBody(req, bodySchema);
-		const own = (await store.listCases(viewer.uid)).length - caseBank.length;
-		if (own >= MAX_GENERATED_PER_USER)
+		// Cada paciente usa la IA: tope por usuario (los de invitados se borran
+		// a las 24 horas, así que en la práctica es por día).
+		const own = (await store.listCases(viewer.uid)).filter(
+			(c) => c.origin === "generado",
+		);
+		if (own.length >= MAX_GENERATED_PER_USER)
 			throw new HttpError(
 				429,
-				"Ya pediste muchos pacientes. Usá alguno de los que ya generaste.",
+				"Ya pediste muchos pacientes. Usá uno de los que tenés.",
 			);
 		try {
 			const { clinicalCase, personalityKey } = await generateCase(body);

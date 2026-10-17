@@ -9,6 +9,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import type { ExamResult } from "@/lib/contracts/exam";
 import {
 	MAX_SESSION_MS,
+	type PatientState,
 	type SessionEventType,
 	type Turn,
 	type VoiceUsage,
@@ -39,6 +40,9 @@ import { type BpStart, createMeasurement } from "./vitals";
 // Conexiones de voz por consulta: alcanza para reconectar si se corta y
 // evita que alguien gaste la clave pidiendo tokens sin parar.
 export const MAX_VOICE_STARTS = 6;
+
+// Turnos o eventos de voz por consulta: más de lo que entra en 8 minutos.
+const MAX_VOICE_RECORDS = 400;
 
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
@@ -161,8 +165,12 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 		sessionId,
 	);
 	const model = liveModel();
-	const starts = session.voiceStarts ?? 0;
-	if (starts >= MAX_VOICE_STARTS)
+	// Se reserva la conexión ANTES de pedir el token (atómico): con pedidos
+	// simultáneos, cada uno ve su propio número y el tope no se saltea.
+	const reserved = await store.changeSession(sessionId, {
+		incVoiceStarts: true,
+	});
+	if (!reserved || (reserved.voiceStarts ?? 0) > MAX_VOICE_STARTS)
 		throw new HttpError(
 			429,
 			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
@@ -204,7 +212,6 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 				},
 			});
 			if (token.name) {
-				await store.updateSession(sessionId, { voiceStarts: starts + 1 });
 				return {
 					token: token.name,
 					apiVersion,
@@ -228,6 +235,8 @@ export type ToolUi =
 	| { kind: "region"; region: string; available: boolean }
 	| { kind: "otoscope" }
 	| { kind: "end" }
+	// Ánimo nuevo del paciente, para la cara del avatar (Persona 3).
+	| { kind: "state"; state: PatientState }
 	| { kind: "none" };
 
 export type ToolRun = { output: Record<string, unknown>; ui: ToolUi };
@@ -364,34 +373,57 @@ export async function runTool(
 		}
 		case "actualizar_estado": {
 			const args = toolArgs.actualizar_estado.parse(rawArgs);
-			const next = applyDelta(session.state, args.delta);
-			await store.updateSession(sessionId, { state: next });
+			// Como mucho un cambio de ánimo del modelo por turno del estudiante, y
+			// de a poco (±0,3): así no se puede subir la confianza llamando a la
+			// herramienta muchas veces desde el navegador.
+			const studentTurns = (await store.listTurns(sessionId)).filter(
+				(t) => t.speaker === "estudiante",
+			).length;
+			if (session.stateToolTurn === studentTurns) {
+				return {
+					output: { ok: false, motivo: "Ya cambiaste tu ánimo en este turno." },
+					ui: { kind: "none" },
+				};
+			}
+			const bounded = Object.fromEntries(
+				Object.entries(args.delta).map(([k, d]) => [
+					k,
+					d === undefined ? d : Math.max(-0.3, Math.min(0.3, d)),
+				]),
+			) as typeof args.delta;
+			const updated = await store.changeSession(sessionId, {
+				stateDelta: bounded,
+				set: { stateToolTurn: studentTurns },
+			});
+			const next = updated?.state ?? applyDelta(session.state, bounded);
 			await store.addEvent({
 				id: newId("evt"),
 				sessionId,
 				type: "cambio_animo",
 				atMs: elapsed,
-				delta: args.delta,
+				delta: bounded,
 				motivo: args.motivo,
 			});
-			return { output: { ok: true, estado: next }, ui: { kind: "none" } };
+			return {
+				output: { ok: true, estado: next },
+				ui: { kind: "state", state: next },
+			};
 		}
 		case "anotar_dato": {
 			const args = toolArgs.anotar_dato.parse(rawArgs);
 			// La clave la inventa el modelo ("año de nacimiento"): en ASCII, o
 			// Convex rechaza la sesión entera.
 			const clave = asciiKey(args.clave);
-			const facts = { ...session.inventedFacts };
-			// Solo datos nuevos: lo que ya estaba en la historia no se pisa.
+			// Solo datos nuevos (atómico, máximo 40): lo que ya estaba en la
+			// historia, el perfil o lo sorteado no se pisa.
 			const known =
 				Object.hasOwn(clinicalCase.hiddenHistory, clave) ||
 				Object.hasOwn(clinicalCase.profile, clave) ||
 				Object.hasOwn(session.historyOverrides, clave);
-			const room =
-				Object.hasOwn(facts, clave) || Object.keys(facts).length < 40;
-			if (!known && room) {
-				facts[clave] = args.valor;
-				await store.updateSession(sessionId, { inventedFacts: facts });
+			if (!known) {
+				await store.changeSession(sessionId, {
+					facts: { [clave]: args.valor },
+				});
 			}
 			return { output: { ok: true }, ui: { kind: "none" } };
 		}
@@ -408,7 +440,12 @@ export async function recordVoiceTurn(
 	speaker: Turn["speaker"],
 	text: string,
 	overlap: boolean,
-): Promise<{ turn: Turn; stateNote: string | null }> {
+): Promise<{
+	turn: Turn;
+	stateNote: string | null;
+	// Ánimo después del turno, para la cara del avatar.
+	state: PatientState;
+}> {
 	const { session, elapsed } = await activeSession(
 		viewer,
 		sessionId,
@@ -416,6 +453,9 @@ export async function recordVoiceTurn(
 	);
 	const clean = text.trim().slice(0, 4000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
+	// Más de lo que entra en 8 minutos: corta scripts que inflen la consulta.
+	if ((await store.listTurns(sessionId)).length >= MAX_VOICE_RECORDS)
+		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 	// El estudiante pasa por el clasificador antes de guardar su turno.
 	const classified =
 		speaker === "estudiante"
@@ -433,7 +473,11 @@ export async function recordVoiceTurn(
 	};
 	await store.addTurn(turn);
 	if (classified) await noteConsent(classified.session, clean, elapsed);
-	return { turn, stateNote: classified?.stateNote ?? null };
+	return {
+		turn,
+		stateNote: classified?.stateNote ?? null,
+		state: (classified?.session ?? session).state,
+	};
 }
 
 export const VOICE_EVENTS = [
@@ -453,6 +497,9 @@ export async function recordVoiceEvent(
 		sessionId,
 		VOICE_GRACE_MS,
 	);
+	// Tope de eventos por consulta (no cambian la nota más allá de esto).
+	if ((await store.listEvents(sessionId)).length >= MAX_VOICE_RECORDS)
+		return { nota: null };
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId,
@@ -486,23 +533,8 @@ export async function recordVoiceUsage(
 	sessionId: string,
 	usage: UsageInput,
 ) {
-	const { session } = await ownSession(viewer, sessionId);
-	const prev = session.voiceUsage ?? {
-		responses: 0,
-		inputTokens: 0,
-		outputTokens: 0,
-		inputAudioTokens: 0,
-		outputAudioTokens: 0,
-		cachedTokens: 0,
-	};
-	const next: VoiceUsage = {
-		responses: prev.responses + 1,
-		inputTokens: prev.inputTokens + usage.inputTokens,
-		outputTokens: prev.outputTokens + usage.outputTokens,
-		inputAudioTokens: prev.inputAudioTokens + usage.inputAudioTokens,
-		outputAudioTokens: prev.outputAudioTokens + usage.outputAudioTokens,
-		cachedTokens: prev.cachedTokens + usage.cachedTokens,
-	};
-	await store.updateSession(sessionId, { voiceUsage: next });
-	return next;
+	await ownSession(viewer, sessionId);
+	// Se suma sobre el valor actual (atómico): dos avisos cruzados no se pierden.
+	const updated = await store.changeSession(sessionId, { usageDelta: usage });
+	return updated?.voiceUsage ?? null;
 }

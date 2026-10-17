@@ -14,7 +14,7 @@ import {
 } from "@google/genai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { Turn } from "@/lib/contracts/session";
+import type { PatientState, Turn } from "@/lib/contracts/session";
 import { timeoutSignal } from "@/lib/timeout-signal";
 import { createWriteQueue } from "@/lib/voice/queue";
 import type { ToolRun, ToolUi } from "@/server/voice";
@@ -50,11 +50,10 @@ type Options = {
 	sessionId: string;
 	onTurn: (turn: Turn) => void;
 	onTool: (ui: ToolUi) => void;
+	// Ánimo del paciente después de cada turno guardado (para el avatar).
+	onState?: (state: PatientState) => void;
 	onEnd: () => void;
 	onError: (message: string) => void;
-	// Hay un examen abierto (linterna, tensiómetro, otoscopio): el estudiante
-	// está callado porque examina, no es un silencio largo.
-	examOpen?: boolean;
 };
 
 // Las escrituras van en fila: un pedido colgado trabaría todos los que
@@ -144,9 +143,9 @@ export function useVoice({
 	sessionId,
 	onTurn,
 	onTool,
+	onState,
 	onEnd,
 	onError,
-	examOpen = false,
 }: Options) {
 	const [status, setStatus] = useState<VoiceStatus>("idle");
 	const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -163,6 +162,8 @@ export function useVoice({
 	const out = useRef<{
 		ctx: AudioContext;
 		analyser: AnalyserNode;
+		// Copia de la voz del paciente para los labios del avatar.
+		stream: MediaStream;
 		buf: Uint8Array<ArrayBuffer>;
 		sources: Set<AudioBufferSourceNode>;
 		playHead: number;
@@ -176,13 +177,15 @@ export function useVoice({
 		silenceReported: false,
 		deadline: 0,
 	});
-	const callbacks = useRef({ onTurn, onTool, onEnd, onError });
-	callbacks.current = { onTurn, onTool, onEnd, onError };
-	const examOpenRef = useRef(examOpen);
+	const callbacks = useRef({ onTurn, onTool, onState, onEnd, onError });
+	callbacks.current = { onTurn, onTool, onState, onEnd, onError };
+	// Guarda lo que quedó a medio transcribir al cortar (se define más abajo).
+	const flushPending = useRef<() => void>(() => {});
+	// Con un examen abierto el silencio es normal: no se cuenta ni se interrumpe.
+	const examining = useRef(false);
 	// Llamadas a herramientas que Gemini canceló (el estudiante interrumpió):
 	// si todavía no se ejecutaron, no se ejecutan ni se responden.
 	const cancelledCalls = useRef(new Set<string>());
-	examOpenRef.current = examOpen;
 
 	// Todo lo que se manda al servidor va en fila (lib/voice/queue.ts): los
 	// turnos quedan en el orden en que se dijeron, el permiso se anota antes de
@@ -207,6 +210,28 @@ export function useVoice({
 		o.playHead = 0;
 		setPatientSpeaking(false);
 	}, []);
+
+	const stop = useCallback(
+		(reason: "ended" | "error" = "ended") => {
+			attempt.current += 1;
+			// Lo último que se dijo antes de cortar también va al informe.
+			flushPending.current();
+			stopPlayback();
+			const session = live.current;
+			live.current = null;
+			conn.current += 1;
+			session?.close();
+			for (const track of mic.current?.getTracks() ?? []) track.stop();
+			mic.current = null;
+			inCtx.current?.close().catch(() => {});
+			inCtx.current = null;
+			out.current?.ctx.close().catch(() => {});
+			out.current = null;
+			setStudentSpeaking(false);
+			setStatus((s) => (s === "idle" ? s : reason));
+		},
+		[stopPlayback],
+	);
 
 	const event = useCallback(
 		(
@@ -242,15 +267,17 @@ export function useVoice({
 			if (!text.trim()) return;
 			await enqueue(async () => {
 				try {
-					const { turn, stateNote } = await post<{
+					const { turn, stateNote, state } = await post<{
 						turn: Turn;
 						stateNote: string | null;
+						state: PatientState;
 					}>(`/api/sessions/${sessionId}/voice-turns`, {
 						speaker,
 						text,
 						overlap,
 					});
 					callbacks.current.onTurn(turn);
+					callbacks.current.onState?.(state);
 					// El clasificador cambió el ánimo del paciente: se lo contamos al
 					// modelo como contexto, sin pedirle que responda (turnComplete false).
 					const target = openSession(live.current);
@@ -299,30 +326,10 @@ export function useVoice({
 		[saveTurn],
 	);
 
-	const stop = useCallback(
-		(reason: "ended" | "error" = "ended") => {
-			attempt.current += 1;
-			// Lo que se estaba diciendo al cortar también queda en la transcripción.
-			if (live.current) {
-				flushStudent();
-				flushPatient(false);
-			}
-			stopPlayback();
-			const session = live.current;
-			live.current = null;
-			conn.current += 1;
-			session?.close();
-			for (const track of mic.current?.getTracks() ?? []) track.stop();
-			mic.current = null;
-			inCtx.current?.close().catch(() => {});
-			inCtx.current = null;
-			out.current?.ctx.close().catch(() => {});
-			out.current = null;
-			setStudentSpeaking(false);
-			setStatus((s) => (s === "idle" ? s : reason));
-		},
-		[flushPatient, flushStudent, stopPlayback],
-	);
+	flushPending.current = () => {
+		void flushStudent();
+		void flushPatient(false);
+	};
 
 	const playChunk = useCallback((base64: string) => {
 		const o = out.current;
@@ -625,9 +632,14 @@ export function useVoice({
 			const analyser = outCtx.createAnalyser();
 			analyser.fftSize = 512;
 			analyser.connect(outCtx.destination);
+			// El avatar vive en otro AudioContext: se le pasa la voz por un
+			// MediaStream (no suena dos veces, solo lo analiza).
+			const copy = outCtx.createMediaStreamDestination();
+			analyser.connect(copy);
 			out.current = {
 				ctx: outCtx,
 				analyser,
+				stream: copy.stream,
 				buf: new Uint8Array(analyser.fftSize),
 				sources: new Set(),
 				playHead: 0,
@@ -685,6 +697,11 @@ export function useVoice({
 			setStatus("live");
 		} catch (e) {
 			if (cancelled()) return;
+			// Cortó la usuaria mientras conectaba: no es un error.
+			if (e instanceof Error && e.message === "Conexión de voz descartada") {
+				outCtx.close().catch(() => {});
+				return;
+			}
 			stop("error");
 			if (!out.current) outCtx.close().catch(() => {});
 			callbacks.current.onError(
@@ -708,11 +725,12 @@ export function useVoice({
 				callbacks.current.onEnd();
 				return;
 			}
+			if (examining.current) {
+				s.lastActivity = now;
+				return;
+			}
 			const patientPlaying = (out.current?.sources.size ?? 0) > 0;
 			const studentActive = now - s.lastStudentChunk < SPEAKING_WINDOW_MS;
-			// Examinando en silencio no cuenta: el reloj del silencio arranca de
-			// nuevo al cerrar el examen.
-			if (examOpenRef.current) s.lastActivity = now;
 			const quietFor = now - s.lastActivity;
 			if (
 				!patientPlaying &&
@@ -759,6 +777,10 @@ export function useVoice({
 		return Math.min(1, Math.sqrt(sum / o.buf.length) * 4);
 	}, []);
 
+	// Voz del paciente como MediaStream, para mover los labios del avatar.
+	// Existe desde que arranca la voz hasta que se corta.
+	const patientStream = useCallback(() => out.current?.stream ?? null, []);
+
 	// Contexto para el paciente sin hacerlo hablar (turnComplete false): por
 	// ejemplo, que el estudiante terminó de revisarlo.
 	const sendNote = useCallback((note: string) => {
@@ -779,7 +801,13 @@ export function useVoice({
 		);
 	}, []);
 
+	const setExamining = useCallback((value: boolean) => {
+		examining.current = value;
+		st.current.lastActivity = Date.now();
+	}, []);
+
 	return {
+		setExamining,
 		status,
 		remainingMs,
 		studentSpeaking,
@@ -788,6 +816,7 @@ export function useVoice({
 		stop,
 		drain,
 		readPatientLevel,
+		patientStream,
 		sendNote,
 	};
 }

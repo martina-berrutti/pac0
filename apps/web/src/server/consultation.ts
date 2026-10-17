@@ -29,7 +29,7 @@ import {
 } from "@/lib/patient/exam-instruction";
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
-import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
+import { EVENT_DELTAS } from "@/lib/patient/state";
 import {
 	classifyStudentTurn,
 	stateBand,
@@ -45,11 +45,11 @@ import { recordMistakes } from "./mistakes";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
-// Lo que la pantalla puede ver de la sesión. Lista blanca: historyOverrides
-// e inventedFacts son historia del paciente (respuestas que el estudiante
-// tiene que sacar preguntando) y el estado y la personalidad numérica
-// tampoco le corresponden.
-type PublicSession = Pick<
+// Lo que el navegador ve de una sesión. Lista explícita: NO van la historia
+// sorteada (historyOverrides), los datos inventados, la personalidad en
+// números ni los contadores internos (AGENTS.md: lo oculto del caso vive en
+// el servidor). El ánimo (state) sí: el avatar lo muestra en la cara.
+export type PublicSession = Pick<
 	Session,
 	| "id"
 	| "caseId"
@@ -59,7 +59,30 @@ type PublicSession = Pick<
 	| "startedAt"
 	| "endedAt"
 	| "closing"
+	| "consentGiven"
+	| "voice"
+	| "state"
 >;
+
+export function toPublicSession(s: Session): PublicSession {
+	return {
+		id: s.id,
+		caseId: s.caseId,
+		alias: s.alias,
+		personalityKey: s.personalityKey,
+		status: s.status,
+		startedAt: s.startedAt,
+		endedAt: s.endedAt,
+		closing: s.closing,
+		consentGiven: s.consentGiven,
+		voice: s.voice,
+		state: s.state,
+	};
+}
+
+// Topes de la consulta por texto (cada turno llama a la IA).
+const MAX_TEXT_TURNS = 120;
+const MAX_CONTEXT_TURNS = 30;
 
 export type SessionView = {
 	session: PublicSession;
@@ -194,23 +217,13 @@ export async function getSessionView(
 	sessionId: string,
 ): Promise<SessionView> {
 	const { session, clinicalCase } = await readableSession(viewer, sessionId);
-	const publicSession: PublicSession = {
-		id: session.id,
-		caseId: session.caseId,
-		alias: session.alias,
-		personalityKey: session.personalityKey,
-		status: session.status,
-		startedAt: session.startedAt,
-		endedAt: session.endedAt,
-		closing: session.closing,
-	};
 	const [turns, examActions, report] = await Promise.all([
 		store.listTurns(sessionId),
 		store.listExamActions(sessionId),
 		store.getReport(sessionId),
 	]);
 	return {
-		session: publicSession,
+		session: toPublicSession(session),
 		case: toSummary(clinicalCase),
 		turns,
 		examActions,
@@ -252,7 +265,8 @@ async function patientReply(
 				role: "system",
 				content: `${buildPatientPrompt(b)}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
 			},
-			...turns.map((t) => ({
+			// Solo lo último: el costo no crece sin límite con la charla.
+			...turns.slice(-MAX_CONTEXT_TURNS).map((t) => ({
 				role:
 					t.speaker === "estudiante"
 						? ("user" as const)
@@ -295,11 +309,17 @@ export async function nudgeState(
 	patch: Partial<Session> = {},
 ) {
 	const delta = EVENT_DELTAS[type];
-	if (!delta) return store.updateSession(session.id, patch);
-	const next = await store.updateSession(session.id, {
-		...patch,
-		state: applyDelta(session.state, delta),
-	});
+	// Sin cambio de ánimo ni otros campos, no se escribe nada.
+	if (!delta)
+		return Object.keys(patch).length
+			? store.updateSession(session.id, patch)
+			: session;
+	// El delta se suma sobre el estado actual (atómico): no pisa otros cambios.
+	const next =
+		(await store.changeSession(session.id, {
+			set: patch,
+			stateDelta: delta,
+		})) ?? session;
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
@@ -393,9 +413,8 @@ export async function classifyStudent(
 	const c = classifyStudentTurn(text, previous, lastPatient?.text);
 	if (!c.motivo) return { session, tags: c.tags, stateNote: null };
 	const before = stateBand(session.state);
-	const next = await store.updateSession(session.id, {
-		state: applyDelta(session.state, c.delta),
-	});
+	const next =
+		(await store.changeSession(session.id, { stateDelta: c.delta })) ?? session;
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId: session.id,
@@ -429,6 +448,8 @@ export async function sendTurn(
 		sessionId,
 	);
 	const clean = text.trim().slice(0, 1000);
+	if ((await store.listTurns(sessionId)).length >= MAX_TEXT_TURNS)
+		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 	if (!clean) throw new HttpError(400, "Escribí algo");
 
 	const classified = await classifyStudent(session, clean, elapsed);
@@ -509,56 +530,92 @@ export async function finishSession(
 	const existing = await store.getReport(sessionId);
 	if (existing) {
 		// Un cierre anterior se cortó después de guardar el informe: se
-		// termina lo que faltó. La sesión queda "evaluada" recién después de
-		// sumar los errores al perfil, así que si no lo está, faltan (y las
-		// consultas ya evaluadas no los vuelven a sumar).
+		// completa lo que faltó (los errores, una sola vez, y el estado).
 		if (session.status !== "evaluada") {
 			if (!session.mistakesRecorded)
 				await recordMistakes(session.userId, existing);
-			await store.updateSession(sessionId, {
-				status: "evaluada",
-				mistakesRecorded: true,
+			await store.changeSession(sessionId, {
+				set: { status: "evaluada", mistakesRecorded: true },
 			});
 		}
 		return existing;
 	}
-	const patch = {
-		status: "evaluada" as const,
-		endedAt: Date.now(),
-		closing: {
-			hypothesis: hypothesis.slice(0, 500),
-			differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
-		},
+	const closing = {
+		hypothesis: hypothesis.slice(0, 500),
+		differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
 	};
-	const [turns, events, examActions, vitals] = await Promise.all([
-		store.listTurns(sessionId),
-		store.listEvents(sessionId),
-		store.listExamActions(sessionId),
-		store.listVitals(sessionId),
-	]);
-	const input = {
-		clinicalCase,
-		session: { ...session, ...patch },
-		turns,
-		events,
-		examActions,
-		vitals,
-	};
-	// Primero se evalúa y después se guarda: si el evaluador falla, la sesión
-	// no queda "evaluada" sin informe y se puede volver a intentar.
-	// Con clave, evaluador con IA; sin clave o si falla, juez por reglas.
-	const report = aiEnabled()
-		? await evaluateWithAi(input, completeJson)
-		: evaluate(input);
-	// El informe va antes que el estado: si se corta en el medio, el próximo
-	// intento encuentra el informe y lo devuelve.
-	await store.saveReport(report);
-	// Suma los errores al perfil del usuario (una vez por consulta) y recién
-	// después marca la sesión: si algo se corta, el reintento lo completa.
-	await recordMistakes(session.userId, report);
-	await store.updateSession(sessionId, { ...patch, mistakesRecorded: true });
-	return report;
+	// Reclamo atómico del cierre: con dos cierres a la vez, solo uno evalúa y
+	// suma los errores. "finalizada" es el paso intermedio: la sesión queda
+	// "evaluada" recién con el informe guardado.
+	let claimed = await store.changeSession(sessionId, {
+		ifStatus: "activa",
+		set: { status: "finalizada", endedAt: Date.now(), closing },
+	});
+	if (!claimed) {
+		const current = await store.getSession(sessionId);
+		// Un cierre que quedó a medias (por ejemplo, Vercel cortó la función)
+		// se retoma pasado un rato; uno en curso, no.
+		const stale =
+			current?.status === "finalizada" &&
+			Date.now() - (current.endedAt ?? 0) > STALE_CLOSING_MS;
+		if (stale)
+			claimed = await store.changeSession(sessionId, {
+				ifStatus: "finalizada",
+				set: { endedAt: Date.now(), closing },
+			});
+		if (!claimed) {
+			const report = await store.getReport(sessionId);
+			if (report) return report;
+			throw new HttpError(
+				409,
+				"La consulta ya se está cerrando. Esperá unos segundos.",
+			);
+		}
+	}
+	try {
+		const [turns, events, examActions, vitals] = await Promise.all([
+			store.listTurns(sessionId),
+			store.listEvents(sessionId),
+			store.listExamActions(sessionId),
+			store.listVitals(sessionId),
+		]);
+		const input = {
+			clinicalCase,
+			// El evaluador ve la sesión ya cerrada.
+			session: { ...claimed, status: "evaluada" as const },
+			turns,
+			events,
+			examActions,
+			vitals,
+		};
+		// Con clave, evaluador con IA; sin clave o si falla, juez por reglas.
+		const report = aiEnabled()
+			? await evaluateWithAi(input, completeJson)
+			: evaluate(input);
+		// El informe va antes que el estado: si se corta en el medio, el
+		// próximo intento encuentra el informe y completa el resto.
+		await store.saveReport(report);
+		await recordMistakes(session.userId, report);
+		await store.changeSession(sessionId, {
+			set: { status: "evaluada", mistakesRecorded: true },
+		});
+		return report;
+	} catch (error) {
+		// Si no se llegó a guardar el informe, la consulta vuelve a estar
+		// activa para poder reintentar el cierre.
+		if (!(await store.getReport(sessionId)))
+			await store
+				.changeSession(sessionId, {
+					ifStatus: "finalizada",
+					set: { status: "activa" },
+				})
+				.catch(() => {});
+		throw error;
+	}
 }
+
+// Pasado este tiempo, un cierre que no terminó se puede retomar.
+const STALE_CLOSING_MS = 2 * 60 * 1000;
 
 export async function getReport(viewer: Viewer, sessionId: string) {
 	await readableSession(viewer, sessionId);

@@ -207,11 +207,13 @@ describe("herramientas del paciente", () => {
 
 	test("actualizar_estado: queda entre 0 y 1 y se registra el evento", async () => {
 		const id = await startSession(ana, lucia.id, "caso");
-		await runTool(ana, id, "actualizar_estado", {
+		const run = await runTool(ana, id, "actualizar_estado", {
 			delta: { confianza: 0.5 },
 			motivo: "empatía",
 		});
 		expect((await store.getSession(id))?.state.confianza).toBe(1);
+		// La pantalla recibe el ánimo nuevo para la cara del avatar.
+		expect(run.ui).toMatchObject({ kind: "state", state: { confianza: 1 } });
 		expect(
 			(await store.listEvents(id)).some((e) => e.type === "cambio_animo"),
 		).toBe(true);
@@ -367,7 +369,8 @@ describe("bugs de la Persona 1", () => {
 			delta: { confianza: -0.9, paciencia: "mucho" },
 		});
 		const state = (await store.getSession(id))?.state;
-		expect(state?.confianza).toBeCloseTo(0.4);
+		// El cambio de ánimo queda acotado a ±0,3 por llamada.
+		expect(state?.confianza).toBeCloseTo(0.6);
 		const exam = await runTool(ana, id, "examinar", {
 			zona: "garganta",
 			claridad: "Alta",

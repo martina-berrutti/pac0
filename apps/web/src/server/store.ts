@@ -12,6 +12,10 @@ import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
 import type { Session, SessionEvent, Turn } from "@/lib/contracts/session";
+import {
+	applySessionChange,
+	type SessionChange,
+} from "@/lib/contracts/session-change";
 
 // Perfil de un usuario con cuenta (Google): solo alias y año de carrera.
 export type Profile = { alias: string; careerYear: string };
@@ -28,7 +32,12 @@ export interface Store {
 	addGeneratedCase(ownerId: string, c: ClinicalCase): Promise<void>;
 	createSession(s: Session): Promise<void>;
 	getSession(id: string): Promise<Session | undefined>;
+	// Reemplaza campos (también atómico, pero para valores que dependen del
+	// actual —estado, uso, datos inventados— usar changeSession).
 	updateSession(id: string, patch: Partial<Session>): Promise<Session>;
+	// Cambio atómico (lib/contracts/session-change.ts). null si la sesión no
+	// existe o no se cumple ifStatus.
+	changeSession(id: string, change: SessionChange): Promise<Session | null>;
 	listSessions(userId: string): Promise<Session[]>;
 	// Últimas sesiones de todos, para los docentes.
 	listRecentSessions(limit: number): Promise<Session[]>;
@@ -96,10 +105,16 @@ class MemoryStore implements Store {
 		return this.sessions.get(id);
 	}
 	async updateSession(id: string, patch: Partial<Session>) {
+		const next = await this.changeSession(id, { set: patch });
+		if (!next) throw new Error(`Sesión ${id} no existe`);
+		return next;
+	}
+	// Un solo proceso: aplicar sobre el valor actual ya es atómico.
+	async changeSession(id: string, change: SessionChange) {
 		const current = this.sessions.get(id);
-		if (!current) throw new Error(`Sesión ${id} no existe`);
-		const next = { ...current, ...patch };
-		this.sessions.set(id, next);
+		if (!current) return null;
+		const next = applySessionChange(current, change);
+		if (next) this.sessions.set(id, next);
 		return next;
 	}
 	async listSessions(userId: string) {
@@ -280,11 +295,17 @@ class ConvexStore implements Store {
 		return this.get<Session>("session", id);
 	}
 	async updateSession(id: string, patch: Partial<Session>) {
-		const current = await this.getSession(id);
-		if (!current) throw new Error(`Sesión ${id} no existe`);
-		const next = { ...current, ...patch };
-		await this.put("session", id, next, { ownerId: next.userId });
+		const next = await this.changeSession(id, { set: patch });
+		if (!next) throw new Error(`Sesión ${id} no existe`);
 		return next;
+	}
+	// Mutación de Convex: lee y escribe en una transacción.
+	async changeSession(id: string, change: SessionChange) {
+		return (await this.client.mutation(anyApi.records.changeSession, {
+			secret: this.secret,
+			appId: id,
+			change,
+		})) as Session | null;
 	}
 	listSessions(userId: string) {
 		return this.byOwner<Session>("session", userId);

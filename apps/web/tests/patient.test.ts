@@ -2,7 +2,10 @@ import { describe, expect, test } from "vitest";
 
 import { caseSchema } from "@/cases/schema";
 import { buildPatientBrief, buildPatientPrompt } from "@/lib/patient/brief";
-import { interpretExamInstruction } from "@/lib/patient/exam-instruction";
+import {
+	interpretExamInstruction,
+	isExamRequest,
+} from "@/lib/patient/exam-instruction";
 import { GenerationError, generateCase } from "@/lib/patient/generator";
 import { getArchetype } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
@@ -55,6 +58,28 @@ describe("el paciente no conoce el diagnóstico", () => {
 
 describe("examen por instrucción", () => {
 	const hostil = getArchetype("hostil")?.personality ?? lucia.personality;
+
+	test("nombrar la garganta no es pedir un examen; pedirlo sí", () => {
+		for (const question of [
+			"¿Desde cuándo te duele la garganta?",
+			"¿Te duele la boca o la lengua?",
+			"¿Alguien te revisó la garganta antes?",
+			"¿Te molesta al abrir la boca?",
+			"¿Tenés algo en abril?",
+		])
+			expect(isExamRequest(question), question).toBe(false);
+		for (const request of [
+			"abrime la boca",
+			"Abrí bien grande y decí aaa",
+			"¿Te puedo revisar la garganta?",
+			"Te voy a mirar con la linterna",
+			"Sacá la lengua, por favor",
+			"Abra la boca y diga aaa",
+			"¿Puedo examinarte?",
+			"¿Podés abrir la boca?",
+		])
+			expect(isExamRequest(request), request).toBe(true);
+	});
 
 	test("abrime la boca: apertura parcial", () => {
 		expect(
