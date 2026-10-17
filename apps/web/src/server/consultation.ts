@@ -244,7 +244,9 @@ export async function getSessionView(
 		session: toPublicSession(session),
 		case: toSummary(clinicalCase),
 		turns,
-		examActions,
+		// Sin la evaluación de técnica (otoscopia): es parte del informe, y verla
+		// antes de cerrar dejaba corregir sabiendo qué se iba a puntuar.
+		examActions: examActions.map(({ technique: _technique, ...a }) => a),
 		remainingMs: Math.max(0, MAX_SESSION_MS - (Date.now() - session.startedAt)),
 		hasReport: report !== undefined,
 		readOnly: session.userId !== viewer.uid,

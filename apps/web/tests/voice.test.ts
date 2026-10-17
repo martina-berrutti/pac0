@@ -973,3 +973,23 @@ describe("pedidos simultáneos del mismo usuario", () => {
 		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(2);
 	});
 });
+
+test("la vista de la consulta no muestra la técnica de la otoscopia antes del informe", async () => {
+	const { getSessionView } = await import("@/server/consultation");
+	const { finishOtoscopy, startOtoscopy } = await import("@/server/otoscopy");
+	const id = await startSession(ana, lucia.id, "caso");
+	const { actionId } = await startOtoscopy(ana, id, "derecho");
+	await finishOtoscopy(ana, id, actionId, {
+		hand: "derecha",
+		prep: [],
+		speculum: "adulto",
+		traction: "abajo-atras",
+		roughInsertions: 3,
+		maxDepth: 90,
+		canalMs: 500,
+		tympanumMs: 0,
+	});
+	expect((await store.listExamActions(id))[0]?.technique).toBeDefined();
+	const view = await getSessionView(ana, id);
+	expect(JSON.stringify(view.examActions)).not.toContain("technique");
+});

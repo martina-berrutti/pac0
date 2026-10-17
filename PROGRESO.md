@@ -114,8 +114,9 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
 
     **Pedidos simultáneos de un mismo usuario (arreglado después):** el manguito se coloca una sola vez y la otoscopia se termina una sola vez (`patchIf`, atómico); el perfil de errores se guarda solo si nadie lo cambió en el medio y se reintenta (`replaceIf`), así dos consultas cerradas a la vez suman los errores de las dos; el tope diario de consultas usa el contador atómico `hitRate`. Si Convex no tiene `patchIf`/`replaceIf` desplegados, la app vuelve al camino anterior sin romperse.
 
-    **No arreglado, a propósito:**
-    - La otoscopia muestra sus errores de técnica antes del informe: es una decisión de la Persona 2.
+    - La vista de la consulta ya no manda la evaluación de técnica de la otoscopia: es parte del informe, y verla antes de cerrar dejaba corregir sabiendo qué se puntuaba.
+
+    **Fuera del código (no se puede confirmar desde acá):**
     - El procesador del micrófono en Safari y si `expireTime` corta una voz ya abierta solo se pueden confirmar en un dispositivo o con Google.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
