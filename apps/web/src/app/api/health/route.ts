@@ -1,3 +1,4 @@
+import { sessionLimits } from "@/server/consultation";
 import { storeKind } from "@/server/store";
 
 // Diagnóstico sin secretos: qué almacenamiento usa el servidor y qué está
@@ -12,6 +13,8 @@ export async function GET() {
 		google: Boolean(
 			process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
 		),
+		docentes: Boolean(process.env.DOCENTES),
+		topes: sessionLimits(),
 		entorno: process.env.VERCEL_ENV ?? "local",
 	});
 }

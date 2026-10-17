@@ -14,6 +14,7 @@ import {
 	MAX_SESSION_MS,
 	type PatientState,
 	type Session,
+	type SessionEventType,
 	type Turn,
 } from "@/lib/contracts/session";
 import {
@@ -28,11 +29,19 @@ import {
 } from "@/lib/patient/exam-instruction";
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
+import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
+import {
+	classifyStudentTurn,
+	stateBand,
+	type TurnTag,
+} from "@/lib/patient/turn-classifier";
+import { pickVoice } from "@/lib/patient/voices";
 import { evaluateWithAi } from "@/lib/scoring/ai-evaluate";
 import { evaluate } from "@/lib/scoring/evaluate";
 
 import { aiEnabled, chat, completeJson } from "./ai";
-import { HttpError } from "./auth";
+import { HttpError, roleOf } from "./auth";
+import { recordMistakes } from "./mistakes";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -55,6 +64,57 @@ export async function ownSession(viewer: Viewer, sessionId: string) {
 	return { session, clinicalCase };
 }
 
+// Para leer (consulta e informe): la dueña o un docente autorizado. Para
+// cambiar algo sigue haciendo falta ownSession.
+export async function readableSession(viewer: Viewer, sessionId: string) {
+	if (roleOf(viewer) !== "docente") return ownSession(viewer, sessionId);
+	const session = await store.getSession(sessionId);
+	if (!session) throw new HttpError(404, "Sesión no encontrada");
+	const clinicalCase = await store.getCase(session.caseId);
+	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
+	return { session, clinicalCase };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function limitFromEnv(name: string, fallback: number) {
+	const n = Number(process.env[name]);
+	return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+// Topes diarios para que no se acaben los créditos de la voz (plan.md,
+// sección 14). Por usuario y en total, porque un invitado nuevo no cuesta nada.
+export function sessionLimits() {
+	return {
+		perUser: limitFromEnv("MAX_SESSIONS_PER_USER_PER_DAY", 10),
+		total: limitFromEnv("MAX_SESSIONS_PER_DAY", 200),
+	};
+}
+
+async function checkSessionLimits(viewer: Viewer) {
+	const { perUser, total } = sessionLimits();
+	const since = Date.now() - DAY_MS;
+	const mine = (await store.listSessions(viewer.uid)).filter(
+		(s) => s.startedAt >= since,
+	).length;
+	if (mine >= perUser)
+		throw new HttpError(
+			429,
+			`Llegaste al tope de ${perUser} consultas por día. Probá de nuevo mañana.`,
+		);
+	// Si Convex todavía no tiene la función (falta npx convex deploy), no se
+	// frena la consulta: el tope por usuario igual se aplica.
+	const today = await store.countSessionsSince(since, total).catch((error) => {
+		console.error("No se pudo contar las consultas del día", error);
+		return 0;
+	});
+	if (today >= total)
+		throw new HttpError(
+			429,
+			"Hoy se usaron todas las consultas disponibles. Probá de nuevo mañana.",
+		);
+}
+
 export async function startSession(
 	viewer: Viewer & { alias: string },
 	caseId: string,
@@ -63,6 +123,7 @@ export async function startSession(
 	const visible = await store.listCases(viewer.uid);
 	const clinicalCase = visible.find((c) => c.id === caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
+	await checkSessionLimits(viewer);
 	const { key, personality } = resolvePersonality(
 		personalityKey,
 		clinicalCase.personality,
@@ -88,6 +149,7 @@ export async function startSession(
 		closing: null,
 		consentGiven: false,
 		historyOverrides: pickVariations(clinicalCase),
+		voice: pickVoice(clinicalCase.patient.sex),
 		inventedFacts: {},
 		voiceUsage: null,
 	};
@@ -113,7 +175,7 @@ export async function getSessionView(
 	viewer: Viewer,
 	sessionId: string,
 ): Promise<SessionView> {
-	const { session, clinicalCase } = await ownSession(viewer, sessionId);
+	const { session, clinicalCase } = await readableSession(viewer, sessionId);
 	const { userId: _userId, ...publicSession } = session;
 	const [turns, examActions, report] = await Promise.all([
 		store.listTurns(sessionId),
@@ -192,6 +254,43 @@ export async function activeSession(
 	return { ...owned, elapsed };
 }
 
+// Un evento objetivo (interrupción, silencio, consentimiento) mueve el estado
+// del paciente (plan.md, sección 5, versión 1). El cambio queda en events.
+export async function nudgeState(
+	session: Session,
+	type: SessionEventType,
+	atMs: number,
+	patch: Partial<Session> = {},
+) {
+	const delta = EVENT_DELTAS[type];
+	if (!delta) return store.updateSession(session.id, patch);
+	const next = await store.updateSession(session.id, {
+		...patch,
+		state: applyDelta(session.state, delta),
+	});
+	await store.addEvent({
+		id: newId("evt"),
+		sessionId: session.id,
+		type: "cambio_animo",
+		atMs,
+		delta,
+		motivo: type,
+	});
+	return next;
+}
+
+// Registra el consentimiento una sola vez y sube la confianza.
+export async function giveConsent(session: Session, atMs: number) {
+	if (session.consentGiven) return session;
+	await store.addEvent({
+		id: newId("evt"),
+		sessionId: session.id,
+		type: "consentimiento",
+		atMs,
+	});
+	return nudgeState(session, "consentimiento", atMs, { consentGiven: true });
+}
+
 // Si el estudiante explica o pide permiso, queda registrado el consentimiento.
 export async function noteConsent(
 	session: Session,
@@ -199,13 +298,7 @@ export async function noteConsent(
 	atMs: number,
 ) {
 	if (session.consentGiven || !asksConsent(text)) return session;
-	await store.addEvent({
-		id: newId("evt"),
-		sessionId: session.id,
-		type: "consentimiento",
-		atMs,
-	});
-	return store.updateSession(session.id, { consentGiven: true });
+	return giveConsent(session, atMs);
 }
 
 export function defaultZone(clinicalCase: ClinicalCase) {
@@ -252,6 +345,39 @@ export async function recordExam(
 	};
 }
 
+// Clasifica lo que dijo el estudiante (antes de guardar su turno) y
+// actualiza el estado del paciente. Si la confianza o la paciencia cambian
+// de nivel, devuelve una nota para avisarle al modelo de voz.
+export async function classifyStudent(
+	session: Session,
+	text: string,
+	atMs: number,
+): Promise<{ session: Session; tags: TurnTag[]; stateNote: string | null }> {
+	const previous = (await store.listTurns(session.id))
+		.filter((t) => t.speaker === "estudiante")
+		.map((t) => t.text);
+	const c = classifyStudentTurn(text, previous);
+	if (!c.motivo) return { session, tags: c.tags, stateNote: null };
+	const before = stateBand(session.state);
+	const next = await store.updateSession(session.id, {
+		state: applyDelta(session.state, c.delta),
+	});
+	await store.addEvent({
+		id: newId("evt"),
+		sessionId: session.id,
+		type: "cambio_animo",
+		atMs,
+		delta: c.delta,
+		motivo: `clasificador: ${c.motivo}`,
+	});
+	const after = stateBand(next.state);
+	return {
+		session: next,
+		tags: c.tags,
+		stateNote: after === before ? null : after,
+	};
+}
+
 export type TurnResult = {
 	studentTurn: Turn;
 	patientTurn: Turn;
@@ -271,6 +397,7 @@ export async function sendTurn(
 	const clean = text.trim().slice(0, 1000);
 	if (!clean) throw new HttpError(400, "Escribí algo");
 
+	const classified = await classifyStudent(session, clean, elapsed);
 	const studentTurn: Turn = {
 		id: newId("turn"),
 		sessionId,
@@ -279,10 +406,11 @@ export async function sendTurn(
 		startMs: elapsed,
 		endMs: elapsed,
 		overlap: false,
+		tags: classified.tags,
 	};
 	await store.addTurn(studentTurn);
 
-	const current = await noteConsent(session, clean, elapsed);
+	const current = await noteConsent(classified.session, clean, elapsed);
 
 	let reply: string;
 	let exam: ExamResult | null = null;
@@ -296,21 +424,8 @@ export async function sendTurn(
 		exam = await recordExam(clinicalCase, sessionId, zone, decision, elapsed);
 		reply = exam.patientReaction;
 	} else {
-		const r = await patientReply(current, clinicalCase, clean);
-		reply = r.text;
-		if (r.delta) {
-			await store.updateSession(sessionId, {
-				state: { ...current.state, ...r.delta },
-			});
-			await store.addEvent({
-				id: newId("evt"),
-				sessionId,
-				type: "cambio_animo",
-				atMs: elapsed,
-				delta: r.delta,
-				motivo: r.motivo,
-			});
-		}
+		// El estado ya lo actualizó el clasificador (empatía incluida).
+		reply = (await patientReply(current, clinicalCase, clean)).text;
 	}
 
 	const end = Date.now() - session.startedAt;
@@ -384,11 +499,13 @@ export async function finishSession(
 		? await evaluateWithAi(input, completeJson)
 		: evaluate(input);
 	await store.saveReport(report);
+	// Suma los errores al perfil del usuario (una vez por consulta).
+	await recordMistakes(viewer.uid, report);
 	return report;
 }
 
 export async function getReport(viewer: Viewer, sessionId: string) {
-	await ownSession(viewer, sessionId);
+	await readableSession(viewer, sessionId);
 	const report = await store.getReport(sessionId);
 	if (!report) throw new HttpError(404, "Todavía no hay informe");
 	return report;

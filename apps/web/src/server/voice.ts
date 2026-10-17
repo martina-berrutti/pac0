@@ -9,21 +9,25 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import type { ExamResult } from "@/lib/contracts/exam";
 import {
 	MAX_SESSION_MS,
-	type PatientState,
 	type SessionEventType,
 	type Turn,
 	type VoiceUsage,
 } from "@/lib/contracts/session";
 import { buildPatientPrompt } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
+import { applyDelta } from "@/lib/patient/state";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
+import { pickVoice } from "@/lib/patient/voices";
 
 import { HttpError } from "./auth";
 import {
 	activeSession,
 	brief,
+	classifyStudent,
 	defaultZone,
+	giveConsent,
 	noteConsent,
+	nudgeState,
 	ownSession,
 	recordExam,
 } from "./consultation";
@@ -37,6 +41,8 @@ export const MAX_VOICE_STARTS = 6;
 
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
+// Turnos anteriores que recibe el paciente al reconectar.
+const RESUME_TURNS = 40;
 
 export function liveModel() {
 	return process.env.LIVE_MODEL || "gemini-3.8-live";
@@ -53,6 +59,24 @@ const VOICE_RULES = [
 	"- Si inventás un dato sobre vos que no estaba en tu historia, llamá a anotar_dato.",
 ].join("\n");
 
+// Si la voz se cortó y se reconecta, el token nuevo lleva lo que ya se habló
+// para que el paciente siga desde ahí.
+async function resumeContext(sessionId: string, confianza: number) {
+	const turns = await store.listTurns(sessionId);
+	if (turns.length === 0) return "";
+	const lines = turns
+		.slice(-RESUME_TURNS)
+		.map(
+			(t) => `${t.speaker === "estudiante" ? "Estudiante" : "Vos"}: ${t.text}`,
+		);
+	return [
+		"",
+		"La llamada se cortó y se retoma. Esto es lo que ya se habló (no te vuelvas a presentar ni repitas lo que ya contaste; seguí desde ahí):",
+		...lines,
+		`Confianza actual en el estudiante (0 a 1): ${confianza.toFixed(2)}.`,
+	].join("\n");
+}
+
 export async function voiceInstructions(viewer: Viewer, sessionId: string) {
 	const { session, clinicalCase } = await activeSession(viewer, sessionId);
 	const b = brief(session, clinicalCase);
@@ -64,18 +88,24 @@ export async function voiceInstructions(viewer: Viewer, sessionId: string) {
 		b.personality.paciencia < 0.4
 			? "\n- Sos impaciente: si el estudiante tarda o repite preguntas, apurate o interrumpí."
 			: "";
-	return `${buildPatientPrompt(b)}\n${VOICE_RULES}${hearing}${impatient}`;
+	const resume = await resumeContext(sessionId, session.state.confianza);
+	return `${buildPatientPrompt(b)}\n${VOICE_RULES}${hearing}${impatient}${resume}`;
 }
 
 // Configuración de la sesión Live de Gemini. Va dentro del token efímero
 // (liveConnectConstraints): el navegador no puede cambiar las instrucciones.
-export function liveConfig(instructions: string, impatient: boolean) {
+export function liveConfig(
+	instructions: string,
+	impatient: boolean,
+	voice = "Kore",
+) {
 	return {
 		responseModalities: [Modality.AUDIO],
 		systemInstruction: instructions,
 		speechConfig: {
 			voiceConfig: {
-				prebuiltVoiceConfig: { voiceName: process.env.LIVE_VOICE || "Kore" },
+				// La voz sorteada para esta consulta (lib/patient/voices.ts).
+				prebuiltVoiceConfig: { voiceName: voice },
 			},
 		},
 		// Solo se guarda la transcripción, nunca el audio (plan.md, sección 2).
@@ -107,7 +137,10 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			503,
 			"La voz no está configurada: falta GEMINI_API_KEY en el servidor.",
 		);
-	const { session, elapsed } = await activeSession(viewer, sessionId);
+	const { session, clinicalCase, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+	);
 	const model = liveModel();
 	const starts = session.voiceStarts ?? 0;
 	if (starts >= MAX_VOICE_STARTS)
@@ -115,9 +148,13 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			429,
 			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
 		);
+	// Consultas anteriores a las voces al azar no tienen voz: se sortea una.
+	const voice = session.voice ?? pickVoice(clinicalCase.patient.sex);
+	if (!session.voice) await store.updateSession(sessionId, { voice });
 	const config = liveConfig(
 		await voiceInstructions(viewer, sessionId),
 		session.personality.paciencia < 0.4,
+		voice,
 	);
 	const now = Date.now();
 	// La documentación web dice v1beta y el SDK dice v1alpha: se prueban las dos.
@@ -211,16 +248,9 @@ export async function runTool(
 					ui: { kind: "none" },
 				};
 			}
-			let current = session;
-			if (args.consentimiento && !current.consentGiven) {
-				await store.addEvent({
-					id: newId("evt"),
-					sessionId,
-					type: "consentimiento",
-					atMs: elapsed,
-				});
-				current = await store.updateSession(sessionId, { consentGiven: true });
-			}
+			const current = args.consentimiento
+				? await giveConsent(session, elapsed)
+				: session;
 			const variant = decideExam(
 				args.claridad,
 				current.personality,
@@ -287,14 +317,7 @@ export async function runTool(
 		}
 		case "actualizar_estado": {
 			const args = toolArgs.actualizar_estado.parse(rawArgs);
-			const clamp = (n: number) => Math.min(1, Math.max(0, n));
-			const next: PatientState = { ...session.state };
-			for (const [k, d] of Object.entries(args.delta) as [
-				keyof PatientState,
-				number | undefined,
-			][]) {
-				if (d !== undefined) next[k] = clamp(next[k] + d);
-			}
+			const next = applyDelta(session.state, args.delta);
 			await store.updateSession(sessionId, { state: next });
 			await store.addEvent({
 				id: newId("evt"),
@@ -332,7 +355,7 @@ export async function recordVoiceTurn(
 	speaker: Turn["speaker"],
 	text: string,
 	overlap: boolean,
-): Promise<Turn> {
+): Promise<{ turn: Turn; stateNote: string | null }> {
 	const { session, elapsed } = await activeSession(
 		viewer,
 		sessionId,
@@ -340,6 +363,11 @@ export async function recordVoiceTurn(
 	);
 	const clean = text.trim().slice(0, 2000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
+	// El estudiante pasa por el clasificador antes de guardar su turno.
+	const classified =
+		speaker === "estudiante"
+			? await classifyStudent(session, clean, elapsed)
+			: null;
 	const turn: Turn = {
 		id: newId("turn"),
 		sessionId,
@@ -348,10 +376,11 @@ export async function recordVoiceTurn(
 		startMs: elapsed,
 		endMs: elapsed,
 		overlap,
+		...(classified ? { tags: classified.tags } : {}),
 	};
 	await store.addTurn(turn);
-	if (speaker === "estudiante") await noteConsent(session, clean, elapsed);
-	return turn;
+	if (classified) await noteConsent(classified.session, clean, elapsed);
+	return { turn, stateNote: classified?.stateNote ?? null };
 }
 
 export const VOICE_EVENTS = [
@@ -366,7 +395,11 @@ export async function recordVoiceEvent(
 	type: (typeof VOICE_EVENTS)[number],
 	durationMs?: number,
 ) {
-	const { elapsed } = await activeSession(viewer, sessionId, VOICE_GRACE_MS);
+	const { session, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+		VOICE_GRACE_MS,
+	);
 	await store.addEvent({
 		id: newId("evt"),
 		sessionId,
@@ -374,6 +407,8 @@ export async function recordVoiceEvent(
 		atMs: elapsed,
 		...(durationMs === undefined ? {} : { durationMs }),
 	});
+	// Interrumpir o quedarse callado le cae mal al paciente.
+	await nudgeState(session, type, elapsed);
 }
 
 type UsageInput = Omit<VoiceUsage, "responses">;

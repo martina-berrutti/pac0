@@ -176,6 +176,7 @@ export default defineSchema({
 			v.literal("vitals"),
 			v.literal("report"),
 			v.literal("user"),
+			v.literal("mistakes"),
 		),
 		appId: v.string(),
 		sessionId: v.optional(v.string()),

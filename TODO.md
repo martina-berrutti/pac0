@@ -38,6 +38,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Deploy en Vercel: https://pac0-l3xi.vercel.app
 - [x] Cargar `SESSION_SECRET` en Vercel
 - [x] Cargar `GEMINI_API_KEY` (Google AI Studio) en `apps/web/.env.local` y en Vercel (voz e IA)
+- [x] `.gitattributes` con `* text=auto eol=lf`: en Windows (`core.autocrlf=true`) `npm run lint` fallaba por los finales de línea CRLF
 
 ### Usuarios y acceso (plan.md, sección 10)
 - [x] Invitado con alias temporal y cookie firmada, en menos de 10 s
@@ -47,8 +48,14 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Cerrar sesión
 - [ ] Probar el login desde un celular en la URL pública
 - [x] Login con Google por OAuth propio (`/api/auth/google`): solo `openid`, id con hash, perfil guardado en Convex
-- [ ] Crear las credenciales OAuth en Google Cloud y cargarlas en Vercel
+- [ ] Crear las credenciales OAuth en Google Cloud y cargarlas en Vercel (`/api/health` en producción dice `google: false`)
 - [ ] Probar el login con Google en la URL pública
+- [x] Rol en el perfil: estudiante por defecto, docente si su id de cuenta está en `DOCENTES` (`server/auth.ts`, `roleOf`). `/api/me` devuelve `role` y `accountId` para pedir el alta. Un invitado nunca es docente
+- [ ] Cargar `DOCENTES` en Vercel con los ids de cuenta de los docentes (separados por coma)
+- [x] Docentes autorizados pueden leer la consulta y el informe de cualquiera (solo leer) y listar las últimas consultas: `GET /api/teacher/sessions`
+- [ ] Persona 3: pantalla del panel docente contra `/api/teacher/sessions` (P3)
+- [x] Retención de las transcripciones de las cuentas: `records.purgeOldSessions` cada 6 horas borra las sesiones (con turnos, eventos, examen e informe) más viejas que `TRANSCRIPT_RETENTION_DAYS`. Sin la variable no borra nada
+- [ ] Persona 3: preguntar a la facultad el plazo (ley 18.331); después cargar `TRANSCRIPT_RETENTION_DAYS` en Convex
 
 ### Motor del paciente (plan.md, sección 5)
 - [x] Prompt del paciente desde el caso y la personalidad, **sin el diagnóstico** (`lib/patient/brief.ts`)
@@ -59,7 +66,10 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Guardar los hechos que el paciente inventa para no contradecirse (P2): herramienta `anotar_dato` en la voz
 - [x] Variación controlada: sortear valores dentro de rangos sin cambiar el diagnóstico (P2): campo `variations` del caso
 - [ ] Persona 3: revisar con un médico las variaciones del caso 1 (fiebre y contactos)
-- [ ] Clasificador rápido por turno (pregunta abierta o cerrada, jerga, empatía) que actualice el estado (versión 2, P3)
+- [x] Los eventos objetivos actualizan el estado (plan.md, sección 5, versión 1): interrumpir baja `paciencia` (−0,1) y `confianza` (−0,05), un silencio largo baja `paciencia` (−0,05) y pedir consentimiento sube `confianza` (+0,1). Cada cambio queda como `cambio_animo` con el motivo (`lib/patient/state.ts`)
+- [ ] Calibrar esos valores con un docente
+- [x] Clasificador rápido por turno (`lib/patient/turn-classifier.ts`): pregunta abierta o cerrada, sugestiva, jerga, empatía y repetida; actualiza el estado y avisa al modelo de voz con una nota silenciosa
+- [ ] Persona 2: usar las etiquetas de `turn.tags` en el evaluador (preguntas abiertas, jerga, sugestivas)
 
 ### Voz (plan.md, secciones 4 y 5) · Gemini Live de Google AI Studio
 - [x] Decisión del 17/10: la voz usa Gemini Live (Google AI Studio) en vez de OpenAI Realtime
@@ -74,14 +84,20 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Decisión del 17/10: la consulta es **solo por voz**; se sacó el campo para escribir (la transcripción se ve para leer)
 - [ ] Plan B si falla la voz o el wifi en la demo: el plan pedía versión por texto; decidir si alcanza con el video de respaldo
 - [x] Probar la voz con la clave real (Gemini Live): audio, transcripción, personaje y herramienta `examinar` funcionan
-- [ ] Probar con micrófono en el navegador (computadora y celular)
+- [x] Probar con micrófono en la computadora (URL pública, 17/10)
+- [ ] Probar con micrófono en el celular
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
 - [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
-- [ ] Elegir la voz y cargarla en `LIVE_VOICE` (Vercel y `.env.local`)
+- [x] Voces: cada consulta sortea una acorde al sexo del paciente (Kore, Aoede, Leda, Zephyr; Puck, Charon). `LIVE_VOICE` ya no se usa
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
 - [x] Estimar el costo: US$0,50 a 0,80 por consulta de 8 min (audio entrada US$3/M, salida US$12/M; capa gratuita sin costo)
-- [ ] Confirmar el costo con `voiceUsage` de una consulta real por micrófono
+- [x] Costo real con `voiceUsage`: 2,8 min ≈ US$0,09 y 3,2 min ≈ US$0,14; una de 8 min ≈ US$0,40 a 0,60 (capa gratuita: sin costo)
+- [x] Reconectar la voz si se corta la conexión (o si Google avisa con `goAway`), hasta 3 veces: el token nuevo lleva los últimos 40 turnos y la confianza actual, y la pantalla dice "Reconectando…"
+- [x] Probar la reconexión en el navegador: en producción, con Chrome y micrófono simulado, se cortó la conexión a mano y la pantalla pasó a "Reconectando…" y volvió a "En línea" sola (`voiceStarts` 2)
+- [ ] Probarla con una persona hablando y cortando el wifi de verdad
+- [x] Topes para cuidar los créditos (plan.md, sección 14): 10 consultas por usuario por día (`MAX_SESSIONS_PER_USER_PER_DAY`), 200 en total por día (`MAX_SESSIONS_PER_DAY`, porque un invitado nuevo no cuesta nada). Responden 429 con un mensaje claro; `/api/health` muestra los topes
+- [x] `/consulta` sin errores de consola a 390 y 1280 px (validación del prompt de la Persona 1, plan.md, sección 12). Arreglado: había un `<div>` dentro de la lista (`<ol>`), que React marca como error, y un fragmento inútil. Revisada con Chrome a 390 y 1280 px: sin desborde horizontal ni errores propios en la consola
 
 ### Herramientas del paciente (plan.md, secciones 4 y 6)
 - [x] `examinar(zona, maniobra, claridad, consentimiento)`: el caso decide la variante; al modelo no le llega el hallazgo
@@ -95,7 +111,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
 - [x] Script `apps/web/scripts/probar-personaje.mjs` (paciente por reglas: 6 de 6 en personaje)
 - [x] Script con IA: el paciente siguió en personaje ("para eso vine, doc"); por voz también
-- [ ] Repetir el script completo cuando producción guarde en Convex (se cortó por "Sesión no encontrada")
+- [x] Script completo en producción con Convex: 6 de 6 en personaje, sin cortes
 
 ### Generador "pedime un paciente" (feature nueva)
 - [x] `POST /api/cases/generate`: "dame un paciente con algo de garganta, que sea ansioso, de 60 años"
@@ -110,7 +126,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [ ] Persona 3: usar `readPatientLevel()` en el avatar para mover la boca
 
 ### Si la Persona 1 termina antes
-- [ ] Tomar el tensiómetro con la Persona 2
+- [x] Tensiómetro: lo hizo la Persona 2 (PR #2)
 
 ---
 
@@ -211,10 +227,13 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 ## Fase final · Convex (Persona 1)
 
 - [x] `ConvexStore` que cumpla la interfaz `Store` de `server/store.ts` (tabla `records`, protegida con `STORE_SECRET`)
-- [ ] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel
+- [x] Cargar `CONVEX_URL` y `STORE_SECRET` en Vercel: no llegaban porque Varlock borra las variables que no están en `.env.schema` (arreglado en `2becc63`). Desde las 17:15, `/api/health` en producción dice `store: convex`
+- [ ] Declarar en `apps/web/.env.schema` las variables nuevas del servidor: `DOCENTES` y, si se quieren cambiar, `MAX_SESSIONS_PER_USER_PER_DAY` y `MAX_SESSIONS_PER_DAY` (si no, Varlock las borra)
+- [x] `npx convex deploy` con `listRecentSessions`, `countSessionsSince`, `purgeOldSessions` y el cron nuevo (17/10)
 - [x] Usuarios con Google e invitado: resuelto con OAuth propio y `records` (Convex Auth en `packages/backend/convex/auth.ts` queda sin usar)
 - [x] Borrado de invitados a las 24 horas: `records.purgeExpiredGuests` cada hora (`crons.ts`)
-- [ ] `mistakeProfile`: perfil de errores entre sesiones
+- [x] Perfil de errores entre consultas: se suma al cerrar cada consulta; `GET /api/me/mistakes` y `api.mistakes()`
+- [ ] Persona 3: mostrar el perfil de errores en el informe (parte 7) con `api.mistakes()`
 - [ ] Imágenes en Convex storage y tabla `assets`
 - [x] Credenciales de Google: van en Vercel (OAuth propio), no en Convex
 - [x] Conectar Convex como almacenamiento (adelantado el 17/10: en Vercel la consulta fallaba con "Sesión no encontrada")
@@ -222,6 +241,6 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 ## Puertas (plan.md, sección 13)
 
-- [ ] **Puerta 1:** URL pública con login, invitado y una sesión de voz de prueba
+- [x] **Puerta 1:** URL pública con invitado y voz probada con micrófono (17/10). El login con Google espera las credenciales
 - [ ] **Puerta 2:** una consulta pasa por voz, examen e informe con puntaje y evidencia en la URL pública
 - [ ] **Puerta 3:** funciones congeladas; solo arreglos, ensayo y video
