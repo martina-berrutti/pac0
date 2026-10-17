@@ -21,6 +21,7 @@ export function ipLimits() {
 	return {
 		guests: limitFromEnv("MAX_GUESTS_PER_IP_PER_HOUR", 50),
 		sessions: limitFromEnv("MAX_SESSIONS_PER_IP_PER_HOUR", 100),
+		generate: limitFromEnv("MAX_GENERATED_PER_IP_PER_HOUR", 60),
 	};
 }
 
@@ -44,9 +45,11 @@ const MESSAGES = {
 	guests: "Se crearon demasiados invitados desde esta red. Probá en un rato.",
 	sessions:
 		"Se empezaron demasiadas consultas desde esta red. Probá en un rato.",
+	generate:
+		"Se pidieron demasiados pacientes desde esta red. Probá en un rato.",
 };
 
-export async function limitByIp(action: "guests" | "sessions") {
+export async function limitByIp(action: "guests" | "sessions" | "generate") {
 	const max = ipLimits()[action];
 	const key = ipKey(action, await clientIp());
 	// Si Convex todavía no tiene la función (falta npx convex deploy), no se

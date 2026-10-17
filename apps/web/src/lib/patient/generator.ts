@@ -19,6 +19,7 @@ import {
 	ARCHETYPES,
 	type Archetype,
 	applyPersonalityRequest,
+	mentions,
 } from "./personalities";
 
 export type GenerationRequest = { text: string; personalityKey?: string };
@@ -106,10 +107,12 @@ export function chooseArchetype(text: string, explicitKey?: string): Archetype {
 	const explicit = ARCHETYPES.find((a) => a.key === explicitKey);
 	if (explicit) return explicit;
 	const t = text.toLowerCase();
-	return (
-		ARCHETYPES.find((a) => includesAny(t, a.keywords)) ??
-		(ARCHETYPES[0] as Archetype)
-	);
+	const asked = (a: Archetype) => a.keywords.some((w) => mentions(t, w));
+	// "Una abuela ansiosa": la edad pesa más que el carácter (la ansiedad
+	// se suma después como ajuste).
+	const older = ARCHETYPES.find((a) => a.key === "mayor");
+	if (older && asked(older)) return older;
+	return ARCHETYPES.find(asked) ?? (ARCHETYPES[0] as Archetype);
 }
 
 function parseAge(
@@ -222,6 +225,7 @@ export async function generateCase(
 		title: tpl.title,
 		origin: "generado",
 		templateId: tpl.id,
+		createdAt: Date.now(),
 		reviewedBy: null,
 		patient: { name: persona.name, age, occupation: persona.occupation, sex },
 		personality,

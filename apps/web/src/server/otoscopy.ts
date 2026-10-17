@@ -24,7 +24,13 @@ export async function startOtoscopy(
 	sessionId: string,
 	ear: Ear,
 ): Promise<OtoscopyStart> {
-	const { clinicalCase, elapsed } = await activeSession(viewer, sessionId);
+	// Mismo margen que la herramienta examinar de la voz, que puede abrir el
+	// otoscopio justo pasados los 8 minutos.
+	const { clinicalCase, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+		FINISH_EXAM_GRACE_MS,
+	);
 	const action: ExamAction = {
 		id: newId("exam"),
 		sessionId,

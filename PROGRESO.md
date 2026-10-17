@@ -73,6 +73,25 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
     - Palabras clave: "no entiendo" y "¿dormís tranquilo?" contaban como empatía; "¿por qué no?" como sugestiva; "¿podés abrir la ventana?" como examen; faltaba "esta bien si" sin tilde.
   - Pedidos simultáneos a la misma consulta (dos pestañas o un script): `changeSession` acepta `ifEquals`, que aplica el cambio solo si el campo sigue valiendo lo esperado. El consentimiento se da una sola vez y hay un solo cambio de ánimo del modelo por turno, con el valor actual. La nota de ánimo del clasificador compara con el estado nuevo. Un Convex sin desplegar ignora `ifEquals` (el cambio llega como `v.any()`), así que el orden de despliegue no importa; con `npx convex deploy` queda activo en producción.
   - Séptima integración con `main` (límite por IP; se descarta la prueba en celular): en `/api/sessions` el cupo por IP se contaba antes de validar el caso y el tope diario del usuario, así que pedidos que iban a fallar gastaban el cupo compartido de todo el salón (100 por hora con la IP de la facultad). Ahora se cuenta justo antes de crear la sesión.
+  - Revisión exhaustiva archivo por archivo, con tres revisores independientes que leyeron entero cada archivo de la Persona 1:
+
+    | Parte | Archivos | Sin problemas | Con hallazgos |
+    |---|---|---|---|
+    | `server/` y `app/api/` | 38 | 30 | 8 |
+    | `lib/patient/`, `lib/voice/`, cliente, `proxy.ts`, consulta | 16 | 9 | 7 |
+    | `packages/backend/convex/` y contratos | 17 | 11 | 6 |
+
+    Arreglado:
+    - Servidor: las cuentas de Google quedaban sin poder generar pacientes para siempre (el tope de 15 ahora es por día, con `createdAt`); el generador tiene límite por IP; `saveExamTimes` exige consulta activa y no toca otoscopias (podía dejarlas sin evaluar); si Google no da el token se devuelve la conexión reservada; un cierre con informe y estado "activa" se completa; los tokens de uso solo se suman con la consulta activa; el otoscopio tiene el mismo margen que la voz.
+    - Cliente de voz: las notas internas cortaban al paciente mientras hablaba (y eso contaba como interrupción del estudiante): ahora esperan a que termine; la transcripción tardía partía el turno del estudiante en dos; en Safari el micrófono se reanuda y, si se corta, se avisa; el procesador del micrófono va a una salida en silencio (Safari puede no correrlo sin salida); "Reconectando" no se pisa con "En línea".
+    - Pantalla: sin voz conectada, a los 8 minutos pasa a la hipótesis (antes solo en modo texto).
+    - Paciente simulado: "¿qué?", "¿eh?", "¿perdón?" cuentan como pedido de repetir; negaciones en el generador ("poco colaborador", "que no hable mucho"); "una abuela ansiosa" sale mayor y ansiosa; "hace cuánto que tenés fiebre" ya no es pedir el diagnóstico; "¿algún médico llegó a revisarte?" no abre el examen; "permiso para faltar" y "con tu permiso" al saludar no dan consentimiento, "me permitís" y "le parece si" sí; empatía solo fuera de preguntas; "¿de verdad?" no es sugestiva; preguntas sin "?" (voz) cuentan como preguntas; "humedad" no responde la edad y "¿tomás mate?" no es alcohol.
+    - Convex: Convex Auth quedaba abierto (cualquiera podía crear usuarios anónimos sin límite): sin proveedores; los registros anteriores al campo `guest` se completan solos y se borran a tiempo; una ventana nueva del límite por IP es un documento nuevo (la limpieza la cortaba a mitad de hora).
+
+    **No arreglado, a propósito:**
+    - Con pedidos simultáneos de un mismo usuario, el tope diario de consultas, el perfil de errores entre dos consultas distintas y los cambios de manguito u otoscopia leen antes de escribir. El límite por IP (atómico) y la fila del cliente lo acotan; arreglarlo del todo pide mutaciones nuevas en Convex.
+    - La otoscopia muestra sus errores de técnica antes del informe: es una decisión de la Persona 2.
+    - El procesador del micrófono en Safari y si `expireTime` corta una voz ya abierta solo se pueden confirmar en un dispositivo o con Google.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).

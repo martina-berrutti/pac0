@@ -62,6 +62,13 @@ const CLOSED_STARTS = [
 export function isLeadingQuestion(text: string) {
 	const t = text.trim().toLowerCase();
 	if (/(?:^|[\s¿])o\s+no\s*\?*\s*$/u.test(t)) return false;
+	// "¿De verdad?", "¿es cierto?" solos son sorpresa, no sugestivas.
+	if (
+		/^[¿\s]*(de\s+verdad|en\s+serio|es\s+cierto|cierto|verdad)\s*\?*\s*$/u.test(
+			t,
+		)
+	)
+		return false;
 	// "¿Por qué no?" es una pregunta abierta, no sugestiva.
 	if (/por\s+qu[eé]\s+no\s*\?*\s*$/u.test(t)) return false;
 	// Con signo de pregunta, o con coma antes si la voz no transcribió el signo
@@ -118,17 +125,28 @@ const REPEAT_REQUESTS = [
 	"no te entendi",
 	"no le entendi",
 	"mas fuerte",
+	"como dijo",
+	"como dijiste",
+	"que dijo",
+	"que dijiste",
+	"no te oi",
+	"no le oi",
+	"no oi",
 ];
+// Pedidos cortos que son toda la frase: "¿qué?", "¿eh?", "¿perdón?".
+const SHORT_REPEAT = /^(como|que|eh|perdon|perdon como|como perdon|mande)$/;
 
 export function askedToRepeat(patientText: string) {
 	const t = normalize(patientText);
-	return t === "como" || REPEAT_REQUESTS.some((w) => t.includes(w));
+	return SHORT_REPEAT.test(t) || REPEAT_REQUESTS.some((w) => t.includes(w));
 }
 
 // Empatía, con el texto normalizado. "No entiendo" no lo es, y "tranqui"
 // cuenta suelto o en "quedate tranquila", no en "¿dormís tranquilo?".
-function isEmpathy(t: string) {
+function isEmpathy(t: string, question: boolean) {
 	if (/(^| )no entiendo( |$)/.test(t)) return false;
+	// En una pregunta no son empatía: "¿es normal que tengas fiebre?".
+	if (question && /(es normal que|imagino que|debe ser)/.test(t)) return false;
 	if (/(^| )tranqui( |$)/.test(t)) return true;
 	if (/(quedate|estate|esta) tranquil[ao]/.test(t)) return true;
 	return EMPATHY.some((w) => t.includes(w));
@@ -166,9 +184,12 @@ export function classifyStudentTurn(
 ): Classification {
 	const t = normalize(text);
 	const tags: TurnTag[] = [];
+	// La voz a veces transcribe sin signos ("tenes fiebre"): también cuenta
+	// como pregunta si empieza como una.
 	const isQuestion =
 		text.includes("?") ||
-		OPEN_STARTS.some((w) => t.startsWith(w) || t.includes(` ${w}`));
+		OPEN_STARTS.some((w) => t.startsWith(w) || t.includes(` ${w}`)) ||
+		CLOSED_STARTS.some((w) => t.startsWith(w));
 
 	if (OPEN_STARTS.some((w) => t.startsWith(w) || t.includes(` ${w}`)))
 		tags.push("pregunta_abierta");
@@ -180,7 +201,7 @@ export function classifyStudentTurn(
 	if (isLeadingQuestion(text)) tags.push("sugestiva");
 	if (JARGON.some((w) => t.includes(w)) && !EXPLAINS.some((w) => t.includes(w)))
 		tags.push("jerga");
-	if (isEmpathy(t)) tags.push("empatia");
+	if (isEmpathy(t, text.includes("?"))) tags.push("empatia");
 	if (
 		isQuestion &&
 		t.length > 8 &&

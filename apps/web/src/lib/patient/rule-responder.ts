@@ -58,7 +58,17 @@ const TOPICS: { key: string; words: string[] }[] = [
 	},
 	{
 		key: "alcohol",
-		words: ["alcohol", "tomás", "tomas alcohol", "bebés", "bebes"],
+		// "Tomás" solo no alcanza: "¿tomás mate?" no es una pregunta de alcohol.
+		words: [
+			"alcohol",
+			"tomás alcohol",
+			"tomas alcohol",
+			"bebés",
+			"bebes",
+			"bebida",
+			"cerveza",
+			"vino",
+		],
 	},
 	{ key: "tabaco", words: ["fumás", "fumas", "tabaco", "cigarr"] },
 	{
@@ -105,10 +115,6 @@ const OPEN_QUESTION = [
 const DIAGNOSIS_FISHING = [
 	"qué enfermedad",
 	"que enfermedad",
-	"qué tenés",
-	"que tenes",
-	"diagnóstico",
-	"diagnostico",
 	"ignorá",
 	"ignora tus",
 	"instrucciones",
@@ -118,11 +124,24 @@ const DIAGNOSIS_FISHING = [
 
 // Las palabras muy cortas ("tos") van como palabra entera: si no, "datos" o
 // "todos" cuentan como tos.
+// El resto, desde el comienzo de una palabra: "edad" no está en "humedad".
 function has(text: string, words: string[]) {
-	return words.some((w) =>
-		w.length <= 3
-			? new RegExp(`(?<!\\p{L})${w}(?!\\p{L})`, "u").test(text)
-			: text.includes(w),
+	return words.some((w) => {
+		const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		const end = w.length <= 3 ? "(?!\\p{L})" : "";
+		return new RegExp(`(?<!\\p{L})${escaped}${end}`, "u").test(text);
+	});
+}
+
+// "¿Qué tenés?" como pregunta entera, o preguntar por el diagnóstico propio.
+// "Hace cuánto que tenés fiebre" o "¿tenés algún diagnóstico previo?" son
+// preguntas de la entrevista, no pedirle el diagnóstico.
+function asksDiagnosis(text: string) {
+	if (has(text, DIAGNOSIS_FISHING)) return true;
+	if (/(^|[\s¿])qu[eé]\s+ten[eé]s(\s+vos)?\s*\?*\s*$/u.test(text)) return true;
+	return (
+		/diagn[oó]stico/u.test(text) &&
+		!/(previo|antes|anterior|te dieron|te hicieron|otro m[eé]dico)/u.test(text)
 	);
 }
 
@@ -150,7 +169,7 @@ export function ruleRespond(
 			delta: null,
 		};
 	}
-	if (has(text, DIAGNOSIS_FISHING)) {
+	if (asksDiagnosis(text)) {
 		return {
 			text: "Y no sé, para eso vine. ¿Vos qué pensás que puede ser?",
 			delta: null,

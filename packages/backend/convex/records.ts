@@ -262,15 +262,16 @@ export const hitRate = mutation({
 			.unique();
 		const data = doc?.data as { start: number; count: number } | undefined;
 		if (!doc || !data || now - data.start >= windowMs) {
-			const fresh = { start: now, count: 1 };
-			if (doc) await ctx.db.patch(doc._id, { data: fresh });
-			else
-				await ctx.db.insert("records", {
-					kind: "rate",
-					appId: key,
-					guest: true,
-					data: fresh,
-				});
+			// Ventana nueva = documento nuevo: así su _creationTime es el inicio
+			// de la ventana y la limpieza de 24 horas nunca borra una abierta
+			// (con patch, la IP de la facultad perdía la cuenta a mitad de hora).
+			if (doc) await ctx.db.delete(doc._id);
+			await ctx.db.insert("records", {
+				kind: "rate",
+				appId: key,
+				guest: true,
+				data: { start: now, count: 1 },
+			});
 			return true;
 		}
 		if (data.count >= max) return false;
@@ -317,12 +318,34 @@ async function deleteSession(
 	return { deleted: deleted + 1, done: true };
 }
 
+// Los registros guardados antes de que existiera el campo `guest` no tienen
+// valor, y sin él ni la limpieza ni las listas los ven. Se completa de a poco
+// desde el dueño (los ids de invitado empiezan con gst_).
+const BACKFILL_PER_RUN = 100;
+
+async function backfillGuest(ctx: MutationCtx) {
+	for (const kind of ["session", "case", "mistakes"] as const) {
+		const rows = await ctx.db
+			.query("records")
+			.withIndex("by_guest_and_kind", (q) =>
+				q.eq("guest", undefined).eq("kind", kind),
+			)
+			.take(BACKFILL_PER_RUN);
+		for (const row of rows) {
+			await ctx.db.patch(row._id, {
+				guest: row.ownerId?.startsWith("gst_") ?? false,
+			});
+		}
+	}
+}
+
 // Borra lo de los invitados de más de 24 horas (plan.md, sección 10): sus
 // sesiones con todo lo que cuelga de ellas, sus casos generados y su perfil
 // de errores; también los contadores del límite por IP.
 export const purgeExpiredGuests = internalMutation({
 	args: {},
 	handler: async (ctx) => {
+		await backfillGuest(ctx);
 		const cutoff = Date.now() - GUEST_TTL_MS;
 		let deleted = 0;
 		for (const kind of ["session", "case", "mistakes", "rate"] as const) {

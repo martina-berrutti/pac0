@@ -840,3 +840,78 @@ describe("pedidos simultáneos a la misma consulta", () => {
 		expect(after).toBeCloseTo(before - 0.1);
 	});
 });
+
+describe("revisión exhaustiva", () => {
+	test("si Google no da el token, la conexión reservada se devuelve", async () => {
+		vi.stubEnv("GEMINI_API_KEY", "AIza-test");
+		genai.create.mockRejectedValue(new Error("Google caído"));
+		const id = await startSession(ana, lucia.id, "caso");
+		for (let i = 0; i < 8; i++)
+			await expect(createLiveSession(ana, id)).rejects.toThrow("No pudimos");
+		expect((await store.getSession(id))?.voiceStarts ?? 0).toBe(0);
+		genai.create.mockReset();
+	});
+
+	test("los tiempos del examen no tocan una otoscopia", async () => {
+		const { saveExamTimes } = await import("@/server/consultation");
+		const { startOtoscopy } = await import("@/server/otoscopy");
+		const id = await startSession(ana, lucia.id, "caso");
+		const { actionId } = await startOtoscopy(ana, id, "derecho");
+		await expect(saveExamTimes(ana, id, actionId, {})).rejects.toThrow(
+			"no encontrada",
+		);
+	});
+
+	test("paciente por reglas: preguntas de la entrevista no son pedir el diagnóstico", async () => {
+		const { ruleRespond } = await import("@/lib/patient/rule-responder");
+		const { buildPatientBrief } = await import("@/lib/patient/brief");
+		const b = buildPatientBrief(lucia, lucia.personality, "");
+		const st = { confianza: 0.9, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 };
+		const fishing = "para eso vine";
+		expect(
+			ruleRespond(b, st, "hace cuanto que tenes fiebre", 1).text,
+		).not.toContain(fishing);
+		expect(
+			ruleRespond(b, st, "¿tenés algún diagnóstico previo?", 1).text,
+		).not.toContain(fishing);
+		expect(ruleRespond(b, st, "¿Qué tenés?", 1).text).toContain(fishing);
+		expect(ruleRespond(b, st, "¿cuál es tu diagnóstico?", 1).text).toContain(
+			fishing,
+		);
+	});
+
+	test("generador: negaciones y 'abuela ansiosa'", async () => {
+		const { generateCase } = await import("@/lib/patient/generator");
+		const poco = await generateCase(
+			{ text: "dolor de garganta, poco colaborador" },
+			() => 0,
+		);
+		expect(poco.clinicalCase.personality.cooperacion).toBeLessThan(0.5);
+		const callado = await generateCase(
+			{ text: "dolor de garganta, que no hable mucho" },
+			() => 0,
+		);
+		expect(callado.clinicalCase.personality.locuacidad).toBeLessThan(0.5);
+		const abuela = await generateCase(
+			{ text: "una abuela ansiosa con dolor de garganta" },
+			() => 0,
+		);
+		expect(abuela.clinicalCase.patient.age).toBeGreaterThanOrEqual(68);
+		expect(abuela.clinicalCase.personality.ansiedad).toBeGreaterThan(0.8);
+	});
+
+	test("clasificador: pedidos de repetir, empatía en preguntas y 'de verdad'", async () => {
+		const { askedToRepeat, classifyStudentTurn, isLeadingQuestion } =
+			await import("@/lib/patient/turn-classifier");
+		for (const t of ["¿Qué?", "¿Eh?", "¿Perdón?", "¿Cómo dijo, doctor?"])
+			expect(askedToRepeat(t), t).toBe(true);
+		expect(askedToRepeat("¿Qué tal?")).toBe(false);
+		expect(
+			classifyStudentTurn("¿Es normal que tengas fiebre?", []).tags,
+		).not.toContain("empatia");
+		expect(isLeadingQuestion("¿De verdad?")).toBe(false);
+		expect(classifyStudentTurn("tenes fiebre", []).tags).toContain(
+			"pregunta_cerrada",
+		);
+	});
+});
