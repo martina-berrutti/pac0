@@ -187,7 +187,7 @@ export async function generateCase(
 		title: tpl.title,
 		origin: "generado",
 		reviewedBy: null,
-		patient: { name: persona.name, age, occupation: persona.occupation },
+		patient: { name: persona.name, age, occupation: persona.occupation, sex },
 		personality,
 		personalityStyle: [archetype.style, ...notes].join(" "),
 		chiefComplaint: persona.chiefComplaint,

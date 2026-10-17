@@ -6,7 +6,8 @@
 	"patient": {
 		"name": "Lucía",
 		"age": 24,
-		"occupation": "estudiante"
+		"occupation": "estudiante",
+		"sex": "f"
 	},
 	"personality": {
 		"cooperacion": 0.9,

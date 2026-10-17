@@ -185,11 +185,32 @@ export function useVoice({
 		async (speaker: Turn["speaker"], text: string, overlap: boolean) => {
 			if (!text.trim()) return;
 			try {
-				const { turn } = await post<{ turn: Turn }>(
-					`/api/sessions/${sessionId}/voice-turns`,
-					{ speaker, text, overlap },
-				);
+				const { turn, stateNote } = await post<{
+					turn: Turn;
+					stateNote: string | null;
+				}>(`/api/sessions/${sessionId}/voice-turns`, {
+					speaker,
+					text,
+					overlap,
+				});
 				callbacks.current.onTurn(turn);
+				// El clasificador cambió el ánimo del paciente: se lo contamos al
+				// modelo como contexto, sin pedirle que responda (turnComplete false).
+				if (stateNote) {
+					live.current?.sendClientContent({
+						turns: [
+							{
+								role: "user",
+								parts: [
+									{
+										text: `(Nota interna, no la digas en voz alta: así te sentís ahora con el estudiante: ${stateNote}. Que se note en cómo respondés.)`,
+									},
+								],
+							},
+						],
+						turnComplete: false,
+					});
+				}
 			} catch (e) {
 				callbacks.current.onError(
 					e instanceof Error ? e.message : "No se guardó un turno",

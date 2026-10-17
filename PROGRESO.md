@@ -2,6 +2,14 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Clasificador de turnos y voces al azar
+
+- Clasificador por reglas de cada turno del estudiante (`lib/patient/turn-classifier.ts`): pregunta abierta o cerrada, sugestiva, jerga sin explicar, empatía y pregunta repetida. Actualiza el estado del paciente (`cambio_animo` con motivo "clasificador: …") y guarda las etiquetas en `turn.tags` para el evaluador. Funciona en texto y en voz, y la empatía ya no se suma dos veces.
+- En la voz, cuando la confianza o la paciencia cambian de nivel, el cliente le manda al modelo una nota silenciosa (`turnComplete: false`). Probado en producción: la nota no genera audio, y después de la empatía el paciente hostil afloja ("Bueno, ta, está bien. Abrila entonces, si me decís para qué sirve.").
+- Voces: cada consulta sortea una acorde al sexo del paciente (`patient.sex` en el caso; el generador lo completa) y la mantiene aunque se reconecte.
+- Validación: 98 tests en web y 18 en backend.
+- Ojo: `apps/web/.env.local` quedó vacío a las 17:08, así que la voz local no anda hasta volver a poner `GEMINI_API_KEY`.
+
 ## 17/10 · Persona 1 · Tareas agregadas en la revisión
 
 - **Rol de docente:** `roleOf` en `server/auth.ts`; docente es quien tiene su id de cuenta en `DOCENTES` (nunca un invitado). Puede leer la consulta y el informe de cualquiera, pero no actuar en ellas, y listar las últimas consultas con `GET /api/teacher/sessions` (solo el alias). `/api/me` devuelve `role` y `accountId`.

@@ -17,11 +17,13 @@ import { buildPatientPrompt } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
 import { applyDelta } from "@/lib/patient/state";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
+import { pickVoice } from "@/lib/patient/voices";
 
 import { HttpError } from "./auth";
 import {
 	activeSession,
 	brief,
+	classifyStudent,
 	defaultZone,
 	giveConsent,
 	noteConsent,
@@ -92,13 +94,18 @@ export async function voiceInstructions(viewer: Viewer, sessionId: string) {
 
 // Configuración de la sesión Live de Gemini. Va dentro del token efímero
 // (liveConnectConstraints): el navegador no puede cambiar las instrucciones.
-export function liveConfig(instructions: string, impatient: boolean) {
+export function liveConfig(
+	instructions: string,
+	impatient: boolean,
+	voice = "Kore",
+) {
 	return {
 		responseModalities: [Modality.AUDIO],
 		systemInstruction: instructions,
 		speechConfig: {
 			voiceConfig: {
-				prebuiltVoiceConfig: { voiceName: process.env.LIVE_VOICE || "Kore" },
+				// La voz sorteada para esta consulta (lib/patient/voices.ts).
+				prebuiltVoiceConfig: { voiceName: voice },
 			},
 		},
 		// Solo se guarda la transcripción, nunca el audio (plan.md, sección 2).
@@ -130,7 +137,10 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			503,
 			"La voz no está configurada: falta GEMINI_API_KEY en el servidor.",
 		);
-	const { session, elapsed } = await activeSession(viewer, sessionId);
+	const { session, clinicalCase, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+	);
 	const model = liveModel();
 	const starts = session.voiceStarts ?? 0;
 	if (starts >= MAX_VOICE_STARTS)
@@ -138,9 +148,13 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			429,
 			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
 		);
+	// Consultas anteriores a las voces al azar no tienen voz: se sortea una.
+	const voice = session.voice ?? pickVoice(clinicalCase.patient.sex);
+	if (!session.voice) await store.updateSession(sessionId, { voice });
 	const config = liveConfig(
 		await voiceInstructions(viewer, sessionId),
 		session.personality.paciencia < 0.4,
+		voice,
 	);
 	const now = Date.now();
 	// La documentación web dice v1beta y el SDK dice v1alpha: se prueban las dos.
@@ -341,7 +355,7 @@ export async function recordVoiceTurn(
 	speaker: Turn["speaker"],
 	text: string,
 	overlap: boolean,
-): Promise<Turn> {
+): Promise<{ turn: Turn; stateNote: string | null }> {
 	const { session, elapsed } = await activeSession(
 		viewer,
 		sessionId,
@@ -349,6 +363,11 @@ export async function recordVoiceTurn(
 	);
 	const clean = text.trim().slice(0, 2000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
+	// El estudiante pasa por el clasificador antes de guardar su turno.
+	const classified =
+		speaker === "estudiante"
+			? await classifyStudent(session, clean, elapsed)
+			: null;
 	const turn: Turn = {
 		id: newId("turn"),
 		sessionId,
@@ -357,10 +376,11 @@ export async function recordVoiceTurn(
 		startMs: elapsed,
 		endMs: elapsed,
 		overlap,
+		...(classified ? { tags: classified.tags } : {}),
 	};
 	await store.addTurn(turn);
-	if (speaker === "estudiante") await noteConsent(session, clean, elapsed);
-	return turn;
+	if (classified) await noteConsent(classified.session, clean, elapsed);
+	return { turn, stateNote: classified?.stateNote ?? null };
 }
 
 export const VOICE_EVENTS = [

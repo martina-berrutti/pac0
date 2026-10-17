@@ -68,7 +68,8 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [ ] Persona 3: revisar con un médico las variaciones del caso 1 (fiebre y contactos)
 - [x] Los eventos objetivos actualizan el estado (plan.md, sección 5, versión 1): interrumpir baja `paciencia` (−0,1) y `confianza` (−0,05), un silencio largo baja `paciencia` (−0,05) y pedir consentimiento sube `confianza` (+0,1). Cada cambio queda como `cambio_animo` con el motivo (`lib/patient/state.ts`)
 - [ ] Calibrar esos valores con un docente
-- [ ] Clasificador rápido por turno (pregunta abierta o cerrada, jerga, empatía) que actualice el estado (versión 2, P3)
+- [x] Clasificador rápido por turno (`lib/patient/turn-classifier.ts`): pregunta abierta o cerrada, sugestiva, jerga, empatía y repetida; actualiza el estado y avisa al modelo de voz con una nota silenciosa
+- [ ] Persona 2: usar las etiquetas de `turn.tags` en el evaluador (preguntas abiertas, jerga, sugestivas)
 
 ### Voz (plan.md, secciones 4 y 5) · Gemini Live de Google AI Studio
 - [x] Decisión del 17/10: la voz usa Gemini Live (Google AI Studio) en vez de OpenAI Realtime
@@ -87,7 +88,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Verificar qué versión de API acepta el token efímero: `v1beta` funciona
 - [x] Verificar `usageMetadata` de Gemini Live: es por turno (el prompt crece porque relee la conversación), sumar es correcto
 - [x] Muestras de 6 voces (Kore, Aoede, Leda, Zephyr, Puck, Charon) con la misma frase de Lucía
-- [ ] Elegir la voz y cargarla en `LIVE_VOICE` (Vercel y `.env.local`)
+- [x] Voces: cada consulta sortea una acorde al sexo del paciente (Kore, Aoede, Leda, Zephyr; Puck, Charon). `LIVE_VOICE` ya no se usa
 - [x] Registrar los tokens de cada respuesta de la voz (`session.voiceUsage`)
 - [x] Estimar el costo: US$0,50 a 0,80 por consulta de 8 min (audio entrada US$3/M, salida US$12/M; capa gratuita sin costo)
 - [ ] Confirmar el costo con `voiceUsage` de una consulta real por micrófono
