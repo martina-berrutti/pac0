@@ -6,7 +6,7 @@ import "server-only";
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-import type { ExamResult, VitalsMeasurement } from "@/lib/contracts/exam";
+import type { ExamResult } from "@/lib/contracts/exam";
 import {
 	MAX_SESSION_MS,
 	type PatientState,
@@ -14,7 +14,6 @@ import {
 	type Turn,
 	type VoiceUsage,
 } from "@/lib/contracts/session";
-import { bloodPressureReading } from "@/lib/patient/blood-pressure";
 import { buildPatientPrompt } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
@@ -30,6 +29,7 @@ import {
 } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
+import { type BpStart, createMeasurement } from "./vitals";
 
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
@@ -144,7 +144,7 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 
 export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
-	| { kind: "vitals"; vitals: VitalsMeasurement }
+	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
 	| { kind: "end" }
 	| { kind: "none" };
@@ -243,25 +243,20 @@ export async function runTool(
 		}
 		case "medir_presion": {
 			const args = toolArgs.medir_presion.parse(rawArgs);
-			const reading = bloodPressureReading(
-				clinicalCase.vitals.pa,
-				args.pasos_cumplidos,
-			);
-			const vitals: VitalsMeasurement = {
-				id: newId("vit"),
+			const bp = await createMeasurement(
+				clinicalCase,
 				sessionId,
-				...reading,
-				marked: null,
-				atMs: elapsed,
-			};
-			await store.addVitals(vitals);
-			// El paciente no sabe su presión: el valor va solo a la pantalla.
+				args.pasos_cumplidos,
+				elapsed,
+			);
+			// Ni el paciente ni la pantalla reciben el valor: la pantalla abre el
+			// tensiómetro y el estudiante lo mide (Persona 2).
 			return {
 				output: {
 					ok: true,
 					que_pasa: "Te están midiendo la presión. Quedate quieto.",
 				},
-				ui: { kind: "vitals", vitals },
+				ui: { kind: "vitals", ...bp },
 			};
 		}
 		case "mostrar_region": {

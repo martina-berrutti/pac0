@@ -85,7 +85,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] `medir_presion(pasos_cumplidos)`: el valor lo calcula el código (`lib/patient/blood-pressure.ts`)
 - [x] `mostrar_region(region)`: avisa si la región no está disponible
 - [x] `actualizar_estado(delta, motivo)`: guarda `cambio_animo`
-- [ ] Conectar `medir_presion` con el tensiómetro de la Persona 2 (valores marcados por el estudiante)
+- [x] Conectar `medir_presion` con el tensiómetro de la Persona 2 (valores marcados por el estudiante)
 
 ### Seguridad del personaje
 - [x] Tests: no revela el diagnóstico ante "¿qué enfermedad tenés?" ni "ignorá tus instrucciones"
@@ -136,26 +136,27 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 
 ### Evaluador con IA (plan.md, sección 8)
 - [x] Juez por reglas que cita el turno (`lib/scoring/rule-judge.ts`)
-- [ ] Juez con IA por ítem (sí, parcial o no, con cita del turno), salida validada con zod
-- [ ] Verificador de omisiones: buscar X en la transcripción antes de decir "no preguntaste X"
-- [ ] Redactor de feedback: qué pasó, por qué importa (con la fuente) y cómo hacerlo la próxima vez
-- [ ] Evaluación del diagnóstico con IA (variantes aceptables)
+- [x] Juez con IA por ítem (sí, parcial o no, con cita del turno), salida validada con zod (`lib/scoring/ai-judge.ts`)
+- [x] Verificador de omisiones: buscar X en la transcripción antes de decir "no preguntaste X"
+- [x] Redactor de feedback: por qué importa y cómo hacerlo la próxima vez (`lib/scoring/ai-evaluate.ts`; falta citar la fuente)
+- [x] Evaluación del diagnóstico con IA (variantes aceptables)
 
 ### Validación del evaluador
 - [x] 3 estudiantes simulados (bueno, mediocre, malo) ordenados bien (`tests/scoring.test.ts`)
 - [x] Consistencia: 3 corridas iguales con el juez por reglas
-- [ ] Repetir orden y consistencia con el juez con IA (variación menor a 5 puntos)
-- [ ] Cero omisiones inventadas
+- [ ] Repetir orden y consistencia con el juez con IA (variación menor a 5 puntos): `tests/evaluator-live.test.ts`, corre con la clave
+- [ ] Cero omisiones inventadas: en `tests/evaluator-live.test.ts`, corre con la clave
 - [ ] Contraste con 2 estudiantes reales
 
 ### Tensiómetro (P2)
-- [ ] Arrastrar el manguito, Espacio infla, S marca PAS, D marca PAD
-- [ ] Audio de Korotkoff solo entre la PAS y la PAD verdaderas
-- [ ] Usar el valor de `medir_presion` y guardar lo que marcó el estudiante (`VitalsMeasurement.marked`)
-- [ ] Calibrar los ajustes de `lib/patient/blood-pressure.ts` con un docente
+- [x] Arrastrar el manguito, Espacio infla, S marca PAS, D marca PAD (`components/exam/tensiometro-view.tsx`)
+- [x] Ruidos de Korotkoff (sintetizados) solo entre la PAS y la PAD del manómetro
+- [x] Usar el valor de `medir_presion` y guardar lo que marcó el estudiante (`VitalsMeasurement.marked`)
+- [ ] Calibrar los ajustes de `lib/exam/blood-pressure.ts` con un docente
 
 ### Otoscopio (P3)
-- [ ] Traccionar con arrastre, introducir con scroll, vista circular con imágenes licenciadas
+- [x] Traccionar con arrastre, introducir con scroll, vista circular en esquema y técnica del afiche HC-02 (`components/exam/otoscopio-view.tsx`)
+- [ ] Imágenes de oído con licencia (Persona 3) y hallazgos por caso (`lib/exam/otoscope.ts`)
 
 ### Si la Persona 2 se atrasa
 - [ ] Simplificar el informe a puntaje por dimensión y errores principales

@@ -12,7 +12,7 @@ vi.mock("@google/genai", () => ({
 	},
 }));
 
-import { bloodPressureReading } from "@/lib/patient/blood-pressure";
+import { measure } from "@/lib/exam/blood-pressure";
 import { BP_STEPS } from "@/lib/patient/tools";
 import { startSession } from "@/server/consultation";
 import { store } from "@/server/store";
@@ -186,14 +186,15 @@ describe("herramientas del paciente", () => {
 		const run = await runTool(ana, id, "medir_presion", {
 			pasos_cumplidos: [...BP_STEPS],
 		});
-		expect(run.ui.kind === "vitals" && run.ui.vitals.shown).toEqual({
-			pas: 112,
-			pad: 70,
-		});
+		const saved = (await store.listVitals(id))[0];
+		expect(saved?.shown).toEqual({ pas: 112, pad: 70 });
+		// Ni el modelo ni la pantalla reciben el valor: lo mide el estudiante.
 		expect(JSON.stringify(run.output)).not.toContain("112");
-		const bad = bloodPressureReading([112, 70], []);
+		expect(JSON.stringify(run.ui)).not.toContain("112");
+		expect(run.ui.kind === "vitals" && run.ui.measurementId).toBe(saved?.id);
+		const bad = measure([112, 70], [], null, 26);
 		expect(bad.shown.pas).toBeGreaterThan(112);
-		expect(bad.techniqueErrors).toContain("piernas cruzadas");
+		expect(bad.techniqueErrors).toContain("piernas-cruzadas");
 	});
 
 	test("actualizar_estado: queda entre 0 y 1 y se registra el evento", async () => {
