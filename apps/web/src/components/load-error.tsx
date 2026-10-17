@@ -1,17 +1,20 @@
 import Link from "next/link";
 
+import { PacoFace } from "@/frontend/logo";
+import { linkButtonClass, Page, Paper } from "@/frontend/ui";
+
 // Cuando una pantalla no puede cargar sus datos: mensaje y salida, en vez de
 // quedarse cargando para siempre.
 export default function LoadError({ message }: { message: string }) {
 	return (
-		<div className="container mx-auto grid max-w-sm content-center gap-4 px-4 py-8 text-center">
-			<p className="font-medium">{message}</p>
-			<Link
-				href="/casos"
-				className="inline-flex h-11 items-center justify-center bg-primary px-4 font-medium text-primary-foreground"
-			>
-				Volver a los casos
-			</Link>
-		</div>
+		<Page size="sm" className="min-h-[calc(100svh-4rem)] content-center">
+			<Paper className="grid justify-items-center gap-4 p-8 text-center">
+				<PacoFace className="size-14 text-muted-foreground" />
+				<p className="font-display text-xl">{message}</p>
+				<Link href="/casos" className={linkButtonClass("primary")}>
+					Volver a los casos
+				</Link>
+			</Paper>
+		</Page>
 	);
 }

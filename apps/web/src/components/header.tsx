@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { Logo } from "@/frontend/logo";
 import { api, type Me } from "@/lib/api-client";
 
 import { ModeToggle } from "./mode-toggle";
@@ -23,21 +24,31 @@ export default function Header() {
 	}, [pathname]);
 
 	return (
-		<div>
-			<div className="flex flex-row items-center justify-between px-2 py-1">
-				<nav className="flex gap-4 text-lg">
-					<Link href="/">Paciente 0</Link>
-				</nav>
-				<div className="flex items-center gap-2">
+		<header className="sticky top-0 z-30 border-border border-b border-dashed bg-background/90 backdrop-blur-sm">
+			<div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
+				<Link
+					href={me ? "/casos" : "/"}
+					className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+					aria-label="Pac0, inicio"
+				>
+					<Logo tagline />
+				</Link>
+				<div className="flex items-center gap-1 sm:gap-3">
 					{me && (
 						<>
 							{me.alias && (
-								<span className="text-muted-foreground text-sm">
-									{me.alias}
-								</span>
+								<Link
+									href="/perfil"
+									className="hidden text-muted-foreground text-sm hover:text-foreground sm:inline"
+								>
+									<span className="font-hand text-lg">hola,</span>{" "}
+									<span className="font-medium text-foreground">
+										{me.alias}
+									</span>
+								</Link>
 							)}
 							<Button
-								variant="outline"
+								variant="ghost"
 								onClick={async () => {
 									await api.logout();
 									setMe(null);
@@ -51,7 +62,6 @@ export default function Header() {
 					<ModeToggle />
 				</div>
 			</div>
-			<hr />
-		</div>
+		</header>
 	);
 }
