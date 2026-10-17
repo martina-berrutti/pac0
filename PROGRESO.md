@@ -2,6 +2,15 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Límite por IP para invitados y consultas
+
+- **Qué cuida:** sin límite, alguien podía crear invitados sin fin y saltear el tope de 10 consultas por usuario, gastando el tope diario de todos (y los créditos de la voz). Ahora `POST /api/auth/guest` y `POST /api/sessions` pasan por `server/rate-limit.ts`.
+- **Topes:** 50 invitados y 100 consultas por hora desde una misma IP. Son altos porque un salón entero sale por la misma IP de la facultad. Se pueden cambiar con `MAX_GUESTS_PER_IP_PER_HOUR` y `MAX_SESSIONS_PER_IP_PER_HOUR` (hay que declararlas en `apps/web/.env.schema`). Al pasarse, responde 429 con un mensaje en castellano.
+- **Privacidad:** la IP no se guarda; se guarda un hash con `SESSION_SECRET`. Los contadores se borran con los invitados, a las 24 horas.
+- **Convex:** mutación `records.hitRate` (cuenta y decide en una transacción, así dos pedidos a la vez no se pisan). Ya está en producción (`npx convex deploy`). Si la función faltara, deja pasar y siguen los topes por usuario y por día.
+- `/api/health` muestra los topes por IP solo a docentes.
+- Validación: 149 tests en web (4 nuevos) y 20 en backend (1 nuevo); lint y tipos pasan.
+
 ## 17/10 · Persona 1 · Chequeo de la Puerta 2, personaje en los cuatro casos y tests por caso
 
 - **Chequeo de la Puerta 2:** `node apps/web/scripts/probar-consulta.mjs [url]` recorre una consulta completa contra la URL pública (Convex, token de voz, entrevista, examen con permiso, cierre e informe) y verifica puntaje, cuatro dimensiones, veredicto, diagnóstico, que cada ítem cumplido cite un turno o examen real y que otro usuario no vea el informe. En producción: todo en verde, 90%, «Lo hiciste bien». Sirve como chequeo de dos minutos antes de la demo.

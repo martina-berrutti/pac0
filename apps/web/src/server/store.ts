@@ -43,6 +43,8 @@ export interface Store {
 	listRecentSessions(limit: number): Promise<Session[]>;
 	// Sesiones creadas desde `since` por todos, contando hasta `max`.
 	countSessionsSince(since: number, max: number): Promise<number>;
+	// Suma un pedido a la clave en su ventana; false si ya llegó a max.
+	hitRate(key: string, windowMs: number, max: number): Promise<boolean>;
 	addTurn(t: Turn): Promise<void>;
 	listTurns(sessionId: string): Promise<Turn[]>;
 	addEvent(e: SessionEvent): Promise<void>;
@@ -73,6 +75,7 @@ class MemoryStore implements Store {
 	private reports = new Map<string, Report>();
 	private profiles = new Map<string, Profile>();
 	private mistakes = new Map<string, MistakeEntry[]>();
+	private rates = new Map<string, { start: number; count: number }>();
 
 	async getProfile(uid: string) {
 		return this.profiles.get(uid);
@@ -131,6 +134,17 @@ class MemoryStore implements Store {
 		let count = 0;
 		for (const s of this.sessions.values()) if (s.startedAt >= since) count++;
 		return Math.min(count, max);
+	}
+	async hitRate(key: string, windowMs: number, max: number) {
+		const now = Date.now();
+		const r = this.rates.get(key);
+		if (!r || now - r.start >= windowMs) {
+			this.rates.set(key, { start: now, count: 1 });
+			return true;
+		}
+		if (r.count >= max) return false;
+		r.count += 1;
+		return true;
 	}
 	async addTurn(t: Turn) {
 		this.turns.set(t.sessionId, [...(this.turns.get(t.sessionId) ?? []), t]);
@@ -304,6 +318,15 @@ class ConvexStore implements Store {
 		return this.client.query(anyApi.records.countSessionsSince, {
 			secret: this.secret,
 			since,
+			max,
+		});
+	}
+	// Mutación de Convex: cuenta y decide en una transacción.
+	hitRate(key: string, windowMs: number, max: number): Promise<boolean> {
+		return this.client.mutation(anyApi.records.hitRate, {
+			secret: this.secret,
+			key,
+			windowMs,
 			max,
 		});
 	}

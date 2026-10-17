@@ -238,7 +238,7 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 ## Revisión de código (17/10)
 
 - [x] Cambios atómicos de sesión, historia oculta fuera de la vista, topes de gasto y arreglos de voz (ver PROGRESO.md)
-- [ ] Límite por IP para crear invitados y sesiones
+- [x] Límite por IP para crear invitados y sesiones (50 invitados y 100 consultas por hora por IP; se cambian con `MAX_GUESTS_PER_IP_PER_HOUR` y `MAX_SESSIONS_PER_IP_PER_HOUR`, que habría que declarar en `.env.schema`)
 - [ ] Persona 2: en `lib/scoring/ai-judge.ts`, comparar la hipótesis con `truth.acceptable` en código antes de confiar en el sí/no de la IA
 
 ## Fase final · Convex (Persona 1)
