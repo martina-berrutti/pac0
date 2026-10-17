@@ -23,9 +23,10 @@ import {
 } from "@/lib/patient/exam-instruction";
 import { resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
+import { evaluateWithAi } from "@/lib/scoring/ai-evaluate";
 import { evaluate } from "@/lib/scoring/evaluate";
 
-import { aiEnabled, chat } from "./ai";
+import { aiEnabled, chat, completeJson } from "./ai";
 import { HttpError } from "./auth";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
@@ -276,12 +277,12 @@ export function saveExamTimes(
 	});
 }
 
-export function finishSession(
+export async function finishSession(
 	viewer: Viewer,
 	sessionId: string,
 	hypothesis: string,
 	differentials: string[],
-): Report {
+): Promise<Report> {
 	const { session, clinicalCase } = ownSession(viewer, sessionId);
 	const existing = store.getReport(sessionId);
 	if (existing) return existing;
@@ -293,13 +294,17 @@ export function finishSession(
 			differentials: differentials.map((d) => d.slice(0, 100)).slice(0, 10),
 		},
 	});
-	const report = evaluate({
+	const input = {
 		clinicalCase,
 		session: closed,
 		turns: store.listTurns(sessionId),
 		events: store.listEvents(sessionId),
 		examActions: store.listExamActions(session.id),
-	});
+	};
+	// Con clave, evaluador con IA; sin clave o si falla, juez por reglas.
+	const report = aiEnabled()
+		? await evaluateWithAi(input, completeJson)
+		: evaluate(input);
 	store.saveReport(report);
 	return report;
 }
