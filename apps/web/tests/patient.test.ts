@@ -154,3 +154,20 @@ test("pregunta sugestiva: solo ', ¿no?', '¿verdad?' o '¿cierto?' como palabra
 	for (const t of ["¿Todo bueno?", "¿Fumás o no?", "¿Tenés fiebre?", "eso no"])
 		expect(isLeadingQuestion(t), t).toBe(false);
 });
+
+test("'hola, con permiso' es un saludo, no un permiso para examinar", async () => {
+	const { asksConsent } = await import("@/lib/patient/exam-instruction");
+	for (const t of [
+		"Hola, con permiso",
+		"Permiso, ¿se puede?",
+		"¿Puedo preguntarte la edad?",
+	])
+		expect(asksConsent(t), t).toBe(false);
+	for (const t of [
+		"¿Me das permiso para revisarte?",
+		"¿Te puedo revisar la garganta?",
+		"Con tu permiso te reviso",
+		"Te pido permiso para examinarte",
+	])
+		expect(asksConsent(t), t).toBe(true);
+});

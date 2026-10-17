@@ -50,10 +50,27 @@ export function isExamRequest(text: string) {
 	return /(^|[^\p{L}])abr/iu.test(text) || includesAny(text, EXAM_WORDS);
 }
 
-// Permiso para examinar: pedir permiso a secas, o pedirlo junto con el
+// Frases que piden o nombran el permiso. "Permiso" a secas no alcanza: "hola,
+// con permiso" es un saludo al entrar, no un permiso para examinar.
+const ASKS_PERMISSION = [
+	"me das permiso",
+	"me dás permiso",
+	"me da permiso",
+	"me darías permiso",
+	"tengo permiso",
+	"tengo tu permiso",
+	"con tu permiso",
+	"con su permiso",
+	"pido permiso",
+	"pedirte permiso",
+	"pedirle permiso",
+	"permiso para",
+];
+
+// Permiso para examinar: pedirlo explícitamente, o pedirlo junto con el
 // examen. "¿Puedo preguntarte la edad?" no autoriza a abrirle la boca.
 export function asksConsent(text: string) {
-	if (includesAny(text, ["permiso"])) return true;
+	if (includesAny(text, ASKS_PERMISSION)) return true;
 	return includesAny(text, CONSENT_WORDS) && isExamRequest(text);
 }
 
