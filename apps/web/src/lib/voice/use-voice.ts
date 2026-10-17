@@ -490,7 +490,14 @@ export function useVoice({
 		}
 	}, [connect, flushPatient, flushStudent, stop, stopPlayback]);
 	reconnectRef.current = () => {
-		reconnect();
+		// Red de seguridad: si algo inesperado falla al reconectar, se corta con
+		// aviso en vez de quedar "reconectando" para siempre.
+		reconnect().catch(() => {
+			stop("error");
+			callbacks.current.onError(
+				"Se cortó la conexión con el paciente. Tocá de nuevo “hablar por voz” para seguir.",
+			);
+		});
 	};
 
 	const start = useCallback(async () => {

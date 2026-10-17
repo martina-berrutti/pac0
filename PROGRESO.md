@@ -33,6 +33,16 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
   - `scripts/probar-api.mjs`: prueba de punta a punta de las 23 rutas contra un servidor corriendo (sin claves alcanza), incluido que otro usuario reciba 404 en cada ruta de una sesión ajena y que cerrar sesión corte el acceso. 52 de 52. Tests de la reconexión automática de la voz (corte, `goAway`, avisos viejos, tope de 3).
   - Revisión de cada `await` del cliente (voz, pantallas, tensiómetro y otoscopio) por si puede quedar colgado: tope de 15 s para que Google abra la conexión (antes la pantalla podía quedar "conectando" para siempre); `resume()` del audio en el mismo clic y con espera máxima de 1 s (en Safari quedaba pendiente fuera del gesto); un 200 con el cuerpo cortado ahora es un error (antes llegaba `{}` como respuesta y la pantalla se rompía con un turno vacío). Los demás `await` ya tenían tope o esperan una acción del usuario que se puede cancelar. El perfil que inventa la IA en el generador quedó acotado (6 datos cortos).
   - Servidor: los pedidos a Convex (10 s) y la creación del token de Gemini (6 s) tienen tope; antes una caída de Convex o de Google dejaba la ruta esperando hasta que Vercel la cortara. El resto de las llamadas externas ya lo tenían (texto de Gemini 10 s, OpenAI 20 s, OAuth de Google 10 s).
+  - Lista de tipos de bug revisados en todo lo de la Persona 1 (`server/`, `app/api/`, `lib/patient/`, `lib/voice/`, `proxy.ts`, `convex/`):
+    - Acceso: cada ruta de sesión exige ser el dueño (o docente, solo para leer); otro usuario recibe 404 en las 13 rutas (`scripts/probar-api.mjs`). Revisado.
+    - Datos que no tienen que salir del servidor: diagnóstico, historia oculta y lo inventado no llegan al navegador ni al modelo. Revisado, con tests.
+    - Entradas: tamaño del cuerpo, esquemas tolerantes en las herramientas, límites de largo y cantidad, perfil del generador. Revisado.
+    - Esperas sin tope: cada `await` del navegador y cada llamada externa del servidor tiene tope o espera una acción cancelable del usuario. Revisado.
+    - Orden y carreras: fila de escrituras, cancelación por intento, mensajes y conexiones viejas, respuesta de herramientas a su conexión. Revisado, con tests.
+    - Promesas sin manejar: ninguna suelta en el servidor; en el cliente, todas atrapadas (red de seguridad en la reconexión). Revisado.
+    - Estados a medias: cierre de la consulta, tiempo de margen para terminar exámenes, limpieza de Convex con presupuesto. Revisado, con tests.
+    - Respuestas malformadas: un 200 con el cuerpo cortado es error; JSON de la IA entre ``` o inválido cae al plan B. Revisado.
+    - Navegadores: Safari (audio en el gesto), Firefox (frecuencias), socket cerrado. Revisado con el navegador simulado; **falta el micrófono real**.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).
