@@ -9,6 +9,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 import type { ExamResult } from "@/lib/contracts/exam";
 import {
 	MAX_SESSION_MS,
+	type PatientState,
 	type SessionEventType,
 	type Turn,
 	type VoiceUsage,
@@ -195,6 +196,8 @@ export type ToolUi =
 	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
 	| { kind: "end" }
+	// Ánimo nuevo del paciente, para la cara del avatar (Persona 3).
+	| { kind: "state"; state: PatientState }
 	| { kind: "none" };
 
 export type ToolRun = { output: Record<string, unknown>; ui: ToolUi };
@@ -327,7 +330,10 @@ export async function runTool(
 				delta: args.delta,
 				motivo: args.motivo,
 			});
-			return { output: { ok: true, estado: next }, ui: { kind: "none" } };
+			return {
+				output: { ok: true, estado: next },
+				ui: { kind: "state", state: next },
+			};
 		}
 		case "anotar_dato": {
 			const args = toolArgs.anotar_dato.parse(rawArgs);
@@ -355,7 +361,12 @@ export async function recordVoiceTurn(
 	speaker: Turn["speaker"],
 	text: string,
 	overlap: boolean,
-): Promise<{ turn: Turn; stateNote: string | null }> {
+): Promise<{
+	turn: Turn;
+	stateNote: string | null;
+	// Ánimo después del turno, para la cara del avatar.
+	state: PatientState;
+}> {
 	const { session, elapsed } = await activeSession(
 		viewer,
 		sessionId,
@@ -380,7 +391,11 @@ export async function recordVoiceTurn(
 	};
 	await store.addTurn(turn);
 	if (classified) await noteConsent(classified.session, clean, elapsed);
-	return { turn, stateNote: classified?.stateNote ?? null };
+	return {
+		turn,
+		stateNote: classified?.stateNote ?? null,
+		state: (classified?.session ?? session).state,
+	};
 }
 
 export const VOICE_EVENTS = [

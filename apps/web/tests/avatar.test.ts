@@ -1,6 +1,28 @@
 import { describe, expect, test } from "vitest";
 
 import { parseCommand } from "@/lib/avatar/commands";
+import { moodFor } from "@/lib/avatar/mood";
+
+const calm = { confianza: 0.5, ansiedad: 0.3, dolor: 0.5, paciencia: 0.8 };
+
+describe("cara según el estado del paciente", () => {
+	test.each([
+		["tranquila", calm, "neutral"],
+		["sin paciencia", { ...calm, paciencia: 0.2 }, "angry"],
+		["desconfiada", { ...calm, confianza: 0.2 }, "angry"],
+		["ansiosa", { ...calm, ansiedad: 0.7 }, "fear"],
+		["con mucho dolor", { ...calm, dolor: 0.8 }, "sad"],
+		["con confianza", { ...calm, confianza: 0.8 }, "happy"],
+		// El enojo pesa más que la ansiedad.
+		[
+			"ansiosa y sin paciencia",
+			{ ...calm, ansiedad: 0.7, paciencia: 0.1 },
+			"angry",
+		],
+	] as const)("%s", (_name, state, mood) => {
+		expect(moodFor(state)).toBe(mood);
+	});
+});
 
 describe("órdenes al avatar", () => {
 	test.each([
