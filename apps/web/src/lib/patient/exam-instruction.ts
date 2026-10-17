@@ -60,12 +60,24 @@ export function interpretExamInstruction(
 	consentGiven: boolean,
 ): { clarity: InstructionClarity; variant: ExamVariant; consent: boolean } {
 	const consent = consentGiven || asksConsent(text);
-	const full = includesAny(text, FULL_OPEN_WORDS);
-	const clarity: InstructionClarity = full ? "alta" : "media";
-	// Cooperación baja: no abre hasta que le expliquen y pidan permiso
-	// (plan.md, sección 6, nivel 3).
-	if (personality.cooperacion < 0.5 && !consent) {
-		return { clarity, variant: "negado", consent };
-	}
-	return { clarity, variant: full ? "completa" : "parcial", consent };
+	const clarity: InstructionClarity = includesAny(text, FULL_OPEN_WORDS)
+		? "alta"
+		: "media";
+	return {
+		clarity,
+		variant: decideExam(clarity, personality, consent),
+		consent,
+	};
+}
+
+// Qué variante se ve según la claridad de la instrucción (plan.md, sección 6:
+// "abrí la boca en tres niveles"). La usan el texto y la herramienta examinar.
+export function decideExam(
+	clarity: InstructionClarity,
+	personality: Personality,
+	consent: boolean,
+): ExamVariant {
+	// Cooperación baja: no abre hasta que le expliquen y pidan permiso.
+	if (personality.cooperacion < 0.5 && !consent) return "negado";
+	return clarity === "alta" ? "completa" : "parcial";
 }

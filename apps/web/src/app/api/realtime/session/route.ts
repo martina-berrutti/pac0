@@ -1,15 +1,16 @@
-import { HttpError, requireViewer } from "@/server/auth";
-import { handle } from "@/server/http";
+import { z } from "zod";
 
-// TODO (Persona 1, TODO.md 1.4): pedir una clave efímera a OpenAI Realtime con
-// las instrucciones de buildPatientPrompt (sin el diagnóstico) y las
-// herramientas del paciente. La clave real nunca sale del servidor.
-export async function POST() {
+import { requireViewer } from "@/server/auth";
+import { handle, readBody } from "@/server/http";
+import { createRealtimeSession } from "@/server/voice";
+
+const bodySchema = z.object({ sessionId: z.string() });
+
+// Clave efímera para la voz. La clave real nunca sale del servidor.
+export async function POST(req: Request) {
 	return handle(async () => {
-		await requireViewer();
-		throw new HttpError(
-			501,
-			"La consulta por voz todavía no está implementada; usá la versión por texto.",
-		);
+		const viewer = await requireViewer();
+		const { sessionId } = await readBody(req, bodySchema);
+		return createRealtimeSession(viewer, sessionId);
 	});
 }

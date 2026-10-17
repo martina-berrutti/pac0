@@ -17,6 +17,19 @@ export type ExamAction = {
 	endMs: number | null;
 };
 
+// Medición de presión (plan.md, sección 6). El valor mostrado lo calcula el
+// código: verdadero del caso más los ajustes por errores de técnica.
+export type VitalsMeasurement = {
+	id: string;
+	sessionId: string;
+	stepsCompleted: string[];
+	techniqueErrors: string[];
+	shown: { pas: number; pad: number };
+	// Lo que marca el estudiante en el tensiómetro (Persona 2).
+	marked: { pas: number; pad: number } | null;
+	atMs: number;
+};
+
 // Lo que el servidor devuelve al pedir un examen. Nunca incluye el hallazgo
 // esperado: solo qué se ve.
 export type ExamResult = {

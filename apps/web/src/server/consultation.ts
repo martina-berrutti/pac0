@@ -2,8 +2,13 @@
 // Toda función recibe al usuario y verifica que la sesión sea suya.
 import "server-only";
 
-import { type CaseSummary, toSummary } from "@/cases/schema";
-import type { ExamAction, ExamResult } from "@/lib/contracts/exam";
+import { type CaseSummary, type ClinicalCase, toSummary } from "@/cases/schema";
+import type {
+	ExamAction,
+	ExamResult,
+	ExamVariant,
+	InstructionClarity,
+} from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import {
 	MAX_SESSION_MS,
@@ -39,7 +44,7 @@ export type SessionView = {
 	hasReport: boolean;
 };
 
-function ownSession(viewer: Viewer, sessionId: string) {
+export function ownSession(viewer: Viewer, sessionId: string) {
 	const session = store.getSession(sessionId);
 	// Mismo error si no existe o es de otro: no se revela cuál.
 	if (!session || session.userId !== viewer.uid)
@@ -98,7 +103,7 @@ export function getSessionView(viewer: Viewer, sessionId: string): SessionView {
 	};
 }
 
-function brief(session: Session): PatientBrief {
+export function brief(session: Session): PatientBrief {
 	const clinicalCase = store.getCase(session.caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
 	const { style } = resolvePersonality(
@@ -141,6 +146,74 @@ async function patientReply(
 	}
 }
 
+// Exige una sesión activa y dentro del tope de 8 minutos (más un margen para
+// que lleguen las últimas transcripciones de la voz).
+export function activeSession(viewer: Viewer, sessionId: string, graceMs = 0) {
+	const owned = ownSession(viewer, sessionId);
+	if (owned.session.status !== "activa")
+		throw new HttpError(409, "La consulta ya terminó");
+	const elapsed = Date.now() - owned.session.startedAt;
+	if (elapsed > MAX_SESSION_MS + graceMs)
+		throw new HttpError(409, "Se terminaron los 8 minutos de la consulta");
+	return { ...owned, elapsed };
+}
+
+// Si el estudiante explica o pide permiso, queda registrado el consentimiento.
+export function noteConsent(session: Session, text: string, atMs: number) {
+	if (session.consentGiven || !asksConsent(text)) return session;
+	store.addEvent({
+		id: newId("evt"),
+		sessionId: session.id,
+		type: "consentimiento",
+		atMs,
+	});
+	return store.updateSession(session.id, { consentGiven: true });
+}
+
+export function defaultZone(clinicalCase: ClinicalCase) {
+	return clinicalCase.exam.orofaringe
+		? "orofaringe"
+		: Object.keys(clinicalCase.exam)[0];
+}
+
+// Registra una acción de examen. El caso decide qué se ve: el cliente nunca
+// manda la variante ni el hallazgo.
+export function recordExam(
+	clinicalCase: ClinicalCase,
+	sessionId: string,
+	zone: string,
+	decision: { clarity: InstructionClarity; variant: ExamVariant },
+	atMs: number,
+): ExamResult {
+	const action: ExamAction = {
+		id: newId("exam"),
+		sessionId,
+		zone,
+		maneuver: "inspeccion",
+		clarity: decision.clarity,
+		variant: decision.variant,
+		hotspotTimesMs: {},
+		startMs: atMs,
+		endMs: null,
+	};
+	store.addExamAction(action);
+	const zoneData = clinicalCase.exam[zone];
+	return {
+		action,
+		assetKey:
+			decision.variant === "negado" || !zoneData
+				? null
+				: zoneData.variants[decision.variant],
+		hotspots: zoneData?.hotspots ?? [],
+		patientReaction:
+			decision.variant === "negado"
+				? "No, pará. No quiero abrir la boca. ¿Para qué es eso?"
+				: decision.variant === "parcial"
+					? "(abre un poco la boca)"
+					: "Aaaaaa...",
+	};
+}
+
 export type TurnResult = {
 	studentTurn: Turn;
 	patientTurn: Turn;
@@ -152,12 +225,7 @@ export async function sendTurn(
 	sessionId: string,
 	text: string,
 ): Promise<TurnResult> {
-	const { session, clinicalCase } = ownSession(viewer, sessionId);
-	if (session.status !== "activa")
-		throw new HttpError(409, "La consulta ya terminó");
-	const elapsed = Date.now() - session.startedAt;
-	if (elapsed > MAX_SESSION_MS)
-		throw new HttpError(409, "Se terminaron los 8 minutos de la consulta");
+	const { session, clinicalCase, elapsed } = activeSession(viewer, sessionId);
 	const clean = text.trim().slice(0, 1000);
 	if (!clean) throw new HttpError(400, "Escribí algo");
 
@@ -172,56 +240,19 @@ export async function sendTurn(
 	};
 	store.addTurn(studentTurn);
 
-	let current = session;
-	if (!current.consentGiven && asksConsent(clean)) {
-		current = store.updateSession(sessionId, { consentGiven: true });
-		store.addEvent({
-			id: newId("evt"),
-			sessionId,
-			type: "consentimiento",
-			atMs: elapsed,
-		});
-	}
+	const current = noteConsent(session, clean, elapsed);
 
 	let reply: string;
 	let exam: ExamResult | null = null;
-	const zone = clinicalCase.exam.orofaringe
-		? "orofaringe"
-		: Object.keys(clinicalCase.exam)[0];
+	const zone = defaultZone(clinicalCase);
 	if (zone && isExamRequest(clean)) {
 		const decision = interpretExamInstruction(
 			clean,
 			current.personality,
 			current.consentGiven,
 		);
-		const action: ExamAction = {
-			id: newId("exam"),
-			sessionId,
-			zone,
-			maneuver: "inspeccion",
-			clarity: decision.clarity,
-			variant: decision.variant,
-			hotspotTimesMs: {},
-			startMs: elapsed,
-			endMs: null,
-		};
-		store.addExamAction(action);
-		const zoneData = clinicalCase.exam[zone];
-		reply =
-			decision.variant === "negado"
-				? "No, pará. No quiero abrir la boca. ¿Para qué es eso?"
-				: decision.variant === "parcial"
-					? "(abre un poco la boca)"
-					: "Aaaaaa...";
-		exam = {
-			action,
-			assetKey:
-				decision.variant === "negado" || !zoneData
-					? null
-					: zoneData.variants[decision.variant],
-			hotspots: zoneData?.hotspots ?? [],
-			patientReaction: reply,
-		};
+		exam = recordExam(clinicalCase, sessionId, zone, decision, elapsed);
+		reply = exam.patientReaction;
 	} else {
 		const r = await patientReply(current, clean);
 		reply = r.text;

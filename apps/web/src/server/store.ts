@@ -6,7 +6,7 @@ import "server-only";
 
 import { caseBank } from "@/cases";
 import type { ClinicalCase } from "@/cases/schema";
-import type { ExamAction } from "@/lib/contracts/exam";
+import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { Report } from "@/lib/contracts/report";
 import type { Session, SessionEvent, Turn } from "@/lib/contracts/session";
 
@@ -29,6 +29,8 @@ export interface Store {
 		patch: Partial<ExamAction>,
 	): ExamAction | undefined;
 	listExamActions(sessionId: string): ExamAction[];
+	addVitals(v: VitalsMeasurement): void;
+	listVitals(sessionId: string): VitalsMeasurement[];
 	saveReport(r: Report): void;
 	getReport(sessionId: string): Report | undefined;
 }
@@ -39,6 +41,7 @@ class MemoryStore implements Store {
 	private turns = new Map<string, Turn[]>();
 	private events = new Map<string, SessionEvent[]>();
 	private exams = new Map<string, ExamAction[]>();
+	private vitals = new Map<string, VitalsMeasurement[]>();
 	private reports = new Map<string, Report>();
 
 	listCases(ownerId: string) {
@@ -82,6 +85,12 @@ class MemoryStore implements Store {
 	}
 	listEvents(sessionId: string) {
 		return this.events.get(sessionId) ?? [];
+	}
+	addVitals(v: VitalsMeasurement) {
+		this.vitals.set(v.sessionId, [...(this.vitals.get(v.sessionId) ?? []), v]);
+	}
+	listVitals(sessionId: string) {
+		return this.vitals.get(sessionId) ?? [];
 	}
 	addExamAction(a: ExamAction) {
 		this.exams.set(a.sessionId, [...(this.exams.get(a.sessionId) ?? []), a]);

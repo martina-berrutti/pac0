@@ -52,6 +52,7 @@ export type SessionEvent = {
 	sessionId: string;
 	type: SessionEventType;
 	atMs: number;
+	durationMs?: number;
 	delta?: Partial<PatientState>;
 	motivo?: string;
 };

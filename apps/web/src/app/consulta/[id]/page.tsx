@@ -1,7 +1,7 @@
 "use client";
 
-// Consulta por texto (respaldo de la voz). Versión mínima de la Persona 1;
-// la Persona 3 la diseña y la Persona 1 le suma la voz.
+// Consulta por voz, con texto de respaldo. Versión mínima de la Persona 1;
+// la Persona 3 la diseña.
 import { Button } from "@pac0/ui/components/button";
 import { Input } from "@pac0/ui/components/input";
 import { Textarea } from "@pac0/ui/components/textarea";
@@ -12,8 +12,11 @@ import { toast } from "sonner";
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
-import type { ExamResult } from "@/lib/contracts/exam";
+import type { ExamResult, VitalsMeasurement } from "@/lib/contracts/exam";
+import type { Turn } from "@/lib/contracts/session";
+import { useVoice } from "@/lib/voice/use-voice";
 import type { SessionView } from "@/server/consultation";
+import type { ToolUi } from "@/server/voice";
 
 export default function ConsultationPage() {
 	const { id } = useParams<{ id: string }>();
@@ -25,7 +28,30 @@ export default function ConsultationPage() {
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
+	const [vitals, setVitals] = useState<VitalsMeasurement | null>(null);
 	const bottom = useRef<HTMLDivElement>(null);
+
+	const voice = useVoice({
+		sessionId: id,
+		onTurn: (turn: Turn) =>
+			setView((v) => (v ? { ...v, turns: [...v.turns, turn] } : v)),
+		onTool: (ui: ToolUi) => {
+			if (ui.kind === "exam") setExam(ui.exam);
+			if (ui.kind === "vitals") setVitals(ui.vitals);
+			if (ui.kind === "region" && !ui.available)
+				toast.info(`"${ui.region}" todavía no está disponible.`);
+			if (ui.kind === "end") {
+				voice.stop();
+				setClosing(true);
+			}
+		},
+		onEnd: () => {
+			toast.info("Se terminaron los 8 minutos de la consulta.");
+			setClosing(true);
+		},
+		onError: (message) => toast.error(message),
+	});
+	const voiceLive = voice.status === "live" || voice.status === "connecting";
 
 	useEffect(() => {
 		api
@@ -103,10 +129,55 @@ export default function ConsultationPage() {
 					{view.case.patient.name}, {view.case.patient.age} años
 				</h1>
 				<p className="text-muted-foreground text-sm">
-					{view.case.title} · quedan {Math.ceil(view.remainingMs / 60000)} min ·
+					{view.case.title} · quedan{" "}
+					{Math.ceil((voice.remainingMs ?? view.remainingMs) / 60000)} min ·
 					herramienta educativa, caso ficticio
 				</p>
 			</div>
+
+			{!closing && (
+				<section className="grid gap-2 border p-3">
+					{voiceLive ? (
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<p className="text-sm" aria-live="polite">
+								{voice.status === "connecting"
+									? "Conectando con el paciente…"
+									: voice.patientSpeaking
+										? `${view.case.patient.name} está hablando…`
+										: voice.studentSpeaking
+											? "Te escucha…"
+											: "En línea. Hablá cuando quieras."}
+							</p>
+							<Button variant="outline" onClick={() => voice.stop()}>
+								Cortar la voz
+							</Button>
+						</div>
+					) : (
+						<>
+							<p className="text-muted-foreground text-xs">
+								Se guarda la transcripción, no el audio. No digas datos
+								personales reales.
+							</p>
+							<Button onClick={() => voice.start()}>
+								Acepto: hablar por voz
+							</Button>
+						</>
+					)}
+				</section>
+			)}
+
+			{vitals && (
+				<section className="border p-3 text-sm">
+					<p className="font-medium">
+						Presión medida: {vitals.shown.pas}/{vitals.shown.pad} mmHg
+					</p>
+					{vitals.techniqueErrors.length > 0 && (
+						<p className="text-muted-foreground">
+							Errores de técnica: {vitals.techniqueErrors.join(", ")}.
+						</p>
+					)}
+				</section>
+			)}
 
 			{exam ? (
 				<OrofaringeView exam={exam} onClose={closeExam} />
@@ -137,7 +208,7 @@ export default function ConsultationPage() {
 						))}
 						<div ref={bottom} />
 					</ol>
-					<form onSubmit={send} className="flex gap-2">
+					<form onSubmit={send} className={voiceLive ? "hidden" : "flex gap-2"}>
 						<Input
 							value={text}
 							onChange={(e) => setText(e.target.value)}
@@ -177,7 +248,13 @@ export default function ConsultationPage() {
 						</Button>
 					</form>
 				) : (
-					<Button variant="outline" onClick={() => setClosing(true)}>
+					<Button
+						variant="outline"
+						onClick={() => {
+							voice.stop();
+							setClosing(true);
+						}}
+					>
 						Terminar la consulta
 					</Button>
 				))}
