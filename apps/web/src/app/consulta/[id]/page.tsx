@@ -199,8 +199,12 @@ export default function ConsultationPage() {
 				</h1>
 				<p className="text-muted-foreground text-sm">
 					{view.case.title} · quedan{" "}
-					{Math.ceil((voice.remainingMs ?? localRemainingMs) / 60000)} min ·
-					herramienta educativa, caso ficticio
+					{/* El reloj de la voz queda congelado al cortarse: solo vale en vivo. */}
+					{Math.ceil(
+						((voiceLive ? voice.remainingMs : null) ?? localRemainingMs) /
+							60000,
+					)}{" "}
+					min · herramienta educativa, caso ficticio
 				</p>
 			</div>
 
