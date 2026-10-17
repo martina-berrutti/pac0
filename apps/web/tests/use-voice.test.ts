@@ -327,4 +327,85 @@ describe("cliente de voz", () => {
 		expect(events.errors[0]).toContain("no respondió");
 		expect(events.turns).toEqual(["estudiante:segunda"]);
 	});
+
+	test("si se corta solo, reconecta y guarda lo pendiente antes de pedir el token", async () => {
+		const { voice, events } = mount();
+		await voice.start();
+		const first = live.callbacks;
+		first?.onmessage(msg({ inputTranscription: { text: "Y la fiebre" } }));
+		calls = [];
+		first?.onclose();
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		// Lo dicho se guardó antes del token nuevo, así el paciente lo recibe.
+		expect(calls.map((c) => c.path)).toEqual([
+			"/voice-turns",
+			"/api/voice/session",
+		]);
+		expect(events.turns).toEqual(["estudiante:Y la fiebre"]);
+		expect(live.closed).toBe(1);
+	});
+
+	test("goAway de Google reconecta antes del corte", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.callbacks?.onmessage({ goAway: { timeLeft: "5s" } });
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+	});
+
+	test("los avisos de la conexión vieja no hacen nada después de reconectar", async () => {
+		const { voice } = mount();
+		await voice.start();
+		const first = live.callbacks;
+		first?.onclose();
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		calls = [];
+		first?.onmessage({
+			toolCall: {
+				functionCalls: [{ id: "viejo", name: "examinar", args: {} }],
+			},
+		});
+		first?.onclose();
+		await voice.drain();
+		expect(paths()).toEqual([]);
+		expect(live.connects).toBe(2);
+	});
+
+	test("la respuesta de una herramienta no va a la conexión nueva", async () => {
+		const { voice } = mount();
+		await voice.start();
+		delays["/tools:examinar"] = 30;
+		const first = live.callbacks;
+		first?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		// Se corta mientras la herramienta está en camino. La reconexión guarda
+		// lo pendiente en la fila, detrás de la herramienta, así que la respuesta
+		// se resuelve antes de que exista la conexión nueva (y además runTools
+		// solo responde a la conexión que la pidió).
+		first?.onclose();
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		await voice.drain();
+		await new Promise((r) => setTimeout(r, 50));
+		expect(live.sent).not.toContain("toolResponse");
+	});
+
+	test("después de 3 reconexiones avisa y corta", async () => {
+		const { voice, events } = mount();
+		await voice.start();
+		for (let i = 2; i <= 4; i++) {
+			live.callbacks?.onclose();
+			await vi.waitFor(() => expect(live.connects).toBe(i));
+		}
+		live.callbacks?.onclose();
+		await vi.waitFor(() => expect(events.errors.at(-1)).toContain("Se cortó"));
+		expect(live.connects).toBe(4);
+	});
 });
