@@ -177,6 +177,7 @@ export default defineSchema({
 			v.literal("report"),
 			v.literal("user"),
 			v.literal("mistakes"),
+			v.literal("rate"),
 		),
 		appId: v.string(),
 		sessionId: v.optional(v.string()),

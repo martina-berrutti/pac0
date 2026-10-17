@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireProfile, requireViewer } from "@/server/auth";
 import { startSession } from "@/server/consultation";
 import { handle, readBody } from "@/server/http";
+import { limitByIp } from "@/server/rate-limit";
 import { store } from "@/server/store";
 
 const bodySchema = z.object({
@@ -14,6 +15,7 @@ export async function POST(req: Request) {
 	return handle(async () => {
 		const viewer = await requireProfile();
 		const body = await readBody(req, bodySchema);
+		await limitByIp("sessions");
 		return {
 			sessionId: await startSession(viewer, body.caseId, body.personalityKey),
 		};

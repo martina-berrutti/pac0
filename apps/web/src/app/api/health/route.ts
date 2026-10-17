@@ -1,5 +1,6 @@
 import { getViewer, roleOf } from "@/server/auth";
 import { sessionLimits } from "@/server/consultation";
+import { ipLimits } from "@/server/rate-limit";
 import { storeKind } from "@/server/store";
 
 // Diagnóstico sin secretos (nunca valores, solo si existen). Lo público es lo
@@ -22,7 +23,7 @@ export async function GET() {
 		convexUrl: Boolean(process.env.CONVEX_URL),
 		storeSecret: Boolean(process.env.STORE_SECRET),
 		docentes: Boolean(process.env.DOCENTES),
-		topes: sessionLimits(),
+		topes: { ...sessionLimits(), porIpPorHora: ipLimits() },
 		entorno: process.env.VERCEL_ENV ?? "local",
 	});
 }
