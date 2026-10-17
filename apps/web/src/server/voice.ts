@@ -39,6 +39,9 @@ export const MAX_VOICE_STARTS = 6;
 
 // Margen para que lleguen las últimas transcripciones después de los 8 min.
 const VOICE_GRACE_MS = 30_000;
+// Tope para que Google cree el token efímero (se prueban dos versiones, y el
+// navegador corta a los 15 s).
+const TOKEN_TIMEOUT_MS = 6_000;
 // Turnos anteriores que recibe el paciente al reconectar.
 const RESUME_TURNS = 40;
 
@@ -169,7 +172,11 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 	// La documentación web dice v1beta y el SDK dice v1alpha: se prueban las dos.
 	for (const apiVersion of ["v1beta", "v1alpha"] as const) {
 		try {
-			const ai = new GoogleGenAI({ apiKey, httpOptions: { apiVersion } });
+			// Con tope: si Google no responde, se prueba la otra versión o se avisa.
+			const ai = new GoogleGenAI({
+				apiKey,
+				httpOptions: { apiVersion, timeout: TOKEN_TIMEOUT_MS },
+			});
 			const token = await ai.authTokens.create({
 				config: {
 					uses: 1,

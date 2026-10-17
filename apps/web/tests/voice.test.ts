@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 // SDK de Google simulado: registra la clave usada y los tokens pedidos.
-const genai = vi.hoisted(() => ({ create: vi.fn(), keys: [] as string[] }));
+const genai = vi.hoisted(() => ({
+	create: vi.fn(),
+	keys: [] as string[],
+	timeouts: [] as (number | undefined)[],
+}));
 vi.mock("@google/genai", () => ({
 	Modality: { AUDIO: "AUDIO" },
 	GoogleGenAI: class {
 		authTokens = { create: genai.create };
-		constructor(opts: { apiKey: string }) {
+		constructor(opts: { apiKey: string; httpOptions?: { timeout?: number } }) {
 			genai.keys.push(opts.apiKey);
+			genai.timeouts.push(opts.httpOptions?.timeout);
 		}
 	},
 }));
@@ -44,6 +49,7 @@ const beto: Viewer = {
 beforeEach(() => {
 	genai.create.mockReset();
 	genai.keys.length = 0;
+	genai.timeouts.length = 0;
 	// Acá Ana empieza muchas consultas: el tope diario se prueba en persona1.test.ts.
 	vi.stubEnv("MAX_SESSIONS_PER_USER_PER_DAY", "1000");
 });
@@ -658,4 +664,13 @@ test("el perfil que inventa la IA queda acotado", async () => {
 			profile: { vive: "a".repeat(500) },
 		}),
 	).toThrow();
+});
+
+test("el token de Gemini se pide con tope", async () => {
+	vi.stubEnv("GEMINI_API_KEY", "AIza-test-servidor");
+	genai.create.mockResolvedValueOnce({ name: "auth_tokens/t" });
+	const id = await startSession(ana, lucia.id, "caso");
+	await createLiveSession(ana, id);
+	expect(genai.timeouts[0]).toBeGreaterThan(0);
+	expect(genai.timeouts[0]).toBeLessThan(15_000);
 });

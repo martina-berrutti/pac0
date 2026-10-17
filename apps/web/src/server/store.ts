@@ -181,6 +181,9 @@ type Kind =
 	| "vitals"
 	| "report";
 
+// Tope de cada pedido a Convex.
+const STORE_TIMEOUT_MS = 10_000;
+
 // Convex: cada objeto se guarda entero en la tabla records (packages/backend/convex/records.ts).
 class ConvexStore implements Store {
 	private client: ConvexHttpClient;
@@ -188,7 +191,20 @@ class ConvexStore implements Store {
 		url: string,
 		private secret: string,
 	) {
-		this.client = new ConvexHttpClient(url);
+		// Con tope por pedido: si Convex no responde, la ruta contesta con error
+		// en vez de quedar esperando hasta que Vercel la corte.
+		this.client = new ConvexHttpClient(url, {
+			fetch: (input, init) =>
+				fetch(input, {
+					...init,
+					signal: init?.signal
+						? AbortSignal.any([
+								init.signal,
+								AbortSignal.timeout(STORE_TIMEOUT_MS),
+							])
+						: AbortSignal.timeout(STORE_TIMEOUT_MS),
+				}),
+		});
 	}
 	private put(
 		kind: Kind,
