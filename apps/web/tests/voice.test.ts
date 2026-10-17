@@ -637,3 +637,25 @@ test("un docente ve la consulta de otro en solo lectura", async () => {
 		"Sesión no encontrada",
 	);
 });
+
+test("el perfil que inventa la IA queda acotado", async () => {
+	const { personaSchema } = await import("@/lib/patient/generator");
+	const profile = Object.fromEntries(
+		Array.from({ length: 20 }, (_, i) => [`dato${i}`, "x"]),
+	);
+	const ok = personaSchema.parse({
+		name: "Ana",
+		occupation: "docente",
+		chiefComplaint: "Me duele la garganta",
+		profile,
+	});
+	expect(Object.keys(ok.profile)).toHaveLength(6);
+	expect(() =>
+		personaSchema.parse({
+			name: "Ana",
+			occupation: "docente",
+			chiefComplaint: "Me duele la garganta",
+			profile: { vive: "a".repeat(500) },
+		}),
+	).toThrow();
+});

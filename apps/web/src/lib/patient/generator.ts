@@ -128,11 +128,16 @@ function parseSex(text: string, rand: () => number): "f" | "m" {
 	return rand() < 0.5 ? "f" : "m";
 }
 
-const personaSchema = z.object({
+export const personaSchema = z.object({
 	name: z.string().min(2).max(30),
 	occupation: z.string().min(2).max(40),
 	chiefComplaint: z.string().min(5).max(120),
-	profile: z.record(z.string(), z.string()),
+	// Va a las instrucciones del paciente: pocos datos y cortos, para que una
+	// respuesta rara de la IA no infle el prompt ni le meta instrucciones.
+	// La historia clínica de la plantilla igual gana (brief.ts la mezcla después).
+	profile: z
+		.record(z.string().max(30), z.string().max(120))
+		.transform((p) => Object.fromEntries(Object.entries(p).slice(0, 6))),
 });
 
 // Sin IA (o si falla): persona al azar, con datos inventados.
