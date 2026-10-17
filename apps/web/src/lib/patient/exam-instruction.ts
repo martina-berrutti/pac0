@@ -31,11 +31,16 @@ const CONSENT_WORDS = [
 	"permiso",
 	"puedo",
 	"te parece",
-	"¿me dejás",
+	"me dejás",
 	"me dejas",
 	"te voy a",
 	"vamos a",
 	"si querés",
+	"si queres",
+	"querés que",
+	"queres que",
+	"estás de acuerdo",
+	"estas de acuerdo",
 	"está bien si",
 	"te molesta si",
 ];
@@ -47,7 +52,11 @@ function includesAny(text: string, words: string[]) {
 
 export function isExamRequest(text: string) {
 	// "abr" solo al empezar una palabra: "palabra" o "cabra" no son examen.
-	return /(^|[^\p{L}])abr/iu.test(text) || includesAny(text, EXAM_WORDS);
+	// "Abrí", "abrís", "abra", "abrime", "abrir"; no "abriste" ni "abril".
+	return (
+		/(^|[^\p{L}])abr(í|i|ís|is|a|ime|ila|ir)(?!\p{L})/iu.test(text) ||
+		includesAny(text, EXAM_WORDS)
+	);
 }
 
 // Frases que piden o nombran el permiso. "Permiso" a secas no alcanza: "hola,

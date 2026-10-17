@@ -36,6 +36,8 @@ const OPEN_STARTS = [
 	"como empezo",
 	"que sentis",
 	"que te preocupa",
+	"que te preocupe",
+	"hay algo mas",
 	"en que te puedo",
 	"que mas",
 ];

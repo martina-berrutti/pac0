@@ -171,3 +171,24 @@ test("'hola, con permiso' es un saludo, no un permiso para examinar", async () =
 	])
 		expect(asksConsent(t), t).toBe(true);
 });
+
+test("frases de entrevista: pedido de examen, permiso y pregunta abierta", async () => {
+	const { asksConsent, isExamRequest } = await import(
+		"@/lib/patient/exam-instruction"
+	);
+	const { classifyStudentTurn } = await import("@/lib/patient/turn-classifier");
+	expect(asksConsent("¿Querés que te revise?")).toBe(true);
+	expect(asksConsent("Me dejás revisarte la garganta")).toBe(true);
+	expect(isExamRequest("¿Abriste la ventana?")).toBe(false);
+	expect(isExamRequest("En abril empezó")).toBe(false);
+	for (const t of [
+		"Abrí la boca",
+		"¿Me abrís la boca?",
+		"Abra grande",
+		"Abrime la boca",
+	])
+		expect(isExamRequest(t), t).toBe(true);
+	expect(
+		classifyStudentTurn("¿Hay algo más que te preocupe?", []).tags,
+	).toContain("pregunta_abierta");
+});
