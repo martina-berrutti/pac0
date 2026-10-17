@@ -1,4 +1,4 @@
-import { LogoMark } from "@/frontend/logo";
+import { PacoFace } from "@/frontend/logo";
 
 export default function Loader() {
 	return (
@@ -7,7 +7,7 @@ export default function Loader() {
 			role="status"
 			aria-label="Cargando"
 		>
-			<LogoMark className="size-12 animate-float" />
+			<PacoFace className="size-12 animate-pulse" />
 		</div>
 	);
 }

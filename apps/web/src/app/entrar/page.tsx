@@ -1,13 +1,12 @@
 "use client";
 
 import { Button } from "@pac0/ui/components/button";
-import { ShieldCheck, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { LogoMark } from "@/frontend/logo";
-import { Page, Surface } from "@/frontend/ui";
+import { PacoFace } from "@/frontend/logo";
+import { Page, Paper } from "@/frontend/ui";
 import { api } from "@/lib/api-client";
 
 // Mensajes de /api/auth/google cuando el login no sale.
@@ -46,24 +45,21 @@ export default function SignInPage() {
 
 	return (
 		<Page size="sm" className="min-h-[calc(100svh-4rem)] content-center">
-			<Surface className="grid animate-rise gap-6 p-7 sm:p-9">
-				<div className="grid justify-items-center gap-4 text-center">
-					<LogoMark className="size-16 animate-float" />
-					<div className="grid gap-1.5">
-						<h1 className="font-bold text-3xl">¡Hola! Soy Paco</h1>
-						<p className="text-muted-foreground">
-							Entrá y elegí a tu primer paciente. Tarda menos de 10 segundos.
-						</p>
-					</div>
+			<Paper tape="sage" tilt={-1} className="grid gap-7 px-7 pt-10 pb-8">
+				<div className="grid justify-items-center gap-3 text-center">
+					<PacoFace className="size-16" strokeWidth={2.8} />
+					<h1 className="font-display text-3xl">Hola, soy Paco</h1>
+					<p className="text-muted-foreground">
+						Entrá y elegí a tu primer paciente. Es un minuto.
+					</p>
 				</div>
 				<div className="grid gap-3">
 					<Button
 						size="lg"
-						className="h-12 text-base"
+						className="h-12 border-black/25 border-b-[3px] text-base"
 						disabled={pending !== null}
 						onClick={enterAsGuest}
 					>
-						<UserRound aria-hidden="true" />
 						{pending === "invitado" ? "Entrando…" : "Entrar como invitado"}
 					</Button>
 					<Button
@@ -76,15 +72,12 @@ export default function SignInPage() {
 						{pending === "google" ? "Abriendo Google…" : "Entrar con Google"}
 					</Button>
 				</div>
-				<p className="flex gap-2.5 rounded-2xl bg-secondary/60 p-3.5 text-secondary-foreground text-sm">
-					<ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-					<span>
-						Solo guardamos un alias y tu año de carrera. De tu cuenta de Google
-						no guardamos ni el nombre ni el correo. Lo que hace un invitado se
-						borra a las 24 horas.
-					</span>
+				<p className="border-border border-t border-dashed pt-5 text-muted-foreground text-sm leading-relaxed">
+					Solo guardamos un alias y tu año de carrera. De tu cuenta de Google no
+					guardamos ni el nombre ni el correo. Lo que hace un invitado se borra
+					a las 24 horas.
 				</p>
-			</Surface>
+			</Paper>
 		</Page>
 	);
 }

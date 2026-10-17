@@ -1,6 +1,5 @@
 "use client";
 import { Button } from "@pac0/ui/components/button";
-import { LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -25,27 +24,27 @@ export default function Header() {
 	}, [pathname]);
 
 	return (
-		<header className="sticky top-0 z-30 border-border/60 border-b bg-background/75 backdrop-blur-md">
+		<header className="sticky top-0 z-30 border-border border-b border-dashed bg-background/90 backdrop-blur-sm">
 			<div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4">
 				<Link
 					href={me ? "/casos" : "/"}
-					className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+					className="rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
 					aria-label="Pac0, inicio"
 				>
 					<Logo tagline />
 				</Link>
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-1 sm:gap-3">
 					{me && (
 						<>
 							{me.alias && (
 								<Link
 									href="/perfil"
-									className="hidden items-center gap-2 rounded-full bg-secondary py-1 pr-3 pl-1 font-medium text-secondary-foreground text-sm sm:inline-flex"
+									className="hidden text-muted-foreground text-sm hover:text-foreground sm:inline"
 								>
-									<span className="grid size-7 place-items-center rounded-full bg-primary font-bold text-primary-foreground text-xs">
-										{me.alias.charAt(0).toUpperCase()}
+									<span className="font-hand text-lg">hola,</span>{" "}
+									<span className="font-medium text-foreground">
+										{me.alias}
 									</span>
-									{me.alias}
 								</Link>
 							)}
 							<Button
@@ -56,7 +55,6 @@ export default function Header() {
 									router.replace("/");
 								}}
 							>
-								<LogOut aria-hidden="true" />
 								Salir
 							</Button>
 						</>

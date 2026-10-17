@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { Caveat, Figtree, Fraunces, Geist_Mono } from "next/font/google";
 
 import "../index.css";
 import Header from "@/components/header";
 import Providers from "@/components/providers";
 
-const geistSans = Geist({
-	variable: "--font-geist-sans",
+// Tipografías del cuaderno (frontend/theme.css): texto, títulos y letra a mano.
+const body = Figtree({
+	variable: "--font-body-face",
 	subsets: ["latin"],
 });
 
-// Títulos con más personalidad (frontend/theme.css: --font-display).
-const display = Bricolage_Grotesque({
+const display = Fraunces({
 	variable: "--font-display-face",
+	subsets: ["latin"],
+	axes: ["SOFT", "opsz"],
+});
+
+const hand = Caveat({
+	variable: "--font-hand-face",
 	subsets: ["latin"],
 });
 
@@ -35,7 +41,7 @@ export default function RootLayout({
 	return (
 		<html lang="es" suppressHydrationWarning>
 			<body
-				className={`${geistSans.variable} ${geistMono.variable} ${display.variable} antialiased`}
+				className={`${body.variable} ${display.variable} ${hand.variable} ${geistMono.variable} antialiased`}
 			>
 				<Providers>
 					<div className="grid min-h-svh grid-rows-[auto_1fr]">

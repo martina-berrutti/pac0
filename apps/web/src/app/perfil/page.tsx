@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { Page, Surface } from "@/frontend/ui";
+import { Note, Page, Paper } from "@/frontend/ui";
 import { ApiError, api } from "@/lib/api-client";
 
 const YEARS = [
@@ -56,13 +56,11 @@ export default function ProfilePage() {
 
 	return (
 		<Page size="sm" className="min-h-[calc(100svh-4rem)] content-center">
-			<Surface className="animate-rise p-7 sm:p-9">
+			<Paper tape="clay" tilt={1} className="px-7 pt-10 pb-8">
 				<form onSubmit={save} className="grid gap-6">
 					<div className="grid gap-1.5">
-						<p className="font-semibold text-primary text-xs uppercase tracking-[0.16em]">
-							Un paso más
-						</p>
-						<h1 className="font-bold text-3xl">¿Cómo te llamamos?</h1>
+						<Note className="-rotate-1 text-pen">un paso más…</Note>
+						<h1 className="font-display text-3xl">¿Cómo te llamamos?</h1>
 						<p className="text-muted-foreground">
 							Elegí un alias divertido: es lo único que vamos a mostrar.
 						</p>
@@ -88,7 +86,7 @@ export default function ProfilePage() {
 							{YEARS.map((y) => (
 								<label
 									key={y.value}
-									className="cursor-pointer rounded-full border bg-card px-4 py-2 font-medium text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
+									className="cursor-pointer rounded-[0.6rem] border border-input bg-card px-4 py-2 font-medium text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
 								>
 									<input
 										type="radio"
@@ -107,13 +105,13 @@ export default function ProfilePage() {
 					<Button
 						type="submit"
 						size="lg"
-						className="h-12 text-base"
+						className="h-12 border-black/25 border-b-[3px] text-base"
 						disabled={saving || !year}
 					>
 						{saving ? "Guardando…" : "Conocer a mis pacientes"}
 					</Button>
 				</form>
-			</Surface>
+			</Paper>
 		</Page>
 	);
 }
