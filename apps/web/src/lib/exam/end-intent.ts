@@ -246,7 +246,7 @@ export function asksForNeckExam(text: string): boolean {
 	);
 	// "Tocar" solo en primera persona: "¿te duele cuando te tocás el cuello?"
 	// es una pregunta de la historia.
-	return /\b((palp|revis|examin|mir|chequ)\w*|toco|tocarle|(?<!\bal )tocarte|tocar)\s+(el|los|tu|tus|ese|esos)\s+(cuello|ganglios?)\b/.test(
+	return /\b((palp|revis|examin|mir|chequ)\w*|toco|tocar|(?<!\b(al|duele|molesta|molestia) )tocar(te|le))\s+(el|los|tu|tus|ese|esos)\s+(cuello|ganglios?)\b/.test(
 		t,
 	);
 }

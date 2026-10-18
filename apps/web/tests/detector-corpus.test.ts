@@ -958,6 +958,7 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["garganta", "volves a tener fiebre a la noche"],
 		["garganta", "si claro, y tenés fiebre"],
 		["garganta", "toma algo para el dolor"],
+		["garganta", "y si toma algo se le pasa"],
 	])("una pregunta sin signos no recibe 'bueno, dale' (%s): %s", (name, t) =>
 		expect(reply(name, t).text).not.toMatch(/^Bueno, dale/),
 	);
@@ -1028,6 +1029,9 @@ describe("barrido después de #36", () => {
 	test.each([
 		"¿Te duele cuando te tocás el cuello?",
 		"¿Notaste algo al tocarte el cuello?",
+		"¿Te duele tocarte el cuello?",
+		"¿Te molesta tocarte los ganglios?",
+		"¿Le duele al tocarle el cuello?",
 	])("una pregunta sobre el cuello no abre el panel: %s", (t) =>
 		expect(asksForNeckExam(t)).toBe(false),
 	);
