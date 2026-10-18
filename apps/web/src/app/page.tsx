@@ -2,12 +2,7 @@ import Link from "next/link";
 
 import { ConsultationDemo } from "@/frontend/consultation-demo";
 import { PacoFace } from "@/frontend/logo";
-import {
-	Highlight,
-	linkButtonClass,
-	Note,
-	Underline,
-} from "@/frontend/ui";
+import { Highlight, linkButtonClass, Note, Underline } from "@/frontend/ui";
 
 export default function Home() {
 	return (

@@ -1,30 +1,49 @@
 "use client";
 
-// Tensiómetro virtual (plan.md, sección 6, afiche HC-01). Se elige el
-// manguito, se lo arrastra al brazo, se mantiene Espacio para inflar y al
-// soltar desinfla despacio. Los ruidos (sintetizados, no son una grabación
-// clínica) suenan entre la PAS y la PAD que marca el manómetro. S marca la PAS
-// y D la PAD. Lo que marca el manómetro lo decide el servidor.
+// Tensiómetro virtual (plan.md, sección 6, afiche HC-01), todo con el mouse o
+// el dedo. Se elige el manguito y se lo arrastra al brazo; después se aprieta
+// la pera para inflar, se abre apenas la válvula para que baje despacio y se
+// escucha con el estetoscopio. Los ruidos (sintetizados, no son una grabación
+// clínica) suenan entre la PAS y la PAD que marca el manómetro; lo que marca
+// lo decide el servidor. La física está en lib/exam/manometer.ts.
 import { Button } from "@pac0/ui/components/button";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ApiError, api } from "@/lib/api-client";
 import type { BpReading, CuffSize } from "@/lib/contracts/exam";
+import {
+	audible,
+	leak,
+	NEXT_VALVE,
+	needleAngle,
+	pump,
+	type Valve,
+} from "@/lib/exam/manometer";
 import type { BpStart } from "@/server/vitals";
 
-const CUFFS: { size: CuffSize; label: string }[] = [
-	{ size: "chico", label: "Chico (17 a 22 cm)" },
-	{ size: "adecuado", label: "Adulto (22 a 32 cm)" },
-	{ size: "grande", label: "Grande (32 a 42 cm)" },
+const CUFFS: { size: CuffSize; label: string; range: string; w: number }[] = [
+	{ size: "chico", label: "Chico", range: "17 a 22 cm", w: 56 },
+	{ size: "adecuado", label: "Adulto", range: "22 a 32 cm", w: 72 },
+	{ size: "grande", label: "Grande", range: "32 a 42 cm", w: 88 },
 ];
 
-const MAX_MMHG = 300;
-const INFLATE_PER_S = 60;
-const DEFLATE_PER_S = 4;
-const OPEN_VALVE_PER_S = 40;
+const VALVE_LABEL: Record<Valve, string> = {
+	cerrada: "válvula cerrada",
+	poco: "válvula abierta apenas",
+	abierta: "válvula abierta del todo",
+};
+const VALVE_ANGLE: Record<Valve, number> = {
+	cerrada: 0,
+	poco: 50,
+	abierta: 120,
+};
 
 type Stage = "cargando" | "colocar" | "medir" | "guardando";
+
+const SKIN = "color-mix(in oklch, var(--clay) 55%, var(--card))";
+const SLEEVE = "color-mix(in oklch, var(--sky) 80%, var(--foreground) 10%)";
+const CUFF = "color-mix(in oklch, var(--sky) 45%, var(--primary) 25%)";
 
 // Un "tum" corto: seno grave con envolvente rápida.
 function thump(ctx: AudioContext) {
@@ -37,6 +56,33 @@ function thump(ctx: AudioContext) {
 	osc.connect(gain).connect(ctx.destination);
 	osc.start();
 	osc.stop(ctx.currentTime + 0.13);
+}
+
+// El brazo dibujado, de costado. Con manga, si no se arremangó.
+function ArmDrawing({
+	sleeve,
+	children,
+}: {
+	sleeve: boolean;
+	children?: React.ReactNode;
+}) {
+	return (
+		<>
+			<path
+				d="M0 150 C 120 146, 260 150, 400 156 L 400 204 C 260 200, 120 202, 0 206 Z"
+				fill={SKIN}
+			/>
+			{/* Pliegue del codo */}
+			<path d="M246 168 C 252 176, 252 184, 246 192" strokeWidth="1.8" />
+			{sleeve && (
+				<path
+					d="M0 142 C 70 140, 150 141, 214 144 C 222 160, 222 196, 214 212 C 150 210, 70 211, 0 214 Z"
+					fill={SLEEVE}
+				/>
+			)}
+			{children}
+		</>
+	);
 }
 
 export function TensiometroView({
@@ -69,12 +115,14 @@ export function TensiometroView({
 	const gauge = useRef<BpReading | null>(null);
 	const pulse = useRef(72);
 	const pressure = useRef(0);
-	const inflating = useRef(false);
-	const valveOpen = useRef(false);
+	const valveRef = useRef<Valve>("cerrada");
+	const lastPump = useRef(0);
 	const lastBeat = useRef(0);
 	const audio = useRef<AudioContext | null>(null);
+	const [valve, setValve] = useState<Valve>("cerrada");
 	const [shown, setShown] = useState(0);
 	const [beat, setBeat] = useState(false);
+	const [squeezed, setSqueezed] = useState(false);
 	const [marked, setMarked] = useState<{ s: number | null; d: number | null }>({
 		s: null,
 		d: null,
@@ -123,24 +171,17 @@ export function TensiometroView({
 		const loop = (now: number) => {
 			const dt = (now - last) / 1000;
 			last = now;
-			const p = pressure.current;
-			if (inflating.current) {
-				pressure.current = Math.min(MAX_MMHG, p + INFLATE_PER_S * dt);
-			} else if (p > 0) {
-				const rate = valveOpen.current ? OPEN_VALVE_PER_S : DEFLATE_PER_S;
-				pressure.current = Math.max(0, p - rate * dt);
-			}
+			pressure.current = leak(pressure.current, valveRef.current, dt);
 			const g = gauge.current;
-			const audible =
-				g !== null &&
-				!inflating.current &&
-				pressure.current <= g.pas &&
-				pressure.current >= g.pad;
-			if (audible && now - lastBeat.current > 60_000 / pulse.current) {
+			if (
+				g &&
+				audible(pressure.current, g, now - lastPump.current) &&
+				now - lastBeat.current > 60_000 / pulse.current
+			) {
 				lastBeat.current = now;
 				if (audio.current) thump(audio.current);
 				setBeat(true);
-				setTimeout(() => setBeat(false), 120);
+				setTimeout(() => setBeat(false), 140);
 			}
 			setShown(Math.round(pressure.current / 2) * 2);
 			frame = requestAnimationFrame(loop);
@@ -149,33 +190,25 @@ export function TensiometroView({
 		return () => cancelAnimationFrame(frame);
 	}, [stage]);
 
-	const mark = useCallback((which: "s" | "d") => {
+	useEffect(() => () => void audio.current?.close(), []);
+
+	function squeeze() {
+		pressure.current = pump(pressure.current, valveRef.current);
+		lastPump.current = performance.now();
+		setSqueezed(true);
+		setTimeout(() => setSqueezed(false), 160);
+	}
+
+	function turnValve() {
+		const next = NEXT_VALVE[valveRef.current];
+		valveRef.current = next;
+		setValve(next);
+	}
+
+	function mark(which: "s" | "d") {
 		const value = Math.round(pressure.current / 2) * 2;
 		setMarked((m) => ({ ...m, [which]: value }));
-	}, []);
-
-	useEffect(() => {
-		if (stage !== "medir") return;
-		const down = (e: KeyboardEvent) => {
-			if (e.code === "Space") {
-				e.preventDefault();
-				inflating.current = true;
-				valveOpen.current = false;
-			} else if (e.key === "s" || e.key === "S") mark("s");
-			else if (e.key === "d" || e.key === "D") mark("d");
-		};
-		const up = (e: KeyboardEvent) => {
-			if (e.code === "Space") inflating.current = false;
-		};
-		window.addEventListener("keydown", down);
-		window.addEventListener("keyup", up);
-		return () => {
-			window.removeEventListener("keydown", down);
-			window.removeEventListener("keyup", up);
-		};
-	}, [stage, mark]);
-
-	useEffect(() => () => void audio.current?.close(), []);
+	}
 
 	async function save() {
 		if (!measurementId || marked.s === null || marked.d === null) return;
@@ -217,15 +250,16 @@ export function TensiometroView({
 		return <p className="text-muted-foreground text-sm">Preparando…</p>;
 	}
 
+	const placedCuff = CUFFS.find((c) => c.size === cuff);
+
 	if (stage === "colocar") {
 		return (
-			<div className="grid gap-3 border p-3">
+			<div className="grid gap-4 rounded-2xl border bg-card p-4">
 				<p className="text-sm">
-					Perímetro del brazo: <strong>{armCm} cm</strong>. Arrastrá el manguito
-					que corresponde hasta el brazo (o tocá el manguito y después el
-					brazo).
+					El brazo mide <strong>{armCm} cm</strong> de perímetro. Elegí el
+					manguito y arrastralo hasta el brazo.
 				</p>
-				<div className="flex flex-wrap gap-2">
+				<div className="flex flex-wrap gap-3">
 					{CUFFS.map((c) => (
 						<button
 							key={c.size}
@@ -235,11 +269,19 @@ export function TensiometroView({
 							onPointerUp={endDrag}
 							onClick={() => setPicked(c.size)}
 							aria-pressed={picked === c.size}
-							className={`touch-none select-none border px-3 py-2 text-sm ${
-								picked === c.size ? "border-primary bg-primary/10" : "bg-muted"
+							className={`grid touch-none select-none justify-items-center gap-1 rounded-xl border px-3 py-2 text-xs transition-colors ${
+								picked === c.size
+									? "border-primary bg-secondary"
+									: "bg-background hover:bg-muted"
 							}`}
 						>
-							{c.label}
+							<span
+								aria-hidden="true"
+								className="h-6 rounded-md border border-foreground/40"
+								style={{ width: c.w, background: CUFF }}
+							/>
+							<span className="font-medium">{c.label}</span>
+							<span className="text-muted-foreground">{c.range}</span>
 						</button>
 					))}
 				</div>
@@ -247,17 +289,40 @@ export function TensiometroView({
 					type="button"
 					ref={arm}
 					onClick={() => picked && setCuff(picked)}
-					className={`grid h-24 place-items-center border-2 border-dashed text-sm ${
-						rolledUp ? "bg-orange-200/40" : "bg-sky-800/30"
-					}`}
+					aria-label={
+						placedCuff
+							? `Brazo con el manguito ${placedCuff.label.toLowerCase()} ${rolledUp ? "sobre la piel" : "sobre la manga"}`
+							: "Brazo: soltá acá el manguito"
+					}
+					className="relative overflow-hidden rounded-xl border-2 border-dashed bg-background"
 				>
-					{cuff
-						? `Manguito ${CUFFS.find((c) => c.size === cuff)?.label} ${
-								rolledUp ? "sobre la piel" : "sobre la manga del buzo"
-							}`
-						: rolledUp
-							? "Brazo (arremangado)"
-							: "Brazo (con buzo de manga larga)"}
+					<svg
+						viewBox="0 70 400 160"
+						className="w-full text-primary"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="2.2"
+						strokeLinejoin="round"
+						aria-hidden="true"
+					>
+						<ArmDrawing sleeve={!rolledUp}>
+							{placedCuff && (
+								<rect
+									x={140 - placedCuff.w}
+									y="140"
+									width={placedCuff.w * 1.6}
+									height="76"
+									rx="10"
+									fill={CUFF}
+								/>
+							)}
+						</ArmDrawing>
+					</svg>
+					{!placedCuff && (
+						<span className="absolute inset-x-0 top-2 text-muted-foreground text-xs">
+							soltá el manguito acá
+						</span>
+					)}
 				</button>
 				<Button variant="outline" onClick={() => setRolledUp((r) => !r)}>
 					{rolledUp ? "Bajar la manga" : "Arremangar"}
@@ -267,74 +332,204 @@ export function TensiometroView({
 						Cancelar
 					</Button>
 					<Button onClick={startMeasuring} disabled={!cuff}>
-						Empezar a medir
+						Listo, a medir
 					</Button>
 				</div>
 				{drag && (
 					<div
-						className="pointer-events-none fixed z-50 border bg-primary px-2 py-1 text-primary-foreground text-xs"
-						style={{ left: drag.x + 8, top: drag.y + 8 }}
-					>
-						Manguito
-					</div>
+						className="pointer-events-none fixed z-50 h-6 rounded-md border border-foreground/40"
+						style={{
+							left: drag.x - 30,
+							top: drag.y - 12,
+							width: CUFFS.find((c) => c.size === drag.size)?.w,
+							background: CUFF,
+						}}
+					/>
 				)}
 			</div>
 		);
 	}
 
+	// El manguito se hincha con la presión.
+	const swell = (shown / 300) * 18;
+
 	return (
-		<div className="grid gap-3 border p-3">
+		<div className="grid gap-4 rounded-2xl border bg-card p-4">
 			<p className="text-muted-foreground text-sm">
-				Mantené <kbd>Espacio</kbd> para inflar; al soltar desinfla despacio.
-				Marcá <kbd>S</kbd> en el primer ruido y <kbd>D</kbd> cuando dejan de
-				sonar.
+				Apretá la pera varias veces para inflar. Después abrí apenas la válvula
+				para que baje despacio, y escuchá.
 			</p>
-			<div className="grid place-items-center gap-1">
-				<span className="font-mono text-5xl tabular-nums" aria-live="off">
-					{shown}
-				</span>
-				<span className="text-muted-foreground text-xs">mmHg</span>
-				<div className="h-2 w-full bg-muted">
-					<div
-						className="h-2 bg-primary"
-						style={{ width: `${(shown / MAX_MMHG) * 100}%` }}
-					/>
-				</div>
-				<span
-					className={`text-sm transition-opacity ${beat ? "opacity-100" : "opacity-0"}`}
+
+			<div className="relative">
+				<svg
+					viewBox="0 0 400 260"
+					className="w-full text-primary"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="2.2"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+					aria-hidden="true"
 				>
-					♥ tum
+					<ArmDrawing sleeve={!rolledUp}>
+						{/* Manguito */}
+						<rect
+							x="70"
+							y={140 - swell / 2}
+							width="120"
+							height={76 + swell}
+							rx="12"
+							fill={CUFF}
+						/>
+						<path
+							d="M84 150 L 84 206 M 96 150 L 96 206"
+							strokeWidth="1.2"
+							opacity="0.5"
+						/>
+					</ArmDrawing>
+
+					{/* Tubos: manguito → manómetro y manguito → pera */}
+					<path d="M110 140 C 108 118, 140 112, 158 104" />
+					<path d="M160 140 C 180 104, 250 100, 300 96" />
+
+					{/* Manómetro de aguja */}
+					<circle
+						cx="190"
+						cy="70"
+						r="52"
+						fill="var(--card)"
+						strokeWidth="2.6"
+					/>
+					{Array.from({ length: 16 }, (_, i) => i * 20).map((mmHg, i) => {
+						const a = ((needleAngle(mmHg) - 90) * Math.PI) / 180;
+						const long = i % 3 === 0;
+						return (
+							<path
+								key={mmHg}
+								d={`M${190 + Math.cos(a) * (long ? 38 : 42)} ${70 + Math.sin(a) * (long ? 38 : 42)} L ${190 + Math.cos(a) * 47} ${70 + Math.sin(a) * 47}`}
+								strokeWidth={long ? 2 : 1.2}
+							/>
+						);
+					})}
+					{[0, 60, 120, 180, 240, 300].map((v) => {
+						const a = ((needleAngle(v) - 90) * Math.PI) / 180;
+						return (
+							<text
+								key={v}
+								x={190 + Math.cos(a) * 28}
+								y={70 + Math.sin(a) * 28 + 3}
+								textAnchor="middle"
+								fontSize="8"
+								fill="var(--muted-foreground)"
+								stroke="none"
+							>
+								{v}
+							</text>
+						);
+					})}
+					<path
+						d="M190 70 L 190 26"
+						stroke="var(--pen)"
+						strokeWidth="2.6"
+						transform={`rotate(${needleAngle(shown)} 190 70)`}
+					/>
+					<circle cx="190" cy="70" r="3.4" fill="var(--pen)" stroke="none" />
+					<text
+						x="190"
+						y="104"
+						textAnchor="middle"
+						fontSize="7"
+						fill="var(--muted-foreground)"
+						stroke="none"
+					>
+						mmHg
+					</text>
+
+					{/* Válvula */}
+					<g transform={`rotate(${VALVE_ANGLE[valve]} 306 96)`}>
+						<circle cx="306" cy="96" r="9" fill="var(--card)" />
+						<path d="M306 88 L 306 93" strokeWidth="2.4" />
+					</g>
+
+					{/* Pera */}
+					<g
+						style={{
+							transform: squeezed ? "scale(1.16, 0.8)" : "none",
+							transformOrigin: "345px 112px",
+							transition: "transform 120ms ease-out",
+						}}
+					>
+						<path
+							d="M318 100 C 322 82, 342 76, 352 84 C 368 96, 372 130, 360 146 C 350 160, 328 156, 322 138 C 318 126, 316 112, 318 100 Z"
+							fill="color-mix(in oklch, var(--foreground) 70%, var(--card))"
+						/>
+					</g>
+
+					{/* Estetoscopio sobre el pliegue del codo */}
+					<path
+						d="M262 176 C 290 150, 300 110, 278 70 C 268 50, 258 30, 262 0"
+						strokeWidth="1.8"
+					/>
+					<circle
+						cx="258"
+						cy="180"
+						r="13"
+						fill="var(--muted)"
+						stroke={beat ? "var(--pen)" : "currentColor"}
+						strokeWidth={beat ? 3.2 : 2.2}
+					/>
+				</svg>
+
+				{/* Lo que se toca: la pera y la válvula */}
+				<button
+					type="button"
+					onClick={squeeze}
+					aria-label="Apretar la pera para inflar"
+					className="absolute top-[28%] left-[78%] h-[34%] w-[16%] cursor-pointer rounded-[45%] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				/>
+				<button
+					type="button"
+					onClick={turnValve}
+					aria-label={`Girar la válvula (ahora: ${VALVE_LABEL[valve]})`}
+					className="absolute top-[31%] left-[73%] size-[7%] cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+				/>
+
+				{/* Lo que pasa */}
+				<span
+					className={`absolute top-[74%] left-[66%] font-hand text-pen text-xl transition-opacity ${beat ? "opacity-100" : "opacity-0"}`}
+					aria-hidden="true"
+				>
+					tum
+				</span>
+				<span className="absolute top-[3%] right-[1%] max-w-[26%] text-right font-hand text-lg text-muted-foreground leading-none">
+					{VALVE_LABEL[valve]}
 				</span>
 			</div>
-			<div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+
+			<div className="grid grid-cols-2 gap-2">
 				<Button
-					className="touch-none select-none"
-					onPointerDown={() => {
-						inflating.current = true;
-						valveOpen.current = false;
-					}}
-					onPointerUp={() => {
-						inflating.current = false;
-					}}
-					onPointerLeave={() => {
-						inflating.current = false;
-					}}
+					variant="outline"
+					className="h-auto py-2"
+					onClick={() => mark("s")}
 				>
-					Inflar (mantener)
-				</Button>
-				<Button variant="outline" onClick={() => mark("s")}>
-					PAS (S): {marked.s ?? "–"}
-				</Button>
-				<Button variant="outline" onClick={() => mark("d")}>
-					PAD (D): {marked.d ?? "–"}
+					<span className="grid">
+						<span>Oí el primer ruido</span>
+						<span className="font-hand text-lg text-pen leading-none">
+							PAS {marked.s ?? "—"}
+						</span>
+					</span>
 				</Button>
 				<Button
 					variant="outline"
-					onClick={() => {
-						valveOpen.current = true;
-					}}
+					className="h-auto py-2"
+					onClick={() => mark("d")}
 				>
-					Abrir la válvula
+					<span className="grid">
+						<span>Dejé de oír</span>
+						<span className="font-hand text-lg text-pen leading-none">
+							PAD {marked.d ?? "—"}
+						</span>
+					</span>
 				</Button>
 			</div>
 			<div className="flex gap-2">
