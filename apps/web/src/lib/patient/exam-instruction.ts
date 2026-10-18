@@ -4,6 +4,7 @@ import type { Personality } from "@/cases/schema";
 import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
 import {
 	asksForBloodPressure,
+	asksForNeckExam,
 	asksForTemperature,
 } from "@/lib/exam/end-intent";
 
@@ -188,7 +189,9 @@ export function asksConsent(text: string) {
 		(includesAny(text, CONSENT_WORDS) || MAY_I.test(plain)) &&
 		(isExamRequest(text) ||
 			asksForTemperature(text) ||
-			asksForBloodPressure(text))
+			asksForBloodPressure(text) ||
+			// "¿Puedo palparte el cuello?" también pide permiso para examinar.
+			asksForNeckExam(text))
 	);
 }
 

@@ -34,3 +34,10 @@ test.each([
 ])("sigue descartando lo que diría un médico: %s", (text) => {
 	expect(soundsLikeDoctor(text)).toBe(true);
 });
+
+test.each([
+	"Mi mamá dice que debería ver a un médico.",
+	"Pensé que debería consultar, pero no tuve tiempo.",
+])("lo que piensa el paciente no es un consejo: %s", (text) => {
+	expect(soundsLikeDoctor(text)).toBe(false);
+});
