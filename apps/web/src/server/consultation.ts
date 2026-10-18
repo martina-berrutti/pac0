@@ -18,6 +18,7 @@ import {
 	type SessionEventType,
 	type Turn,
 } from "@/lib/contracts/session";
+import { cutText } from "@/lib/cut-text";
 import { asksForEarExam } from "@/lib/exam/end-intent";
 import {
 	buildPatientBrief,
@@ -286,7 +287,7 @@ async function patientReply(
 		const text = await chat([
 			{
 				role: "system",
-				content: `${buildPatientPrompt(b)}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
+				content: `${buildPatientPrompt(b, { hideSensitive: session.state.confianza < 0.5 })}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
 			},
 			// Solo lo último: el costo no crece sin límite con la charla.
 			...turns.slice(-MAX_CONTEXT_TURNS).map((t) => ({
@@ -508,9 +509,10 @@ export async function sendTurn(
 		viewer,
 		sessionId,
 	);
-	const clean = text.trim().slice(0, 1000);
+	const clean = cutText(text.trim(), 1000);
 	if (!clean) throw new HttpError(400, "Escribí algo");
-	if ((await store.listTurns(sessionId)).length >= MAX_TEXT_TURNS)
+	const turns = await store.listTurns(sessionId);
+	if (turns.length >= MAX_TEXT_TURNS)
 		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 	// Contar la lista no alcanza con pedidos en paralelo (todos ven menos de
 	// 120): el contador atómico frena antes de llamar a la IA. Si falla el
@@ -521,20 +523,34 @@ export async function sendTurn(
 	if (!allowed)
 		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 
-	const classified = await classifyStudent(session, clean, elapsed);
-	const studentTurn: Turn = {
-		id: newId("turn"),
-		sessionId,
-		speaker: "estudiante",
-		text: clean,
-		startMs: elapsed,
-		endMs: elapsed,
-		overlap: false,
-		tags: classified.tags,
-	};
-	await store.addTurn(studentTurn);
+	// Reintento de un turno que falló después de guardarse (mismo texto, sin
+	// respuesta): se usa ese turno, no se guarda otro. Si no, el reintento
+	// cuenta como pregunta repetida y baja la paciencia.
+	const last = turns.at(-1);
+	const retry =
+		last?.speaker === "estudiante" && last.text === clean ? last : null;
+	let studentTurn: Turn;
+	let afterStudent: Session;
+	if (retry) {
+		studentTurn = retry;
+		afterStudent = session;
+	} else {
+		const classified = await classifyStudent(session, clean, elapsed);
+		studentTurn = {
+			id: newId("turn"),
+			sessionId,
+			speaker: "estudiante",
+			text: clean,
+			startMs: elapsed,
+			endMs: elapsed,
+			overlap: false,
+			tags: classified.tags,
+		};
+		await store.addTurn(studentTurn);
+		afterStudent = classified.session;
+	}
 
-	const current = await noteConsent(classified.session, clean, elapsed);
+	const current = await noteConsent(afterStudent, clean, elapsed);
 
 	let reply: string;
 	let exam: ExamResult | null = null;

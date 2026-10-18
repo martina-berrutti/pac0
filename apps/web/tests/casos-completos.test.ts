@@ -266,3 +266,28 @@ describe("pedidos por texto que no son de garganta", () => {
 		expect(exam).toBeNull();
 	});
 });
+
+describe("reintentar un turno que falló", () => {
+	test("no cuenta como pregunta repetida ni guarda el turno dos veces", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const line = "¿Desde cuándo te duele la garganta?";
+		const addTurn = store.addTurn.bind(store);
+		// Se guarda el turno del estudiante y falla el de la respuesta.
+		const spy = vi
+			.spyOn(store, "addTurn")
+			.mockImplementationOnce(addTurn)
+			.mockRejectedValueOnce(new Error("Convex no respondió"));
+		await expect(sendTurn(ana, id, line)).rejects.toThrow();
+		spy.mockRestore();
+		const before = (await store.getSession(id))?.state.paciencia;
+
+		await sendTurn(ana, id, line);
+		const turns = await store.listTurns(id);
+		const asked = turns.filter((t) => t.speaker === "estudiante");
+		expect(asked).toHaveLength(1);
+		expect(asked[0].tags ?? []).not.toContain("repetida");
+		expect(turns.at(-1)?.speaker).toBe("paciente");
+		expect((await store.getSession(id))?.state.paciencia).toBe(before);
+	});
+});
