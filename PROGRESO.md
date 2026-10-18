@@ -20,6 +20,10 @@ Arreglado:
 - Voz: aviso de error falso si se cortaba durante la reconexión; una nota podía cortar al paciente mientras esperaba una herramienta.
 - Clasificador y paciente por reglas: "no te entiendo" y "debe ser viral" contaban como empatía; "¿qué te trajo?" no era abierta; "¿qué enfermedades tuviste?" era pedir el diagnóstico y "¿con quién vino?" una pregunta de alcohol. Generador: "tos hace 2 años" no es la edad; "jubilada" para mujeres.
 
+Revisión del propio PR #9 (regresiones): al cerrar "vamos a ver qué te pasa" se habían dejado de reconocer pedidos sin objeto ("¿me dejás ver?", "dejame ver", "¿puedo mirar?", "voy a revisar", "¿puedo ver adentro de la boca?"), y con un paciente poco cooperador "¿me dejás ver?" no registraba el permiso. Arreglado, con test de esas frases. También: se sacó `maxDuration = 60` (con Fluid Compute el límite por defecto es 300 s y lo achicaba), "debe ser complicado/bravo" y "debe de ser difícil" vuelven a ser empatía, "¿tomás vino?" y "¿qué enfermedad puede ser?" vuelven a reconocerse, y las notas que esperaban una herramienta cancelada ya no esperan al próximo turno.
+
+Sobre lo que no se puede probar desde el código, según la documentación: el `expireTime` del token efímero de Gemini es el plazo para mandar mensajes por la conexión ("30 minutes to send messages over that connection"), así que con el token acotado a la consulta Google deja de aceptar audio pasados los 8 minutos y el margen. En Safari, el procesador del micrófono va a la salida a través de una ganancia en 0, que es lo que hace que el navegador lo procese.
+
 Queda, fuera del código: el micrófono en Safari (mitigado, se confirma en un dispositivo) y si Google corta una voz ya abierta al vencer el token (la app corta a los 8 minutos y el servidor rechaza lo que llegue después).
 
 Validación: 290 tests en web y 25 en backend; lint, tipos y build pasan. Estos cambios son solo de la app web: no hace falta volver a desplegar Convex.

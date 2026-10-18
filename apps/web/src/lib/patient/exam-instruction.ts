@@ -21,9 +21,12 @@ const EXAM_PATTERNS = [
 	// El verbo tiene que apuntar al paciente o a una parte del cuerpo: "vamos a
 	// ver qué te pasa" o "¿puedo ver tus análisis?" no son examen.
 	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)(te|le|lo|la)\b/,
-	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)\s+((la|el|los|las|tu|su)\s+)?(garganta|boca|oido|oidos|oreja|amigdalas|lengua)\b/,
-	// "¿Puedo revisar?" a secas, como frase entera.
-	/\b(puedo|podemos|dejas|deja|dejame|permitis|permite)\s+(revisar|examinar)[\s?!.,]*$/,
+	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)\s+(adentro\s+(de\s+)?)?((la|el|los|las|tu|su)\s+)?(garganta|boca|oido|oidos|oreja|amigdalas|lengua)\b/,
+	// El verbo solo, como frase entera: "¿me dejás ver?", "¿puedo mirar
+	// adentro?", "voy a revisar". "Vamos a ver" / "voy a ver" sueltos no:
+	// suelen ser un relleno ("bueno, vamos a ver...").
+	/\b(puedo|podemos|dejas|deja|dejame|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)(\s+(adentro|un poco|un segundo|bien))*[\s?!.,]*$/,
+	/\b(voy a|vamos a)\s+(revisar|examinar|mirar)(\s+(adentro|un poco|un segundo|bien))*[\s?!.,]*$/,
 	/\blinterna\b/,
 ];
 const FULL_OPEN_WORDS = [

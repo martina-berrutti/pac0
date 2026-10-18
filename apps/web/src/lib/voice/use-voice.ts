@@ -428,9 +428,13 @@ export function useVoice({
 				await answerTools(calls);
 			} finally {
 				toolsPending.current -= 1;
+				// Si no hubo respuesta que hablar (todas canceladas), las notas que
+				// esperaban no tienen por qué esperar al próximo turno.
+				if (toolsPending.current === 0 && !st.current.patientTurnStarted)
+					for (const note of pendingNotes.current.splice(0)) deliverNote(note);
 			}
 		},
-		[answerTools],
+		[answerTools, deliverNote],
 	);
 
 	const onMessage = useCallback(

@@ -59,7 +59,15 @@ const TOPICS: { key: string; words: string[] }[] = [
 	{
 		key: "alcohol",
 		// "Tomás" solo no alcanza: "¿tomás mate?" no es una pregunta de alcohol.
-		words: ["alcohol", "tomás alcohol", "tomas alcohol", "bebida", "cerveza"],
+		words: [
+			"alcohol",
+			"tomás alcohol",
+			"tomas alcohol",
+			"tomás vino",
+			"tomas vino",
+			"bebida",
+			"cerveza",
+		],
 	},
 	{ key: "tabaco", words: ["fumás", "fumas", "tabaco", "cigarr"] },
 	{
@@ -130,7 +138,7 @@ function has(text: string, words: string[]) {
 function asksDiagnosis(text: string) {
 	if (has(text, DIAGNOSIS_FISHING)) return true;
 	// "¿Qué enfermedad tenés?" sí; "¿qué enfermedades tuviste?" (antecedentes) no.
-	if (/qu[eé] enfermedad\s+(ten[eé]s|tengo|es|ser[aá])/u.test(text))
+	if (/qu[eé] enfermedad\s+(ten[eé]s|tengo|es|ser[aá]|puede ser)/u.test(text))
 		return true;
 	if (/(^|[\s¿])qu[eé]\s+ten[eé]s(\s+vos)?\s*\?*\s*$/u.test(text)) return true;
 	return (

@@ -289,3 +289,35 @@ test("revisión final: frases comunes no son examen ni permiso; otros falsos pos
 	);
 	expect(tos.clinicalCase.patient.age).toBeGreaterThan(16);
 });
+
+test("pedidos de examen sin objeto siguen contando; 'vamos a ver' suelto no", async () => {
+	const { asksConsent, isExamRequest } = await import(
+		"@/lib/patient/exam-instruction"
+	);
+	const { classifyStudentTurn } = await import("@/lib/patient/turn-classifier");
+	for (const t of [
+		"¿Me dejás ver?",
+		"Dejame ver",
+		"¿Puedo ver?",
+		"¿Puedo mirar?",
+		"Voy a revisar",
+		"Vamos a revisar",
+		"¿Puedo ver adentro de la boca?",
+		"¿Me dejás mirar adentro?",
+		"¿Puedo revisar?",
+	])
+		expect(isExamRequest(t), t).toBe(true);
+	expect(asksConsent("¿Me dejás ver?")).toBe(true);
+	for (const t of [
+		"Vamos a ver",
+		"Bueno, vamos a ver qué te pasa",
+		"Voy a ver qué hacemos",
+	])
+		expect(isExamRequest(t), t).toBe(false);
+	for (const t of [
+		"Debe ser complicado",
+		"Debe de ser difícil",
+		"Debe ser bravo",
+	])
+		expect(classifyStudentTurn(t, []).tags, t).toContain("empatia");
+});
