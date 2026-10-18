@@ -287,7 +287,7 @@ async function patientReply(
 		const text = await chat([
 			{
 				role: "system",
-				content: `${buildPatientPrompt(b, { hideSensitive: session.state.confianza < 0.5 })}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
+				content: `${buildPatientPrompt(b, { hideSensitive: !session.trustReached && session.state.confianza < 0.5 })}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
 			},
 			// Solo lo último: el costo no crece sin límite con la charla.
 			...turns.slice(-MAX_CONTEXT_TURNS).map((t) => ({
@@ -436,18 +436,26 @@ export async function recordExam(
 		endMs: null,
 	};
 	await store.addExamAction(action);
-	const zoneData = clinicalCase.exam[zone];
+	return examResult(clinicalCase, action);
+}
+
+// Lo que ve la pantalla de una acción de examen ya guardada.
+function examResult(
+	clinicalCase: ClinicalCase,
+	action: ExamAction,
+): ExamResult {
+	const zoneData = clinicalCase.exam[action.zone];
 	return {
 		action,
 		assetKey:
-			decision.variant === "negado" || !zoneData
+			action.variant === "negado" || !zoneData
 				? null
-				: zoneData.variants[decision.variant],
+				: zoneData.variants[action.variant],
 		hotspots: zoneData?.hotspots ?? [],
 		patientReaction:
-			decision.variant === "negado"
+			action.variant === "negado"
 				? "No, pará. No quiero abrir la boca. ¿Para qué es eso?"
-				: decision.variant === "parcial"
+				: action.variant === "parcial"
 					? "(abre un poco la boca)"
 					: "Aaaaaa...",
 	};
@@ -550,7 +558,13 @@ export async function sendTurn(
 		afterStudent = classified.session;
 	}
 
-	const current = await noteConsent(afterStudent, clean, elapsed);
+	let current = await noteConsent(afterStudent, clean, elapsed);
+	// Una vez que tuvo confianza, lo sensible queda en el prompt aunque
+	// después baje: si no, el paciente esquivaría algo que ya contó.
+	if (current.state.confianza >= 0.5 && !current.trustReached)
+		current =
+			(await store.changeSession(sessionId, { set: { trustReached: true } })) ??
+			current;
 
 	let reply: string;
 	let exam: ExamResult | null = null;
@@ -570,7 +584,15 @@ export async function sendTurn(
 			current.personality,
 			current.consentGiven,
 		);
-		exam = await recordExam(clinicalCase, sessionId, zone, decision, elapsed);
+		// En un reintento, el examen que ya se guardó la primera vez se reusa.
+		const saved = retry
+			? (await store.listExamActions(sessionId)).find(
+					(a) => a.zone === zone && a.startMs >= retry.startMs,
+				)
+			: undefined;
+		exam = saved
+			? examResult(clinicalCase, saved)
+			: await recordExam(clinicalCase, sessionId, zone, decision, elapsed);
 		reply = exam.patientReaction;
 	} else {
 		// El estado ya lo actualizó el clasificador (empatía incluida).

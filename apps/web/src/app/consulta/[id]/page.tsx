@@ -81,6 +81,8 @@ export default function ConsultationPage() {
 	// solos (el tensiómetro no, tiene sus pasos).
 	const [endRequest, setEndRequest] = useState(0);
 	const examOpen = exam !== null || ear !== null;
+	const openExam = useRef(exam);
+	openExam.current = exam;
 	// Lo último que dijo el estudiante: de ahí sale qué oído pidió.
 	const lastStudent = useRef("");
 	// Por voz, el modelo abre los exámenes con herramientas; por texto (plan
@@ -323,7 +325,9 @@ export default function ConsultationPage() {
 			);
 			checkStudent(r.studentTurn, true);
 			// Si nombró el oído, el servidor no devuelve examen: se abre el oído.
-			if (r.exam && exam?.action.variant !== "completa") setExam(r.exam);
+			// Con el examen de este momento, no el de cuando se mandó el texto.
+			if (r.exam && openExam.current?.action.variant !== "completa")
+				setExam(r.exam);
 		} catch (e) {
 			toast.error(
 				e instanceof ApiError
