@@ -248,6 +248,10 @@ describe("pedidos por texto que no son de garganta", () => {
 		expect(exam).toBeNull();
 		expect(patientTurn.text).not.toContain("Aaa");
 		expect(await store.listExamActions(id)).toHaveLength(0);
+
+		// Una pregunta sobre el oído la responde el paciente.
+		const asked = await sendTurn(ana, id, "¿Alguna vez te revisaron el oído?");
+		expect(asked.patientTurn.text).not.toContain("revisame");
 	});
 
 	test.each([

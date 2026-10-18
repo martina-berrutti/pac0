@@ -80,6 +80,8 @@ const TOPICS: { key: string; words: string[] }[] = [
 	},
 	{ key: "pecho", words: ["pecho"] },
 	{ key: "cuello", words: ["cuello", "ganglio", "pelotitas", "bulto"] },
+	// Antes que secreción: "¿te sale algo de la nariz?" es de mocos.
+	{ key: "mocos", words: ["mocos", "nariz", "congest", "estornud"] },
 	{
 		key: "secrecion",
 		words: [
@@ -89,10 +91,15 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"líquido",
 			"liquido",
 			"pus",
-			"te sale algo",
+			"sale algo del o",
+			"sale del o",
 		],
 	},
-	{ key: "picazon", words: ["pica", "picazón", "picazon", "comezón"] },
+	// "Pica" suelto no: "¿comés picante?".
+	{
+		key: "picazon",
+		words: ["te pica", "le pica", "picaba", "picazón", "picazon", "comezón"],
+	},
 	{
 		key: "audicion",
 		words: [
@@ -107,7 +114,19 @@ const TOPICS: { key: string; words: string[] }[] = [
 	},
 	{
 		key: "agua",
-		words: ["agua", "piscina", "pileta", "nadás", "nadas", "nadar"],
+		// "Agua" suelto no: "¿lo aguantás?".
+		words: [
+			"al agua",
+			"el agua",
+			"con agua",
+			"entró agua",
+			"entro agua",
+			"piscina",
+			"pileta",
+			"nadás",
+			"nadas",
+			"nadar",
+		],
 	},
 	{ key: "hisopos", words: ["hisopo", "cotonete"] },
 	{ key: "resfrio", words: ["resfri", "engripad", "gripe"] },
@@ -117,7 +136,6 @@ const TOPICS: { key: string; words: string[] }[] = [
 	},
 	{ key: "fiebre", words: ["fiebre", "temperatura", "chuchos"] },
 	{ key: "tos", words: ["tos", "tosés", "toses", "tosiendo"] },
-	{ key: "mocos", words: ["mocos", "nariz", "congest", "estornud"] },
 	{
 		key: "cansancio",
 		words: ["cansad", "cansancio", "agotad", "energía", "energia"],

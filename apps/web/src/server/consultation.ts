@@ -538,6 +538,8 @@ export async function sendTurn(
 	let reply: string;
 	let exam: ExamResult | null = null;
 	const zone = defaultZone(clinicalCase);
+	// Con el mismo criterio que la pantalla: "¿tenés vértigo en el oído?" o
+	// "¿te revisaron el oído?" son preguntas y las responde el paciente.
 	if (asksForEarExam(clean)) {
 		// El oído se examina con el otoscopio de la pantalla, como por voz: no es
 		// un pedido de garganta (no registra examen ni resta "no indicado").

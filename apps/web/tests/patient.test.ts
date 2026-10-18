@@ -416,3 +416,34 @@ describe("examen: no cualquier frase es un pedido", () => {
 		).toBe("media");
 	});
 });
+
+describe("paciente sin IA: temas nuevos sin falsos aciertos", () => {
+	const brief = buildPatientBrief(lucia, lucia.personality, "");
+	const withFacts = {
+		...brief,
+		history: {
+			...brief.history,
+			agua: "estoy todo el día en la piscina",
+			secrecion: "no me sale nada del oído",
+			picazon: "me picaba bastante",
+			mocos: "estoy con mocos",
+		},
+	};
+	const answer = (q: string) => ruleRespond(withFacts, state, q, 2).text;
+
+	test.each([
+		["¿Es un dolor que aguantás?", "piscina"],
+		["¿Te sale algo de la nariz?", "oído"],
+		["¿Comés picante?", "picaba"],
+	])("%s no responde %s", (q, wrong) => {
+		expect(answer(q)).not.toContain(wrong);
+	});
+
+	test.each([
+		["¿Te metés al agua?", "piscina"],
+		["¿Te sale algo del oído?", "oído"],
+		["¿Te pica el oído?", "picaba"],
+	])("%s responde %s", (q, right) => {
+		expect(answer(q)).toContain(right);
+	});
+});

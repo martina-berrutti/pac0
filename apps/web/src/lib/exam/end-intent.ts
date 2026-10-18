@@ -38,7 +38,10 @@ export function asksToEndExam(text: string): boolean {
 
 // Por texto (plan B) no hay herramientas del modelo: el oído y la presión se
 // piden con palabras, igual que por voz.
-const EXAMINE = /\b(revis|mir|ver|veo|muestr|mostr|examin|chequ|fij)\w*/;
+// Un pedido, no un pasado ni otra palabra: "¿te revisaron el oído?" o
+// "¿tenés vértigo?" no abren el otoscopio.
+const EXAMINE =
+	/\b(revis(o|ar|arte|arle|arlo|arla|e|emos)|mir(o|ar|arte|arle|arlo|arla|e|emos)|ver(te|le|lo|la)?|veo|muestr\w*|mostr\w*|examin(o|ar|arte|arle|arlo|arla|e|emos)|chequ(eo|ear|earte|earle|ee|emos)|fij(o|ar|arme))\b/;
 
 export function asksForEarExam(text: string): boolean {
 	const t = normalize(text);
