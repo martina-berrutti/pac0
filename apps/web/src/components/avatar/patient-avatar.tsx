@@ -317,7 +317,16 @@ export function PatientAvatar({
 			source.current = null;
 			lips.current = null;
 			head.current = null;
-			instance?.dispose();
+			if (instance) {
+				// Sin el manguito ni el termómetro: dispose de TalkingHead se
+				// traba con objetos agregados a los huesos.
+				void applyExamPose(instance, null);
+				try {
+					instance.dispose();
+				} catch (error) {
+					console.warn("Avatar: no se pudo liberar", error);
+				}
+			}
 		};
 	}, [attachSpeech]);
 
