@@ -457,8 +457,16 @@ describe("examen por texto: otra zona no es la garganta", () => {
 		["¿Querés que te revise la presión?", true],
 		["Te reviso la garganta y el cuello", false],
 		["Abrí la boca", false],
+		["Quiero revisarte, ¿tenés los ojos llorosos?", false],
+		["Ahora te reviso. ¿La nariz la tenés tapada?", false],
+		["Decí aaa, ¿te duele el pecho?", false],
+		["Te voy a revisar, ojo que te puede dar un poco de asco", false],
 	])("%s nombra otra zona: %s", (text, expected) => {
 		expect(namesOtherZone(text)).toBe(expected);
+	});
+
+	test("hacé aaa es pedido", () => {
+		expect(isExamRequest("Hacé aaa")).toBe(true);
 	});
 
 	test.each(["Aaa, ok, ¿y desde cuándo te duele?", "Aaa entiendo"])(

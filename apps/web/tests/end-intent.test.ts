@@ -104,6 +104,14 @@ describe("presión por texto: un pedido, no una pregunta de la historia", () => 
 		["Dejame tomarte la presión", true],
 		["Vamos a medir la presión", true],
 		["Te tomo la presión", true],
+		["¿Querés que te tome la presión?", true],
+		["¿Quiere que le tome la presión?", true],
+		["¿Podría tomarle la presión?", true],
+		["Me gustaría tomarte la presión", true],
+		["¿Me permitís tomarte la presión?", true],
+		["Permitime tomarte la presión", true],
+		["¿Quién te tomó la presión la última vez?", false],
+		["¿El médico te controló la presión?", false],
 	])("%s", (text, expected) => {
 		expect(asksForBloodPressure(text)).toBe(expected);
 	});
