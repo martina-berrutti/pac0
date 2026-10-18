@@ -4,6 +4,7 @@ import {
 	asksForBloodPressure,
 	asksForEarExam,
 	asksToEndExam,
+	asksWherePain,
 	earIn,
 } from "@/lib/exam/end-intent";
 
@@ -89,5 +90,25 @@ describe("terminar el examen hablando", () => {
 		"No está listo todavía",
 	])("%s → sigue", (text) => {
 		expect(asksToEndExam(text)).toBe(false);
+	});
+});
+
+describe("pedir que señale dónde le duele", () => {
+	test.each([
+		"¿Dónde te duele?",
+		"Mostrame dónde te duele",
+		"Señalame dónde",
+		"¿Me mostrás dónde?",
+	])("%s → sí", (text) => {
+		expect(asksWherePain(text)).toBe(true);
+	});
+
+	test.each([
+		"¿Te duele?",
+		"¿Desde cuándo te duele?",
+		"¿Te duele al caminar?",
+		"Mostrame el oído",
+	])("%s → no", (text) => {
+		expect(asksWherePain(text)).toBe(false);
 	});
 });

@@ -86,3 +86,13 @@ export function asksForTemperature(text: string): boolean {
 export function earIn(text: string): "derecho" | "izquierdo" {
 	return /\bizquierd/.test(normalize(text)) ? "izquierdo" : "derecho";
 }
+
+// "¿Dónde te duele?" como pedido de señalar ("mostrame dónde te duele",
+// "señalame dónde"). "¿Te duele?" o "¿desde cuándo te duele?" no abren nada.
+export function asksWherePain(text: string): boolean {
+	const t = normalize(text);
+	return (
+		/\bdonde\b.{0,15}\bduele/.test(t) ||
+		/\b(mostr|muestr|senal|indic|marc)\w*\b.{0,25}\bdonde\b/.test(t)
+	);
+}

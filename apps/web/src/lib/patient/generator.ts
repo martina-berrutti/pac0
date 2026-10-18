@@ -74,7 +74,7 @@ export function chooseTemplate(
 	);
 	if (matches.length === 0) {
 		throw new GenerationError(
-			'Por ahora hay pacientes con dolor de garganta, dolor de oído o control de presión. Probá con: "dame un paciente con dolor de oído".',
+			'Por ahora hay pacientes con dolor de garganta, dolor de oído, dolor de rodilla o control de presión. Probá con: "dame un paciente con dolor de oído".',
 		);
 	}
 	// Si pide catarro o tos, prioriza la plantilla que mejor coincide.
@@ -181,6 +181,14 @@ async function aiPersona(
 	return result;
 }
 
+// "Me duele la rodilla izquierda": el lado que nombra el pedido.
+function sideAsked(text: string) {
+	const t = text.toLowerCase();
+	if (t.includes("izquierd")) return "izquierda" as const;
+	if (t.includes("derech")) return "derecha" as const;
+	return null;
+}
+
 export async function generateCase(
 	req: GenerationRequest,
 	rand: () => number = Math.random,
@@ -230,6 +238,12 @@ export async function generateCase(
 			"expresion-facial",
 		],
 		criticalErrors: tpl.criticalErrors,
+		painZone: tpl.painSpot
+			? {
+					side: sideAsked(req.text) ?? pick(["izquierda", "derecha"], rand),
+					spot: tpl.painSpot,
+				}
+			: undefined,
 		truth: tpl.truth,
 	});
 	// Si el pedido nombra una personalidad, queda elegida en la tarjeta; si no,

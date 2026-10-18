@@ -18,6 +18,7 @@ import {
 	PatientAvatar,
 	type PatientAvatarHandle,
 } from "@/components/avatar/patient-avatar";
+import { DolorView } from "@/components/exam/dolor-view";
 import { OidoFotoView } from "@/components/exam/oido-foto-view";
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
 import { TensiometroView } from "@/components/exam/tensiometro-view";
@@ -35,6 +36,7 @@ import {
 	asksForEarExam,
 	asksForTemperature,
 	asksToEndExam,
+	asksWherePain,
 	earIn,
 } from "@/lib/exam/end-intent";
 import { getArchetype } from "@/lib/patient/personalities";
@@ -69,7 +71,13 @@ export default function ConsultationPage() {
 	);
 	// Oído que se está mirando (foto del otoscopio).
 	const [ear, setEar] = useState<Ear | null>(null);
-	const tool = exam !== null || bp !== null || ear !== null || thermo;
+	// "¿Dónde te duele?": el estudiante toca la rodilla del avatar.
+	const [pain, setPain] = useState(false);
+	const closePain = useCallback(() => {
+		setPain(false);
+		avatar.current?.run({ kind: "view", view: "head" });
+	}, []);
+	const tool = exam !== null || bp !== null || ear !== null || thermo || pain;
 	// onTool es un callback viejo: el ref siempre tiene el valor del último render.
 	const toolOpen = useRef(false);
 	toolOpen.current = tool;
@@ -112,6 +120,8 @@ export default function ConsultationPage() {
 			// No hay herramienta de voz para la temperatura: también por voz se
 			// abre con las palabras.
 			setThermo(true);
+		} else if (!tool && view?.case.painZone && asksWherePain(turn.text)) {
+			setPain(true);
 		} else if (byText && !tool) {
 			if (asksForEarExam(turn.text)) setEar(earIn(turn.text));
 			else if (asksForBloodPressure(turn.text)) setBp({ start: null });
@@ -307,6 +317,7 @@ export default function ConsultationPage() {
 		setBp(null);
 		setEar(null);
 		setThermo(false);
+		setPain(false);
 		avatar.current?.exam(null);
 		setClosing(true);
 	}
@@ -472,6 +483,7 @@ export default function ConsultationPage() {
 												setExam(null);
 												setEar(null);
 												setBp(null);
+												closePain();
 											}}
 										>
 											Cerrar el examen
@@ -484,7 +496,7 @@ export default function ConsultationPage() {
 				)}
 
 			{/* El examen aparece encima del avatar, desde el primer plano. */}
-			{tool && revealed && (
+			{tool && revealed && !pain && (
 				<div
 					className={`absolute inset-0 grid place-items-center overflow-y-auto bg-black/30 p-4 pt-16 ${textMode ? "pb-20" : ""}`}
 				>
@@ -529,6 +541,21 @@ export default function ConsultationPage() {
 						</div>
 					) : null}
 				</div>
+			)}
+
+			{/* Localizar el dolor: círculos sobre las rodillas del avatar. */}
+			{pain && view.case.painZone && (
+				<DolorView
+					avatar={avatar}
+					zone={view.case.painZone}
+					onClose={closePain}
+					onFound={() => {
+						if (voice.status === "live")
+							voice.sendNote(
+								"El estudiante encontró dónde te duele: confirmáselo con tus palabras.",
+							);
+					}}
+				/>
 			)}
 
 			{/* La cruz o el fin del tiempo: hipótesis y diferenciales. */}

@@ -23,10 +23,15 @@ const byId = (id: string) => {
 };
 
 describe("banco de casos", () => {
-	test("solo Lucía con faringitis viral, sin revisar y con sexo para la voz", () => {
+	test("Lucía con faringitis viral y Valeria con tres rodillas, sin revisar y con sexo para la voz", () => {
 		// Diego (no hay avatar varón) y la mononucleosis de Lucía salieron del
 		// banco, pero se siguen encontrando por id para las consultas viejas.
-		expect(caseBank.map((c) => c.id)).toEqual(["garganta-02"]);
+		expect(caseBank.map((c) => c.id)).toEqual([
+			"garganta-02",
+			"rodilla-01",
+			"rodilla-02",
+			"rodilla-03",
+		]);
 		expect(caseBank[0]?.patient.name).toBe("Lucía");
 		expect(findCase("oido-01")?.patient.name).toBe("Diego");
 		expect(findCase("garganta-03")?.truth.diagnosis).toBe(
@@ -35,7 +40,7 @@ describe("banco de casos", () => {
 		for (const c of caseBank) {
 			expect(c.reviewedBy).toBeNull();
 			expect(c.patient.sex).toMatch(/^[fm]$/);
-			expect(c.relevantExams.length).toBeGreaterThan(0);
+			if (!c.painZone) expect(c.relevantExams.length).toBeGreaterThan(0);
 		}
 	});
 
@@ -48,7 +53,7 @@ describe("banco de casos", () => {
 		}
 	});
 
-	test.each(caseBank.map((c) => [c.id] as const))(
+	test.each(caseBank.filter((c) => !c.painZone).map((c) => [c.id] as const))(
 		"%s: se puede examinar la garganta, el oído y la presión",
 		async (caseId) => {
 			const ana = viewer(`gst_cases_todo_${caseId}`);
@@ -147,6 +152,23 @@ describe("generador con las plantillas nuevas", () => {
 			});
 			expect(clinicalCase.truth.diagnosis).toContain("hipertensión");
 			expect(clinicalCase.patient.age).toBeGreaterThanOrEqual(45);
+		}
+	});
+
+	test("los casos de rodilla tienen zona de dolor y no la mandan con el diagnóstico", () => {
+		const knees = caseBank.filter((c) => c.group === "valeria");
+		expect(knees.map((c) => c.painZone?.spot)).toEqual([
+			"interna",
+			"anterior",
+			"interna",
+		]);
+		for (const c of knees) {
+			expect(c.patient.sex).toBe("f");
+			expect(JSON.stringify(toSummary(c))).not.toContain(c.truth.diagnosis);
+			expect(c.expectedChecklist.some((i) => i.id === "alarma")).toBe(true);
+			expect(c.expectedChecklist.some((i) => i.id === "localiza-dolor")).toBe(
+				true,
+			);
 		}
 	});
 });

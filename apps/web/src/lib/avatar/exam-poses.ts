@@ -84,6 +84,43 @@ export function examPoint(
 	return { x: ((p.x + 1) / 2) * width, y: ((1 - p.y) / 2) * height };
 }
 
+export type KneeSide = "izquierda" | "derecha";
+export type KneeSpot = "interna" | "externa" | "anterior";
+
+// Dónde cae en pantalla un punto de la rodilla de la paciente (px). El hueso
+// LeftLeg está en la rodilla; la izquierda de la paciente se ve a la derecha
+// de la pantalla (x mundo positivo). Interna: hacia la línea media; externa:
+// hacia afuera; anterior: arriba y al frente, donde está la rótula (se
+// separa en pantalla de los otros dos).
+export function kneePoint(
+	h: TalkingHead,
+	side: KneeSide,
+	spot: KneeSpot,
+	width: number,
+	height: number,
+) {
+	const three = threeModule;
+	const bone = h.armature?.getObjectByName(
+		side === "izquierda" ? "LeftLeg" : "RightLeg",
+	);
+	if (!three || !bone) return null;
+	const p = bone.getWorldPosition(
+		new three.Vector3(),
+	) as unknown as InstanceType<Three["Vector3"]>;
+	// Hacia afuera del cuerpo: +x en la rodilla izquierda, -x en la derecha.
+	const out = side === "izquierda" ? 1 : -1;
+	if (spot === "interna") p.x -= out * KNEE_SPREAD;
+	else if (spot === "externa") p.x += out * KNEE_SPREAD;
+	else {
+		p.y += KNEE_SPREAD * 0.9;
+		p.z += 0.06;
+	}
+	p.project(h.camera);
+	return { x: ((p.x + 1) / 2) * width, y: ((1 - p.y) / 2) * height };
+}
+
+const KNEE_SPREAD = 0.06;
+
 // Los huesos del avatar, como objetos de three (talkinghead.d.ts los tipa
 // solo para la cámara).
 function bones(h: TalkingHead) {

@@ -19,6 +19,9 @@ import {
 	type ExamPoint,
 	type ExamPose,
 	examPoint,
+	type KneeSide,
+	type KneeSpot,
+	kneePoint,
 	loadThree,
 } from "@/lib/avatar/exam-poses";
 
@@ -133,6 +136,11 @@ export type PatientAvatarHandle = {
 	mimicSpeech: (ms: number) => void;
 	// Dónde está la axila o el brazo en el lienzo (px), o null si no cargó.
 	point: (part: ExamPoint) => { x: number; y: number } | null;
+	// Dónde está un punto de la rodilla en el lienzo (px), o null.
+	kneePoint: (
+		side: KneeSide,
+		spot: KneeSpot,
+	) => { x: number; y: number } | null;
 	// Lleva la cámara a la boca o al oído (null: vuelve a la cara). Se
 	// resuelve cuando termina el recorrido.
 	focus: (part: FocusPart | null) => Promise<void>;
@@ -383,6 +391,13 @@ export function PatientAvatar({
 			if (!h || !el) return null;
 			void loadThree();
 			return examPoint(h, part, el.clientWidth, el.clientHeight);
+		},
+		kneePoint(side, spot) {
+			const h = head.current;
+			const el = node.current;
+			if (!h || !el) return null;
+			void loadThree();
+			return kneePoint(h, side, spot, el.clientWidth, el.clientHeight);
 		},
 		mimicSpeech(ms) {
 			const h = head.current;

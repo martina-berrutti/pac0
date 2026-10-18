@@ -178,7 +178,7 @@ describe("generador de pacientes", () => {
 
 	test("pide algo que no hay: error claro", async () => {
 		await expect(
-			generateCase({ text: "un paciente con dolor de rodilla" }),
+			generateCase({ text: "un paciente con dolor de codo" }),
 		).rejects.toThrow(GenerationError);
 	});
 });
