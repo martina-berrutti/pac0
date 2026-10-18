@@ -1,0 +1,68 @@
+import { describe, expect, test } from "vitest";
+
+import {
+	asksForBloodPressure,
+	asksForEarExam,
+	asksToEndExam,
+	earIn,
+} from "@/lib/exam/end-intent";
+
+describe("pedir el oído o la presión por texto", () => {
+	test.each([
+		["Te voy a revisar el oído, ¿puedo?", true],
+		["Mostrame el oído izquierdo", true],
+		["¿Te duele el oído?", false],
+		["Te miro las orejas con el otoscopio", true],
+	])("oído: %s", (text, expected) => {
+		expect(asksForEarExam(text)).toBe(expected);
+	});
+
+	test.each([
+		["Te voy a tomar la presión", true],
+		["¿Sos hipertensa? ¿Tenés la presión alta?", false],
+		["Te mido la tensión arterial", true],
+	])("presión: %s", (text, expected) => {
+		expect(asksForBloodPressure(text)).toBe(expected);
+	});
+
+	test("qué oído", () => {
+		expect(earIn("Mostrame el oído izquierdo")).toBe("izquierdo");
+		expect(earIn("Te reviso el oído")).toBe("derecho");
+	});
+});
+
+describe("terminar el examen hablando", () => {
+	test.each([
+		"Ya podés cerrar la boca",
+		"Cerrá la boca, gracias",
+		"Listo, gracias",
+		"Ya está",
+		"Ya te revisé, podés volver",
+		"Eso es todo",
+		"No me muestres más el oído",
+		"No hace falta ver más",
+		"Terminé de revisarte",
+		"Podés bajar la cabeza",
+		"Dejá de mostrarme el oído",
+		"Ya no me lo muestres",
+		"Ya vi, gracias",
+		"Basta, ya está bien",
+		"Saco el otoscopio",
+		"Perfecto, gracias",
+		"Ya fue, volvé a como estabas",
+	])("%s → termina", (text) => {
+		expect(asksToEndExam(text)).toBe(true);
+	});
+
+	test.each([
+		"No cierres la boca todavía",
+		"Todavía no terminé",
+		"Abrí un poco más la boca",
+		"Decí aaa",
+		"¿Te duele cuando trago?",
+		"Mostrame el otro oído",
+		"No está listo todavía",
+	])("%s → sigue", (text) => {
+		expect(asksToEndExam(text)).toBe(false);
+	});
+});

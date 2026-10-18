@@ -45,7 +45,8 @@ export type AvatarAction =
 	| { kind: "mood"; mood: Mood }
 	| { kind: "gesture"; gesture: Gesture }
 	| { kind: "face"; face: Face }
-	| { kind: "mouth"; tongue: boolean }
+	// ms: cuánto queda abierta (por defecto unos segundos; 0 la cierra).
+	| { kind: "mouth"; tongue: boolean; ms?: number }
 	| { kind: "eyes" }
 	| { kind: "view"; view: View };
 

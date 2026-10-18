@@ -51,9 +51,14 @@ type Traction = OtoscopyRecord["traction"];
 export function OtoscopioView({
 	sessionId,
 	onClose,
+	endRequest = 0,
 }: {
 	sessionId: string;
 	onClose: () => void;
+	// Sube cuando el estudiante termina el examen hablando ("ya no me muestres
+	// el oído"): si ya examinó, se guarda como con "Terminar la otoscopia";
+	// si no, se cancela.
+	endRequest?: number;
 }) {
 	const [ear, setEar] = useState<Ear | null>(null);
 	const [actionId, setActionId] = useState<string | null>(null);
@@ -170,6 +175,12 @@ export function OtoscopioView({
 			setSaving(false);
 		}
 	}
+
+	const end = useRef(() => {});
+	end.current = () => (actionId && hand ? finish() : onClose());
+	useEffect(() => {
+		if (endRequest > 0) end.current();
+	}, [endRequest]);
 
 	if (!ear || !appearance) {
 		return (

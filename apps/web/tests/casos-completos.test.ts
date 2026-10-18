@@ -8,8 +8,9 @@ vi.mock("@google/genai", () => ({
 	GoogleGenAI: class {},
 }));
 
-import { caseBank } from "@/cases";
+import { findCase } from "@/cases";
 import { type Report, reportSchema } from "@/lib/contracts/report";
+import { generateCase } from "@/lib/patient/generator";
 import { BP_STEPS } from "@/lib/patient/tools";
 import { finishSession, sendTurn, startSession } from "@/server/consultation";
 import { finishOtoscopy, startOtoscopy } from "@/server/otoscopy";
@@ -31,7 +32,7 @@ function student(): Viewer & { alias: string } {
 }
 
 const byId = (id: string) => {
-	const c = caseBank.find((x) => x.id === id);
+	const c = findCase(id);
 	if (!c) throw new Error(`falta ${id}`);
 	return c;
 };
@@ -147,11 +148,17 @@ describe("consulta completa por caso", () => {
 		expect(tags).not.toContain("examen-no-indicado-orofaringe");
 	});
 
-	test("Diego (oido-01): pedir permiso por voz abre el otoscopio y la otoscopia entra al informe", async () => {
+	// Diego salió del banco: el oído enfermo se practica con un paciente del
+	// generador (plantilla de otitis externa).
+	test("dolor de oído (generado): pedir permiso por voz abre el otoscopio y la otoscopia entra al informe", async () => {
 		const ana = student();
-		const id = await startSession(ana, "oido-01", "caso");
+		const { clinicalCase } = await generateCase({
+			text: "dame un paciente con dolor de oído",
+		});
+		await store.addGeneratedCase(ana.uid, clinicalCase);
+		const id = await startSession(ana, clinicalCase.id, "caso");
 		await talk(ana, id, [
-			"Hola Diego, soy Ana, estudiante. ¿Qué te pasa?",
+			"Hola, soy Ana, estudiante. ¿Qué te pasa?",
 			"¿Desde cuándo te duele el oído? ¿Te metiste al agua?",
 			"¿Te sale algo del oído? ¿Tuviste fiebre?",
 		]);
@@ -186,7 +193,8 @@ describe("consulta completa por caso", () => {
 		const report = await finishSession(ana, id, "otitis externa", [
 			"otitis media aguda",
 		]);
-		checkReport(report, "oido-01");
+		expect(() => reportSchema.parse(report)).not.toThrow();
+		expect(report.truth.diagnosis).toBe(clinicalCase.truth.diagnosis);
 		expect(status(report, "otoscopia")).not.toBe("no");
 		expect(criticalTags(report)).toEqual([]);
 	});

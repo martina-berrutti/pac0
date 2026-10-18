@@ -28,7 +28,7 @@ import {
 	interpretExamInstruction,
 	isExamRequest,
 } from "@/lib/patient/exam-instruction";
-import { resolvePersonality } from "@/lib/patient/personalities";
+import { getArchetype, resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
 import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
 import {
@@ -36,7 +36,7 @@ import {
 	stateBand,
 	type TurnTag,
 } from "@/lib/patient/turn-classifier";
-import { pickVoice } from "@/lib/patient/voices";
+import { voiceFor } from "@/lib/patient/voices";
 import { evaluateWithAi } from "@/lib/scoring/ai-evaluate";
 import { evaluate } from "@/lib/scoring/evaluate";
 
@@ -208,7 +208,8 @@ export async function startSession(
 		closing: null,
 		consentGiven: false,
 		historyOverrides: pickVariations(clinicalCase),
-		voice: pickVoice(clinicalCase.patient.sex),
+		// Voz acorde a la personalidad elegida (enojado, feliz…); con la del caso, al azar.
+		voice: voiceFor(getArchetype(key)?.voice, clinicalCase.patient.sex),
 		inventedFacts: {},
 		voiceUsage: null,
 	};
