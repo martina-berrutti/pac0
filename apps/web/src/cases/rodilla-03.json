@@ -233,7 +233,7 @@
 	"criticalErrors": [],
 	"painZone": {
 		"side": "derecha",
-		"spot": "interna"
+		"spot": "colateral-interno"
 	},
 	"truth": {
 		"diagnosis": "esguince del ligamento colateral medial",

@@ -158,9 +158,9 @@ describe("generador con las plantillas nuevas", () => {
 	test("los casos de rodilla tienen zona de dolor y no la mandan con el diagnóstico", () => {
 		const knees = caseBank.filter((c) => c.group === "valeria");
 		expect(knees.map((c) => c.painZone?.spot)).toEqual([
-			"interna",
-			"anterior",
-			"interna",
+			"interlinea-interna",
+			"centro",
+			"colateral-interno",
 		]);
 		for (const c of knees) {
 			expect(c.patient.sex).toBe("f");

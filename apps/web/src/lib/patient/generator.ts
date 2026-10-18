@@ -37,8 +37,77 @@ const FEMALE_NAMES = [
 	"Graciela",
 	"Rosa",
 	"Ana",
+	"Julieta",
+	"Micaela",
+	"Agustina",
+	"Antonella",
+	"Bianca",
+	"Noelia",
+	"Romina",
+	"Paula",
+	"Lorena",
+	"Marina",
+	"Natalia",
+	"Rocío",
 ];
+// Las mujeres de rodilla no se llaman como la del banco.
+const BANK_KNEE_NAME = "Valeria";
+// Deportes de las pacientes de rodilla: cómo se dice en cada frase.
+const SPORTS = [
+	{
+		noun: "fútbol 5",
+		playing: "jugando al fútbol 5",
+		played: "jugué al fútbol 5",
+		plays: "juego al fútbol 5",
+	},
+	{
+		noun: "hockey",
+		playing: "jugando al hockey",
+		played: "jugué al hockey",
+		plays: "juego al hockey",
+	},
+	{
+		noun: "básquet",
+		playing: "jugando al básquet",
+		played: "jugué al básquet",
+		plays: "juego al básquet",
+	},
+	{
+		noun: "vóley",
+		playing: "jugando al vóley",
+		played: "jugué al vóley",
+		plays: "juego al vóley",
+	},
+	{
+		noun: "pádel",
+		playing: "jugando al pádel",
+		played: "jugué al pádel",
+		plays: "juego al pádel",
+	},
+	{
+		noun: "running",
+		playing: "corriendo",
+		played: "salí a correr",
+		plays: "salgo a correr",
+	},
+];
+type Sport = (typeof SPORTS)[number];
+
+// Pasa el texto del caso del banco (fútbol 5, Valeria) a la paciente nueva.
+function reskin(text: string, sport: Sport, side: string, name: string) {
+	return text
+		.replace(/jugando al fútbol( 5)?/g, sport.playing)
+		.replace(/jugué al fútbol( 5)?/g, sport.played)
+		.replace(/juego al fútbol( 5)?/g, sport.plays)
+		.replace(/fútbol( 5)?/g, sport.noun)
+		.replace(/rodilla (derecha|izquierda)/g, `rodilla ${side}`)
+		.replace(new RegExp(BANK_KNEE_NAME, "g"), name);
+}
 const OCCUPATIONS = [
+	"contadora",
+	"diseñadora",
+	"kinesióloga",
+	"maestra",
 	"estudiante",
 	"administrativa",
 	"docente",
@@ -117,12 +186,15 @@ function parseAge(
 	archetype: Archetype,
 	rand: () => number,
 	minAge = 16,
+	maxAge?: number,
 ) {
 	// "100 años" no tiene que leerse como "00 años".
 	// "Tos hace 2 años" es un dato de la historia, no la edad.
 	const match = text.match(/(?<!hace\s+)(?<!\d)(\d{1,3})\s*años/);
 	// La plantilla puede pedir una edad mínima (la historia tiene que cerrar).
 	if (match) return Math.max(minAge, Math.min(95, Number(match[1])));
+	if (maxAge && !match)
+		return minAge + Math.floor(rand() * (maxAge - minAge + 1));
 	if (archetype.key === "mayor") return 68 + Math.floor(rand() * 15);
 	const from = Math.max(18, minAge);
 	return from + Math.floor(rand() * Math.max(10, 58 - from));
@@ -195,12 +267,29 @@ export async function generateCase(
 ): Promise<{ clinicalCase: ClinicalCase; personalityKey: string }> {
 	const tpl = chooseTemplate(req.text, rand);
 	const archetype = chooseArchetype(req.text, req.personalityKey);
-	const age = parseAge(req.text, archetype, rand, tpl.minAge);
+	const knee = tpl.zone === "rodilla";
+	// Las pacientes de rodilla son deportistas jóvenes (24 a 38 años).
+	const age = knee
+		? parseAge(req.text, archetype, rand, 24, 38)
+		: parseAge(req.text, archetype, rand, tpl.minAge);
 	// El avatar es una mujer: los pacientes generados son siempre mujeres.
 	const sex = "f" as const;
-	const persona =
+	const sport = pick(SPORTS, rand);
+	const side =
+		sideAsked(req.text) ?? pick(["izquierda", "derecha"] as const, rand);
+	const found =
 		(await aiPersona(req.text, tpl, archetype, age).catch(() => null)) ??
 		randomPersona(tpl, age, rand);
+	const persona =
+		knee && found.name === BANK_KNEE_NAME
+			? { ...found, name: pick(FEMALE_NAMES, rand) }
+			: found;
+	const name = persona.name;
+	// Lo de rodilla: el deporte, el lado y el nombre se cambian en el texto.
+	const text = (t: string) => (knee ? reskin(t, sport, side, name) : t);
+	const history = Object.fromEntries(
+		Object.entries(tpl.hiddenHistory).map(([k, v]) => [k, text(v)]),
+	);
 
 	// Arquetipo más los ajustes pedidos con palabras ("que hable mucho").
 	const { personality, notes } = applyPersonalityRequest(
@@ -218,16 +307,16 @@ export async function generateCase(
 		templateId: tpl.id,
 		createdAt: Date.now(),
 		reviewedBy: null,
-		patient: { name: persona.name, age, occupation: persona.occupation, sex },
+		patient: { name, age, occupation: persona.occupation, sex },
 		personality,
-		personalityStyle: [archetype.style, ...notes].join(" "),
-		chiefComplaint: persona.chiefComplaint,
+		personalityStyle: text([archetype.style, ...notes].join(" ")),
+		chiefComplaint: text(persona.chiefComplaint),
 		profile: {
 			...persona.profile,
 			edad: `${age} años`,
 			ocupacion: persona.occupation,
 		},
-		hiddenHistory: tpl.hiddenHistory,
+		hiddenHistory: history,
 		vitals: tpl.vitals,
 		exam: tpl.exam,
 		expectedChecklist: tpl.checklist ?? OROFARINGE_CHECKLIST,
@@ -240,7 +329,7 @@ export async function generateCase(
 		criticalErrors: tpl.criticalErrors,
 		painZone: tpl.painSpot
 			? {
-					side: sideAsked(req.text) ?? pick(["izquierda", "derecha"], rand),
+					side,
 					spot: tpl.painSpot,
 				}
 			: undefined,

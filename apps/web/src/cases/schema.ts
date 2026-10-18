@@ -53,9 +53,18 @@ export type ExamKind = (typeof EXAM_KINDS)[number];
 
 // Dónde le duele a la paciente (rodilla). No es el diagnóstico: puede ir al
 // navegador, para el "tocá donde te duele".
+export const KNEE_SPOTS = [
+	"interlinea-interna",
+	"colateral-interno",
+	"interlinea-externa",
+	"colateral-externo",
+	"rotula",
+	"tendon-rotuliano",
+	"centro",
+] as const;
 export const painZoneSchema = z.object({
 	side: z.enum(["izquierda", "derecha"]),
-	spot: z.enum(["interna", "externa", "anterior"]),
+	spot: z.enum(KNEE_SPOTS),
 });
 export type PainZone = z.infer<typeof painZoneSchema>;
 

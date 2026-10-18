@@ -186,7 +186,7 @@ export const CLINICAL_TEMPLATES: ClinicalTemplate[] = [
 	fromBankCase(rodilla01, {
 		id: "lesion-menisco",
 		zone: "rodilla",
-		painSpot: "interna",
+		painSpot: "interlinea-interna",
 		keywords: [...RODILLA_WORDS, "menisco", "meniscal", "se traba"],
 		chiefComplaints: [
 			"Me duele la rodilla desde que jugué al fútbol y a veces se me traba",
@@ -196,7 +196,7 @@ export const CLINICAL_TEMPLATES: ClinicalTemplate[] = [
 	fromBankCase(rodilla02, {
 		id: "lesion-lca",
 		zone: "rodilla",
-		painSpot: "anterior",
+		painSpot: "centro",
 		keywords: [...RODILLA_WORDS, "cruzado", "ligamento", "lca"],
 		chiefComplaints: [
 			"Me lastimé la rodilla jugando y se me hinchó enseguida",
@@ -206,7 +206,7 @@ export const CLINICAL_TEMPLATES: ClinicalTemplate[] = [
 	fromBankCase(rodilla03, {
 		id: "esguince-colateral",
 		zone: "rodilla",
-		painSpot: "interna",
+		painSpot: "colateral-interno",
 		keywords: [...RODILLA_WORDS, "colateral", "ligamento", "esguince"],
 		chiefComplaints: [
 			"Me pegaron en la rodilla jugando y me duele por dentro",

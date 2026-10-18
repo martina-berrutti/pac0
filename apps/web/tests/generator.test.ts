@@ -17,7 +17,7 @@ describe("generador de pacientes", () => {
 			const { clinicalCase } = await generateCase({ text });
 			expect(clinicalCase.patient.sex).toBe("f");
 			expect(clinicalCase.patient.name).toMatch(
-				/^(Valentina|Camila|Florencia|Sofía|Lucía|Martina|Carmen|Graciela|Rosa|Ana)$/,
+				/^(Valentina|Camila|Florencia|Sofía|Lucía|Martina|Carmen|Graciela|Rosa|Ana|Julieta|Micaela|Agustina|Antonella|Bianca|Noelia|Romina|Paula|Lorena|Marina|Natalia|Rocío)$/,
 			);
 		}
 	});
@@ -38,7 +38,7 @@ describe("generador de pacientes", () => {
 			const { clinicalCase } = await generateCase({ text });
 			expect(clinicalCase.painZone?.side).toMatch(/^(izquierda|derecha)$/);
 			expect(clinicalCase.painZone?.spot).toMatch(
-				/^(interna|externa|anterior)$/,
+				/^(interlinea-interna|centro|colateral-interno)$/,
 			);
 			expect(clinicalCase.templateId).toMatch(
 				/^(lesion-menisco|lesion-lca|esguince-colateral)$/,
@@ -50,7 +50,31 @@ describe("generador de pacientes", () => {
 		expect(lca.clinicalCase.templateId).toBe("lesion-lca");
 		expect(lca.clinicalCase.painZone).toEqual({
 			side: "izquierda",
-			spot: "anterior",
+			spot: "centro",
 		});
+	});
+});
+
+describe("traumatología", () => {
+	test("inventa pacientes de rodilla nuevas, mujeres, sin Valeria", async () => {
+		let n = 0;
+		const rand = () => {
+			n = (n * 7 + 3) % 11;
+			return (n + 0.5) / 11;
+		};
+		for (let i = 0; i < 3; i++) {
+			const { clinicalCase: c } = await generateCase(
+				{ text: "dame un caso de traumatología" },
+				rand,
+			);
+			expect(c.patient.sex).toBe("f");
+			expect(c.patient.age).toBeGreaterThanOrEqual(24);
+			expect(c.patient.age).toBeLessThanOrEqual(38);
+			expect(c.patient.name).not.toBe("Valeria");
+			expect(c.painZone?.side).toMatch(/izquierda|derecha/);
+			expect(c.painZone?.spot).toBeTruthy();
+			expect(JSON.stringify(c)).not.toContain("Valeria");
+			expect(JSON.stringify(c)).not.toContain("fútbol 5 con");
+		}
 	});
 });

@@ -232,7 +232,7 @@
 	"criticalErrors": [],
 	"painZone": {
 		"side": "derecha",
-		"spot": "interna"
+		"spot": "interlinea-interna"
 	},
 	"truth": {
 		"diagnosis": "lesión de menisco interno",

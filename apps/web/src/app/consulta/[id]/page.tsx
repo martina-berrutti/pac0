@@ -504,11 +504,25 @@ export default function ConsultationPage() {
 				)}
 
 			{/* El examen aparece encima del avatar, desde el primer plano. */}
-			{tool && revealed && !pain && (
+			{tool && revealed && (
 				<div
-					className={`absolute inset-0 grid place-items-center overflow-y-auto bg-black/30 p-4 pt-16 ${textMode ? "pb-20" : ""}`}
+					className={`absolute inset-0 grid place-items-center overflow-y-auto p-4 pt-16 ${pain ? "" : "bg-black/30"} ${textMode ? "pb-20" : ""}`}
 				>
-					{exam ? (
+					{pain && view.case.painZone ? (
+						<div className="fade-in zoom-in-50 w-full max-w-md animate-in rounded-lg bg-background p-3 shadow-2xl duration-500 md:justify-self-start">
+							<DolorView
+								avatar={avatar}
+								zone={view.case.painZone}
+								onClose={closePain}
+								onFound={() => {
+									if (voice.status === "live")
+										voice.sendNote(
+											"El estudiante encontró dónde te duele: confirmáselo con tus palabras.",
+										);
+								}}
+							/>
+						</div>
+					) : exam ? (
 						// Solo la foto, grande (es 4:3: el ancho se limita por el alto).
 						<div className="fade-in zoom-in-50 w-[min(92vw,calc((100svh-7rem)*4/3))] animate-in duration-500">
 							<OrofaringeView
@@ -549,21 +563,6 @@ export default function ConsultationPage() {
 						</div>
 					) : null}
 				</div>
-			)}
-
-			{/* Localizar el dolor: círculos sobre las rodillas del avatar. */}
-			{pain && view.case.painZone && (
-				<DolorView
-					avatar={avatar}
-					zone={view.case.painZone}
-					onClose={closePain}
-					onFound={() => {
-						if (voice.status === "live")
-							voice.sendNote(
-								"El estudiante encontró dónde te duele: confirmáselo con tus palabras.",
-							);
-					}}
-				/>
 			)}
 
 			{/* La cruz o el fin del tiempo: hipótesis y diferenciales. */}
