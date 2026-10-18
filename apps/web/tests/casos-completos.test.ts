@@ -58,9 +58,9 @@ const criticalTags = (report: Report) =>
 	report.mistakes.filter((m) => m.critical).map((m) => m.tag);
 
 describe("consulta completa por caso", () => {
-	test("Lucía (garganta-03): anamnesis, orofaringe con permiso e informe", async () => {
+	test("Lucía (garganta-02): anamnesis, orofaringe con permiso e informe", async () => {
 		const ana = student();
-		const id = await startSession(ana, "garganta-03", "caso");
+		const id = await startSession(ana, "garganta-02", "caso");
 		await talk(ana, id, [
 			"Hola, soy Ana, estudiante de medicina. ¿Qué te trae por acá?",
 			"¿Desde cuándo te duele?",
@@ -77,10 +77,10 @@ describe("consulta completa por caso", () => {
 		const report = await finishSession(
 			ana,
 			id,
-			"Mononucleosis infecciosa por el cansancio y los ganglios",
+			"Faringitis viral aguda (resfrío común) por los mocos y los dos días de evolución",
 			["faringoamigdalitis estreptocócica"],
 		);
-		checkReport(report, "garganta-03");
+		checkReport(report, "garganta-02");
 		// Devolución del diagnóstico y puntos a mejorar.
 		expect(report.diagnosis?.result).toBe("acertaste");
 		expect(report.diagnosis?.cluesMissed.length).toBeGreaterThan(0);

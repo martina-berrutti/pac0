@@ -23,22 +23,15 @@ const byId = (id: string) => {
 };
 
 describe("banco de casos", () => {
-	test("solo Lucía, con dos problemas, sin revisar y con sexo para la voz", () => {
-		// Diego salió del banco (no hay avatar varón), pero sus casos se siguen
-		// encontrando por id para las consultas viejas.
-		expect(caseBank.map((c) => c.id)).toEqual(["garganta-02", "garganta-03"]);
+	test("solo Lucía con faringitis viral, sin revisar y con sexo para la voz", () => {
+		// Diego (no hay avatar varón) y la mononucleosis de Lucía salieron del
+		// banco, pero se siguen encontrando por id para las consultas viejas.
+		expect(caseBank.map((c) => c.id)).toEqual(["garganta-02"]);
+		expect(caseBank[0]?.patient.name).toBe("Lucía");
 		expect(findCase("oido-01")?.patient.name).toBe("Diego");
-		for (const [group, name] of [["lucia", "Lucía"]]) {
-			const problems = caseBank.filter((c) => c.group === group);
-			expect(problems.map((c) => c.problem)).toEqual([
-				"Problema 1",
-				"Problema 2",
-			]);
-			expect(new Set(problems.map((c) => c.patient.name))).toEqual(
-				new Set([name]),
-			);
-			expect(new Set(problems.map((c) => c.truth.diagnosis)).size).toBe(2);
-		}
+		expect(findCase("garganta-03")?.truth.diagnosis).toBe(
+			"mononucleosis infecciosa",
+		);
 		for (const c of caseBank) {
 			expect(c.reviewedBy).toBeNull();
 			expect(c.patient.sex).toMatch(/^[fm]$/);
