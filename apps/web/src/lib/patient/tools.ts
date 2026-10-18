@@ -40,6 +40,7 @@ export const toolArgs = {
 		consentimiento: z.boolean().catch(false),
 	}),
 	medir_presion: z.object({
+		consentimiento: z.boolean().catch(false),
 		pasos_cumplidos: z
 			.array(z.string())
 			.catch([])
@@ -132,8 +133,13 @@ export const PATIENT_TOOLS = [
 					type: "array",
 					items: { type: "string", enum: [...BP_STEPS] },
 				},
+				consentimiento: {
+					type: "boolean",
+					description:
+						"true si el estudiante te pidió permiso o te explicó antes.",
+				},
 			},
-			required: ["pasos_cumplidos"],
+			required: ["pasos_cumplidos", "consentimiento"],
 		},
 	},
 	{
