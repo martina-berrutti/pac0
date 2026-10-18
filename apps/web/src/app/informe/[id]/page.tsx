@@ -18,7 +18,12 @@ import {
 	Paper,
 } from "@/frontend/ui";
 import { ApiError, api } from "@/lib/api-client";
-import type { DiagnosisFeedback, Report } from "@/lib/contracts/report";
+import type {
+	DiagnosisFeedback,
+	Rapport,
+	RapportEntry,
+	Report,
+} from "@/lib/contracts/report";
 
 const LABELS = {
 	anamnesis: "Anamnesis",
@@ -91,6 +96,108 @@ function DiagnosisSection({ d }: { d: DiagnosisFeedback }) {
 					<q className="text-muted-foreground">{d.toldPatient.quote}</q>
 				</p>
 			)}
+		</Paper>
+	);
+}
+
+const RAPPORT_LEVEL: Record<Rapport["level"], string> = {
+	muy_bueno: "Muy buen trato",
+	bueno: "Buen trato",
+	mejorable: "Trato mejorable",
+	a_trabajar: "Trato a trabajar",
+};
+
+function RapportEntries({
+	entries,
+	sign,
+}: {
+	entries: RapportEntry[];
+	sign: "+" | "−";
+}) {
+	return (
+		<ul className="grid gap-3">
+			{entries.map((e) => (
+				<li
+					key={`${e.text}-${e.evidence[0]?.turnId ?? e.evidence[0]?.examActionId ?? ""}`}
+					className="grid grid-cols-[2.5rem_1fr] gap-x-2"
+				>
+					<span
+						className={`font-hand text-xl leading-6 ${sign === "+" ? "text-success" : "text-pen"}`}
+					>
+						{e.critical
+							? "!"
+							: e.points
+								? `${sign}${e.points}`
+								: sign === "+"
+									? "✓"
+									: "·"}
+					</span>
+					<span>
+						{e.critical && <Note className="text-pen">error crítico </Note>}
+						{e.text}
+						{e.evidence[0]?.quote && (
+							<span className="block font-hand text-lg text-muted-foreground">
+								“{e.evidence[0].quote}”
+							</span>
+						)}
+					</span>
+				</li>
+			))}
+		</ul>
+	);
+}
+
+// Cómo trató al paciente: lo que sumó y lo que restó en comunicación.
+function RapportSection({ r }: { r: Rapport }) {
+	const good = r.level === "muy_bueno" || r.level === "bueno";
+	const pct = (x: number) => Math.round(x * 100);
+	return (
+		<Paper tape={good ? "sage" : "clay"} className="grid gap-4 px-6 pt-8 pb-6">
+			<Note className={good ? "text-success" : "text-pen"}>
+				cómo trataste al paciente
+			</Note>
+			<h2 className="font-display text-2xl">{RAPPORT_LEVEL[r.level]}</h2>
+			<p className="text-muted-foreground">{r.summary}</p>
+
+			<div className="grid gap-1.5">
+				<div className="flex items-baseline justify-between text-sm">
+					<span className="font-medium">Confianza del paciente en vos</span>
+					<span className="font-hand text-xl leading-none">
+						{pct(r.trust.start)}% → {pct(r.trust.end)}%
+					</span>
+				</div>
+				<div className="relative h-2 rounded-full bg-muted">
+					<div
+						className={`h-2 rounded-full ${r.trust.end >= r.trust.start ? "bg-success" : "bg-pen"}`}
+						style={{ width: `${pct(r.trust.end)}%` }}
+					/>
+					<div
+						className="absolute top-[-3px] h-[14px] w-0.5 bg-foreground/60"
+						style={{ left: `${pct(r.trust.start)}%` }}
+						title="Al empezar"
+					/>
+				</div>
+			</div>
+
+			{r.plus.length > 0 && (
+				<div className="grid gap-2">
+					<p className="font-medium">
+						Sumó{r.bonus > 0 ? ` (+${r.bonus} en comunicación)` : ""}
+					</p>
+					<RapportEntries entries={r.plus} sign="+" />
+				</div>
+			)}
+			{r.minus.length > 0 && (
+				<div className="grid gap-2">
+					<p className="font-medium">
+						Restó{r.penalty > 0 ? ` (−${r.penalty} en comunicación)` : ""}
+					</p>
+					<RapportEntries entries={r.minus} sign="−" />
+				</div>
+			)}
+			<p className="text-sm">
+				<span className="font-medium">La próxima vez:</span> {r.tip}
+			</p>
 		</Paper>
 	);
 }
@@ -197,6 +304,8 @@ export default function ReportPage() {
 					</div>
 				))}
 			</section>
+
+			{report.rapport && <RapportSection r={report.rapport} />}
 
 			{(report.strengths.length > 0 || alsoDone.length > 0) && (
 				<section className="grid gap-3">

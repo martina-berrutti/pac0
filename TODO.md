@@ -234,6 +234,8 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 - [x] Inicio con la leyenda "herramienta de práctica, no reemplaza a pacientes reales ni a docentes"
 - [ ] Entrar, perfil, elegir caso (con el generador), consulta, examen e informe
 - [ ] Informe con las siete partes: veredicto con 4 barras, lo que hiciste bien, errores, línea de tiempo, mapa del examen, repetición sugerida y perfil de errores
+- [x] Sección «Cómo trataste al paciente» en el informe (pedido el 17/10; hecho por la Persona 1, avisar a las Personas 2 y 3): nivel, confianza del paciente al empezar y al terminar, lo que sumó y lo que restó con la cita de cada cosa, y un consejo. Suma a comunicación (con tope de 10): reconocer lo que siente el paciente (+2), frases con empatía (+1, hasta 2), que termine con más confianza (+3; +5 si es un paciente difícil) y despedirse con amabilidad (+1). Resta, además de lo que ya restaba: que termine con bastante menos confianza (−3). `lib/scoring/rapport.ts`
+- [ ] Calibrar con un docente los puntos del trato
 - [ ] Todas las pantallas sin cortes a 390 y 1280 px
 
 ### Personajes y avatar (plan.md, sección 9)

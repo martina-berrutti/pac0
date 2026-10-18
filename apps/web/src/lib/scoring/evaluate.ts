@@ -27,12 +27,12 @@ import {
 	dimensionScore,
 	MIN_ANAMNESIS_FOR_DIAGNOSIS,
 	PENALTY_CAP,
-	TRUST_BONUS,
 	TRUST_GAIN,
 	totalScore,
 	verdictFor,
 } from "./engine";
 import { type Extracted, extract } from "./extractor";
+import { buildRapport, rapportBonus, trustPenalty } from "./rapport";
 import {
 	DESCRIBE_ITEM,
 	expectedFinding,
@@ -512,6 +512,7 @@ export function assembleReport(
 	const { clinicalCase } = input;
 	const pens = [
 		...penalties(extracted, clinicalCase, input.turns),
+		...trustPenalty(extracted),
 		...earPenalties(input, extracted),
 		...jumpedToDiagnosis(input, items, extracted),
 	];
@@ -535,12 +536,12 @@ export function assembleReport(
 			pensFor("comunicacion"),
 		),
 	};
-	// Suma: subir la confianza de un paciente difícil.
+	// Suma: el buen trato (reconocer lo que siente, empatía, ganar su
+	// confianza, despedirse bien), con tope. Lo que resta ya está en pens.
 	const { trust } = extracted;
 	const wonTrust = trust.difficult && trust.end - trust.start >= TRUST_GAIN;
-	if (wonTrust) {
-		scores.comunicacion = Math.min(100, scores.comunicacion + TRUST_BONUS);
-	}
+	const kindness = rapportBonus(extracted);
+	scores.comunicacion = Math.min(100, scores.comunicacion + kindness.bonus);
 
 	const mistakes: Mistake[] = criticalMistakes(items, extracted);
 	const description = describeMistake(items, extracted, input);
@@ -632,6 +633,16 @@ export function assembleReport(
 			})),
 	].slice(0, 3);
 
+	const rapport = buildRapport({
+		extracted,
+		items,
+		penalties: pens,
+		mistakes,
+		bonus: kindness.bonus,
+		plus: kindness.plus,
+		score: scores.comunicacion,
+	});
+
 	const total = totalScore(scores);
 	const { verdict, message } = verdictFor(
 		total,
@@ -654,6 +665,7 @@ export function assembleReport(
 		notMeasurable: ["Contacto ocular", "Expresión facial y postura"],
 		diagnosis,
 		improvements: improvementsFor(clinicalCase, diagnosis, mistakes),
+		rapport,
 		judge,
 		createdAt: Date.now(),
 	});

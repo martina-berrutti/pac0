@@ -2,6 +2,14 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Cómo trataste al paciente
+
+- **Sección nueva en el informe, «Cómo trataste al paciente»:** nivel (muy bueno, bueno, mejorable, a trabajar), resumen, barra de la confianza del paciente al empezar y al terminar, lo que **sumó** y lo que **restó** con la frase citada de cada cosa y sus puntos, y un consejo para la próxima.
+- **Suma a comunicación** (con tope de 10): reconocer lo que siente el paciente cuando dice que le duele o tiene miedo (+2 por vez), otras frases con empatía (+1, hasta 2), que el paciente termine con más confianza (+3; +5 si es difícil, como antes) y despedirse con amabilidad (+1). Cada frase suma una sola vez.
+- **Resta:** lo que ya restaba (interrumpir desde la tercera vez, preguntas sugestivas, jerga sin explicar, ignorar lo que siente) y, nuevo, que el paciente termine con bastante menos confianza que al empezar (−3). Una o dos interrupciones se avisan sin restar. El trato irrespetuoso o insistir contra su negativa siguen siendo errores críticos.
+- Sirve igual con el juez por reglas y con el de IA (los dos pasan por `assembleReport`). Es terreno de las Personas 2 (puntaje) y 3 (pantalla): avisarles.
+- Validación: 5 tests nuevos en `tests/rapport.test.ts` (339 en web); lint, tipos y build. En Chrome a 390 y 1280 px: sin desborde ni errores en la consola.
+
 ## 17/10 · Persona 1 · Revisión final sobre main
 
 Tres revisores independientes leyeron enteros los 71 archivos de la Persona 1 en `main` (después del #7) y cerraron con una conclusión explícita.
