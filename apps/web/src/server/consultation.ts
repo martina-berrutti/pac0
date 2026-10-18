@@ -177,7 +177,7 @@ export async function startSession(
 	if (viewer.exp - Date.now() < MAX_SESSION_MS + LOGIN_MARGIN_MS)
 		throw new HttpError(
 			401,
-			"Tu sesión vence en unos minutos. Volvé a entrar para empezar una consulta.",
+			"Tu sesión vence en unos minutos. Tocá Salir y entrá de nuevo para empezar una consulta.",
 		);
 	const visible = await store.listCases(viewer.uid);
 	const clinicalCase = visible.find((c) => c.id === caseId);
