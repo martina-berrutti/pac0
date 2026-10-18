@@ -94,6 +94,105 @@ export function judgeHypothesis(
 	return { matches: false };
 }
 
+// Frases con las que el estudiante anuncia un diagnóstico que no es ni el del
+// caso ni un diferencial ("creo que es una angina"). Se buscan sin tildes.
+const ANNOUNCES =
+	/(mi diagnostico es|el diagnostico es|lo que (tenes|tiene) es|se trata de|me inclino por|sospecho (que es|de)|(creo|pienso|me parece) que (es|seria|tenes|tiene) (una?|un) |(probablemente|seguramente) (sea|es|tengas|tenga) (una?|un) )\s*(\S+)?/;
+// Lo que sigue a "creo que tenés un..." y no es un diagnóstico.
+const NOT_A_DIAGNOSIS = new Set([
+	"poco",
+	"dolor",
+	"fiebre",
+	"malestar",
+	"rato",
+	"tiempo",
+	"golpe",
+]);
+
+export type Spoken = NonNullable<DiagnosisFeedback["spoken"]>[number];
+
+// Todo lo que el estudiante le dijo al paciente sobre qué tiene, frase por
+// frase y en orden. Las preguntas y los descartes ("no es un resfrío") no
+// cuentan.
+export function spokenDiagnoses(c: ClinicalCase, turns: Turn[] = []): Spoken[] {
+	const out: Spoken[] = [];
+	for (const t of turns) {
+		if (t.speaker !== "estudiante") continue;
+		for (const raw of t.text.match(/[^.!?\n]+[.!?]?/g) ?? []) {
+			const sentence = raw.trim();
+			if (!sentence || sentence.endsWith("?") || sentence.startsWith("¿"))
+				continue;
+			const quote = sentence.slice(0, MAX_QUOTE);
+			const judged = judgeHypothesis(c, sentence);
+			if (judged.matches) {
+				out.push({ quote, turnId: t.id, verdict: "correcto" });
+			} else if (judged.confused) {
+				out.push({
+					quote,
+					turnId: t.id,
+					verdict: "diferencial",
+					differential: judged.confused,
+				});
+			} else {
+				const plain = normalize(sentence);
+				const m = plain.match(ANNOUNCES);
+				const next = m?.[m.length - 1];
+				if (m && !RULES_OUT.test(plain) && next && !NOT_A_DIAGNOSIS.has(next))
+					out.push({ quote, turnId: t.id, verdict: "otro" });
+			}
+		}
+	}
+	return out;
+}
+
+// Lo último que dijo en la consulta contra lo que escribió: si no coinciden,
+// el informe lo marca y dice cuál era el correcto.
+function mismatchFor(
+	c: ClinicalCase,
+	spoken: Spoken[],
+	written: string,
+	writtenMatches: boolean,
+	writtenConfused: string | undefined,
+): DiagnosisFeedback["mismatch"] {
+	const last = spoken.at(-1);
+	if (!last || !written) return undefined;
+	const writtenVerdict = writtenMatches
+		? "correcto"
+		: writtenConfused
+			? "diferencial"
+			: "otro";
+	const same =
+		last.verdict === writtenVerdict &&
+		(last.verdict !== "diferencial" || last.differential === writtenConfused) &&
+		// Dos "otro" distintos tampoco coinciden: se comparan las palabras.
+		(last.verdict !== "otro" ||
+			words(last.quote).some((w) => words(written).includes(w)));
+	if (same) return undefined;
+	const bare = (x: string) => x.replace(/[.!\s]+$/, "");
+	const base = `En la consulta le dijiste al paciente «${bare(last.quote)}», pero por escrito pusiste «${bare(written)}».`;
+	const message =
+		last.verdict === "correcto"
+			? `${base} Lo que dijiste en voz alta era lo correcto: era ${c.truth.diagnosis}. Confiá en lo que te mostraron los datos.`
+			: writtenMatches
+				? `${base} Lo escrito era lo correcto, pero al paciente le quedó otra idea: aclarásela antes de terminar.`
+				: `${base} No coinciden, y ninguno de los dos era el diagnóstico: era ${c.truth.diagnosis}.`;
+	return { spoken: last.quote, turnId: last.turnId, written, message };
+}
+
+// Lo que dijo en voz alta que suma al razonamiento (evaluate.ts y
+// ai-judge.ts): los diferenciales que nombró, si su última palabra fue el
+// diagnóstico correcto y el texto, para buscar la justificación.
+export function spokenReasoning(c: ClinicalCase, turns: Turn[] = []) {
+	const spoken = spokenDiagnoses(c, turns);
+	return {
+		differentials: c.truth.differentials.filter((d) =>
+			spoken.some((s) => namesDifferential(c, d, s.quote)),
+		),
+		lastCorrect: spoken.at(-1)?.verdict === "correcto",
+		text: spoken.map((s) => s.quote).join(" "),
+	};
+}
+
 // Lo último que le dijo al paciente sobre qué tiene (sin preguntas ni
 // descartes).
 function toldPatient(c: ClinicalCase, turns: Turn[]) {
@@ -139,10 +238,14 @@ export function diagnosisFeedback(
 		}
 	}
 
-	// Cada diferencial que escribió, y las frases de la hipótesis.
+	// Cada diferencial que escribió, las frases de la hipótesis y lo que dijo
+	// en voz alta durante la consulta.
 	const named = [
 		...normalize(yours).split(CLAUSES),
 		...(closing?.differentials ?? []),
+		...spokenDiagnoses(c, turns).flatMap((s) =>
+			normalize(s.quote).split(CLAUSES),
+		),
 	];
 	const differentialsHit = truth.differentials.filter((d) =>
 		named.some((x) => namesDifferential(c, d, x)),
@@ -194,6 +297,14 @@ export function diagnosisFeedback(
 			const told = toldPatient(c, turns);
 			return told ? { toldPatient: told } : {};
 		})(),
+		...(() => {
+			const spoken = spokenDiagnoses(c, turns);
+			const mismatch = mismatchFor(c, spoken, yours, matches, confused);
+			return {
+				...(spoken.length > 0 ? { spoken } : {}),
+				...(mismatch ? { mismatch } : {}),
+			};
+		})(),
 	};
 }
 
@@ -238,6 +349,11 @@ export function improvementsFor(
 	} else if (d.result !== "acertaste") {
 		out.push(
 			`Repasá ${c.truth.diagnosis}: qué síntomas y hallazgos lo diferencian de los otros cuadros.`,
+		);
+	}
+	if (d.mismatch) {
+		out.push(
+			"Que lo que le decís al paciente y lo que escribís coincidan; si cambiás de idea, explicale por qué.",
 		);
 	}
 	if (missed.length > 0) {

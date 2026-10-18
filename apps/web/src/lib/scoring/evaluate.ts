@@ -23,6 +23,7 @@ import {
 	improvementsFor,
 	judgeHypothesis,
 	namesDifferential,
+	spokenReasoning,
 	toldPatientMistake,
 } from "./diagnosis";
 import {
@@ -88,6 +89,9 @@ export type Reasoning = {
 // Lo que el juez (reglas o IA) decide del cierre; el puntaje lo pone el código.
 export type ReasoningParts = {
 	hypothesisMatches: boolean;
+	// La escrita no coincide, pero lo último que le dijo al paciente en la
+	// consulta era el diagnóstico correcto: media hipótesis.
+	hypothesisSpoken?: boolean;
 	differentialsCovered: number;
 	differentialsExpected: number;
 	justified: boolean;
@@ -105,7 +109,12 @@ export function reasoningFromParts(p: ReasoningParts): Reasoning {
 	const notes: string[] = [];
 	let score = 0;
 	if (p.hypothesisMatches) score += 40;
-	else notes.push("La hipótesis principal no coincide con el cuadro.");
+	else if (p.hypothesisSpoken) {
+		score += 20;
+		notes.push(
+			"En la consulta dijiste el diagnóstico correcto, pero escribiste otro: vale la mitad.",
+		);
+	} else notes.push("La hipótesis principal no coincide con el cuadro.");
 	score += Math.round(
 		(p.differentialsCovered / Math.max(1, p.differentialsExpected)) * 25,
 	);
@@ -126,13 +135,19 @@ export function reasoningScore(input: EvaluationInput): Reasoning {
 	if (!closing) return NO_HYPOTHESIS;
 	const c = input.clinicalCase;
 	const { truth } = c;
-	const hyp = closing.hypothesis;
+	// Lo que dijo en voz alta durante la consulta suma a lo escrito.
+	const spoken = spokenReasoning(c, input.turns);
+	const hyp = `${closing.hypothesis} ${spoken.text}`;
+	const matches = judgeHypothesis(c, closing.hypothesis).matches;
 	return reasoningFromParts({
 		// "faringitis estreptocócica" no es "faringitis viral" (diagnosis.ts).
-		hypothesisMatches: judgeHypothesis(c, hyp).matches,
+		hypothesisMatches: matches,
+		hypothesisSpoken: !matches && spoken.lastCorrect,
 		// Un diferencial vacío o "otitis" sola no cubren nada.
-		differentialsCovered: truth.differentials.filter((d) =>
-			closing.differentials.some((x) => namesDifferential(c, d, x)),
+		differentialsCovered: truth.differentials.filter(
+			(d) =>
+				closing.differentials.some((x) => namesDifferential(c, d, x)) ||
+				spoken.differentials.includes(d),
 		).length,
 		differentialsExpected: truth.differentials.length,
 		// Justifica si cita un dato de la consulta: las palabras generales o

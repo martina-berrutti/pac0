@@ -9,7 +9,7 @@ import type { ChecklistItem } from "@/cases/schema";
 import type { ItemResult } from "@/lib/contracts/report";
 import type { Turn } from "@/lib/contracts/session";
 
-import { judgeHypothesis } from "./diagnosis";
+import { judgeHypothesis, spokenReasoning } from "./diagnosis";
 import { NO_HYPOTHESIS, type Reasoning, reasoningFromParts } from "./evaluate";
 import type { Extracted } from "./extractor";
 import {
@@ -219,15 +219,22 @@ Decidí:
 Respondé solo JSON: {"hipotesisCoincide":true,"diferencialesCubiertos":["..."],"justificacion":["..."],"estudiosRazonables":false}.`;
 
 	const out = await llm(prompt, reasoningSchema);
-	const hyp = normalize(closing.hypothesis);
+	// Lo que dijo en voz alta durante la consulta suma a lo escrito (misma
+	// regla que el juez por reglas).
+	const spoken = spokenReasoning(input.clinicalCase, input.turns);
+	const hyp = normalize(`${closing.hypothesis} ${spoken.text}`);
+	// Si nombra un diferencial ("faringitis estreptocócica"), no coincide
+	// aunque el modelo diga que sí: misma regla que el juez por reglas.
+	const matches =
+		out.hipotesisCoincide &&
+		!judgeHypothesis(input.clinicalCase, closing.hypothesis).confused;
 	return reasoningFromParts({
-		// Si nombra un diferencial ("faringitis estreptocócica"), no coincide
-		// aunque el modelo diga que sí: misma regla que el juez por reglas.
-		hypothesisMatches:
-			out.hipotesisCoincide &&
-			!judgeHypothesis(input.clinicalCase, closing.hypothesis).confused,
-		differentialsCovered: truth.differentials.filter((d) =>
-			out.diferencialesCubiertos.some((c) => normalize(c) === normalize(d)),
+		hypothesisMatches: matches,
+		hypothesisSpoken: !matches && spoken.lastCorrect,
+		differentialsCovered: truth.differentials.filter(
+			(d) =>
+				out.diferencialesCubiertos.some((c) => normalize(c) === normalize(d)) ||
+				spoken.differentials.includes(d),
 		).length,
 		differentialsExpected: truth.differentials.length,
 		justified: out.justificacion.some(
