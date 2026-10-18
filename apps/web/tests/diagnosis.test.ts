@@ -1,7 +1,7 @@
 // Devolución del diagnóstico y puntos a mejorar (lib/scoring/diagnosis.ts).
 import { describe, expect, test } from "vitest";
 
-import { caseBank } from "@/cases";
+import { findCase } from "@/cases";
 import type { ItemResult, Mistake } from "@/lib/contracts/report";
 import type { Turn } from "@/lib/contracts/session";
 import {
@@ -13,7 +13,7 @@ import { reasoningScore } from "@/lib/scoring/evaluate";
 import type { EvaluationInput } from "@/lib/scoring/types";
 
 const byId = (id: string) => {
-	const c = caseBank.find((x) => x.id === id);
+	const c = findCase(id);
 	if (!c) throw new Error(`falta ${id}`);
 	return c;
 };

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { caseBank } from "@/cases";
+import { findCase } from "@/cases";
 import type { ClinicalCase } from "@/cases/schema";
 import { EXAM_KINDS } from "@/cases/schema";
 import {
@@ -201,7 +201,7 @@ describe("evaluación de la otoscopia", () => {
 });
 
 describe("hallazgos de oído por caso", () => {
-	const diego = caseBank.find((c) => c.id === "oido-01") as ClinicalCase;
+	const diego = findCase("oido-01") as ClinicalCase;
 	const ear = (zone: "oido-derecho" | "oido-izquierdo", startMs: number) => ({
 		...otoscopy({ steps: [], errors: [] }),
 		id: `oto-${zone}`,

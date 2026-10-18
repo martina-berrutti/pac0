@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { caseBank } from "@/cases";
+import { caseBank, findCase } from "@/cases";
 import { toSummary } from "@/cases/schema";
 import { otoscopyScenario } from "@/lib/exam/otoscope";
 import { buildPatientBrief, buildPatientPrompt } from "@/lib/patient/brief";
@@ -17,23 +17,18 @@ const viewer = (uid: string): Viewer & { alias: string } => ({
 	exp: Date.now() + 1e6,
 });
 const byId = (id: string) => {
-	const c = caseBank.find((x) => x.id === id);
+	const c = findCase(id);
 	if (!c) throw new Error(`falta ${id}`);
 	return c;
 };
 
 describe("banco de casos", () => {
-	test("Lucía y Diego, dos problemas cada uno, sin revisar y con sexo para la voz", () => {
-		expect(caseBank.map((c) => c.id)).toEqual([
-			"garganta-02",
-			"garganta-03",
-			"oido-01",
-			"oido-02",
-		]);
-		for (const [group, name] of [
-			["lucia", "Lucía"],
-			["diego", "Diego"],
-		]) {
+	test("solo Lucía, con dos problemas, sin revisar y con sexo para la voz", () => {
+		// Diego salió del banco (no hay avatar varón), pero sus casos se siguen
+		// encontrando por id para las consultas viejas.
+		expect(caseBank.map((c) => c.id)).toEqual(["garganta-02", "garganta-03"]);
+		expect(findCase("oido-01")?.patient.name).toBe("Diego");
+		for (const [group, name] of [["lucia", "Lucía"]]) {
 			const problems = caseBank.filter((c) => c.group === group);
 			expect(problems.map((c) => c.problem)).toEqual([
 				"Problema 1",
@@ -111,9 +106,9 @@ describe("banco de casos", () => {
 		expect(ear("oido-02").izquierdo.tympanum).toBe("nacarado");
 	});
 
-	test("Diego por voz: pedir revisar el oído abre el otoscopio", async () => {
-		const ana = viewer("gst_cases_diego");
-		const id = await startSession(ana, "oido-01", "caso");
+	test("por voz: pedir revisar el oído abre el otoscopio (también a Lucía)", async () => {
+		const ana = viewer("gst_cases_oido");
+		const id = await startSession(ana, "garganta-02", "caso");
 		const run = await runTool(ana, id, "examinar", {
 			zona: "oído derecho",
 			claridad: "alta",

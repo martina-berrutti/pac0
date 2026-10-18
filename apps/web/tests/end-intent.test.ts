@@ -43,6 +43,13 @@ describe("terminar el examen hablando", () => {
 		"No hace falta ver más",
 		"Terminé de revisarte",
 		"Podés bajar la cabeza",
+		"Dejá de mostrarme el oído",
+		"Ya no me lo muestres",
+		"Ya vi, gracias",
+		"Basta, ya está bien",
+		"Saco el otoscopio",
+		"Perfecto, gracias",
+		"Ya fue, volvé a como estabas",
 	])("%s → termina", (text) => {
 		expect(asksToEndExam(text)).toBe(true);
 	});
