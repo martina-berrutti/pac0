@@ -93,7 +93,7 @@ const FIRST_PERSON =
 // La otra zona tiene que ser lo que se examina ("te reviso el cuello"), no
 // un síntoma en la misma frase ("te reviso, ¿tenés los ojos llorosos?").
 const OTHER_ZONE =
-	/\b(revis|mir|examin|ver|chequ|palp|toc|tom|med|escuch|control)\w*\s+(el|la|los|las|tu|tus|su|sus)\s+(cuello|ganglios?|pecho|presion|tension|brazos?|panza|abdomen|corazon|pulmon\w*|espalda|nariz|ojos?|piernas?|oidos?|orejas?)\b/;
+	/\b(revis|mir|examin|ver|chequ|palp|escuch)\w*\s+(el|la|los|las|tu|tus|su|sus)\s+(cuello|ganglios?|pecho|presion|tension|brazos?|panza|abdomen|corazon|pulmon\w*|espalda|nariz|ojos?|piernas?|oidos?|orejas?)\b/;
 const MOUTH =
 	/\b(boca|garganta|faringe|lengua|amigdalas?|a{2,}|abr(i|a|ime|ame|ila|is|ir))\b/;
 

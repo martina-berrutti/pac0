@@ -110,6 +110,8 @@ describe("presión por texto: un pedido, no una pregunta de la historia", () => 
 		["Me gustaría tomarte la presión", true],
 		["¿Me permitís tomarte la presión?", true],
 		["Permitime tomarte la presión", true],
+		["Te pongo el manguito para tomarte la presión", true],
+		["Permítame tomarle la presión", true],
 		["¿Quién te tomó la presión la última vez?", false],
 		["¿El médico te controló la presión?", false],
 	])("%s", (text, expected) => {
