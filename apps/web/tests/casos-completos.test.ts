@@ -340,8 +340,10 @@ describe("confianza alcanzada (texto)", () => {
 	test("si arranca con confianza, ya está marcada", async () => {
 		const ana = student();
 		const id = await startSession(ana, "garganta-02", "caso");
+		// Lucía (garganta-02) arranca con confianza alta.
 		const session = await store.getSession(id);
-		expect(session?.trustReached).toBe((session?.state.confianza ?? 0) >= 0.5);
+		expect(session?.state.confianza).toBeGreaterThanOrEqual(0.5);
+		expect(session?.trustReached).toBe(true);
 	});
 
 	test("con poca confianza no se marca", async () => {
