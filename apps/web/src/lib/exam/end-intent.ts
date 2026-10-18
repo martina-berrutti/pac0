@@ -21,6 +21,9 @@ const END = [
 	/\b(basta|suficiente|ya fue|ya vi|perfecto,? gracias|gracias,? ya)\b/,
 	/\bvolve(r|mos)? (a la normalidad|a como estabas|de frente|a sentarte)/,
 	/\b(podes|puedes) (relajarte|descansar|bajar (la )?(boca|cabeza))/,
+	// "Podés volver", "podés bajar" (sin más), "podés volver a tu lugar".
+	/\b(podes|puedes) (volver|bajar)$/,
+	/\bvolver a (tu lugar|la posicion|tu posicion)\b/,
 ];
 
 // "No cierres la boca", "todavía no terminé": siguen examinando.
@@ -33,11 +36,17 @@ const KEEP = [
 	/\bcuando termine\b/,
 	// Con otra instrucción del examen ("listo, ahora sacá la lengua", "ya
 	// está casi, abrí un poco más") sigue examinando.
-	/\b(abr(i|a|ime|ame|ila|is|ir)|deci a+|diga a+|a{3,}|lengua)\b/,
+	/\b(abr(i|a|ime|ame|ila|is|ir)|(deci|diga|hace|haga) a+|sac(a|ate|ar) (la )?lengua|lengua afuera)\b/,
 ];
+
+// "Cerrá la boca" (o "guardá la lengua") gana aunque la frase nombre otra
+// cosa del examen; "no cierres" no.
+const EXPLICIT_END =
+	/\bcerr(a|ar|as|ala|ame)\b.*\bboca\b|\b(guarda|guardar|meter|mete) (la )?lengua\b/;
 
 export function asksToEndExam(text: string): boolean {
 	const t = normalize(text);
+	if (EXPLICIT_END.test(t) && !/\bno (la )?cierr/.test(t)) return true;
 	if (KEEP.some((re) => re.test(t))) return false;
 	return END.some((re) => re.test(t));
 }
@@ -86,7 +95,17 @@ function presentSentences(text: string) {
 }
 
 export function asksForBloodPressure(text: string): boolean {
-	return presentSentences(text).some(
+	const sentences = presentSentences(text);
+	// "Te voy a poner el manguito. Es para tomarte la presión.": la segunda
+	// frase completa la primera.
+	const joined = sentences.flatMap((s, i) =>
+		/\b(pongo|poner|ponerte|ponerle|coloco|colocar|colocarte|colocarle)\b/.test(
+			s,
+		) && /^es para\b/.test(sentences[i + 1] ?? "")
+			? [`${s} ${sentences[i + 1]}`]
+			: [],
+	);
+	return [...sentences, ...joined].some(
 		(t) => /\b(presion|tension|tensiometro)\b/.test(t) && MEASURE.test(t),
 	);
 }

@@ -57,6 +57,11 @@ describe("una instrucción más no cierra el examen", () => {
 		["Podés bajar la cabeza", true],
 		["Listo, gracias", true],
 		["Ya está, podés cerrar la boca", true],
+		["Listo, guardá la lengua y cerrá la boca", true],
+		["Ya está, podés meter la lengua", true],
+		["Podés volver", true],
+		["Bueno, podés volver a tu lugar", true],
+		["No cierres la boca todavía", false],
 	])("%s", (text, expected) => {
 		expect(asksToEndExam(text)).toBe(expected);
 	});
@@ -79,6 +84,14 @@ describe("temperatura y presión, frase por frase", () => {
 			asksForBloodPressure("Te voy a medir la presión, ¿tenés fiebre?"),
 		).toBe(true);
 		expect(asksForTemperature("Vamos a medir si tenés fiebre")).toBe(true);
+		expect(
+			asksForBloodPressure(
+				"Te voy a poner el manguito. Es para tomarte la presión.",
+			),
+		).toBe(true);
+		expect(
+			asksForBloodPressure("¿Tenés aparato para medirte la presión en casa?"),
+		).toBe(false);
 	});
 });
 
