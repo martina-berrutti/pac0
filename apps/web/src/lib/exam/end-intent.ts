@@ -22,7 +22,8 @@ const END = [
 	/\bvolve(r|mos)? (a la normalidad|a como estabas|de frente|a sentarte)/,
 	/\b(podes|puedes) (relajarte|descansar|bajar (la )?(boca|cabeza))/,
 	// "Podés volver", "podés bajar" (sin más), "podés volver a tu lugar".
-	/\b(podes|puedes) (volver|bajar)$/,
+	// Sin "a + verbo" después: "¿podés volver a abrir?" sigue examinando.
+	/\b(podes|puedes) (volver|bajar)\b(?! a \w+r\b)(?! (la )?lengua)/,
 	/\bvolver a (tu lugar|la posicion|tu posicion)\b/,
 ];
 

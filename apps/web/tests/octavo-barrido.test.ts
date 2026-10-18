@@ -60,6 +60,7 @@ describe("una instrucción más no cierra el examen", () => {
 		["Listo, guardá la lengua y cerrá la boca", true],
 		["Ya está, podés meter la lengua", true],
 		["Podés volver", true],
+		["Podés volver, gracias", true],
 		["Bueno, podés volver a tu lugar", true],
 		["No cierres la boca todavía", false],
 	])("%s", (text, expected) => {
