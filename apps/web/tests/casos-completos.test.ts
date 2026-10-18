@@ -359,3 +359,12 @@ describe("confianza alcanzada (texto)", () => {
 		expect((await store.getSession(id))?.trustReached).toBeFalsy();
 	});
 });
+
+describe("empezar con la sesión por vencer", () => {
+	test("no arranca una consulta que no llegaría a cerrarse", async () => {
+		const ana = { ...student(), exp: Date.now() + 5 * 60_000 };
+		await expect(startSession(ana, "garganta-02", "caso")).rejects.toThrow(
+			"vence",
+		);
+	});
+});

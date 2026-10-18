@@ -160,6 +160,9 @@ async function checkSessionLimits(viewer: Viewer) {
 		);
 }
 
+// Margen para la hipótesis y el informe después de los 8 minutos.
+const LOGIN_MARGIN_MS = 5 * 60 * 1000;
+
 export async function startSession(
 	viewer: Viewer & { alias: string },
 	caseId: string,
@@ -169,6 +172,13 @@ export async function startSession(
 	// cupo de todo el salón).
 	beforeCreate: () => Promise<void> = async () => {},
 ) {
+	// Si la sesión de la cuenta vence antes de que termine la consulta, a
+	// mitad de camino todo daría 401 y no se podría cerrar ni ver el informe.
+	if (viewer.exp - Date.now() < MAX_SESSION_MS + LOGIN_MARGIN_MS)
+		throw new HttpError(
+			401,
+			"Tu sesión vence en unos minutos. Tocá Salir y entrá de nuevo para empezar una consulta.",
+		);
 	const visible = await store.listCases(viewer.uid);
 	const clinicalCase = visible.find((c) => c.id === caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
