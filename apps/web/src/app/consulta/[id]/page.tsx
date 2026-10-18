@@ -187,6 +187,7 @@ export default function ConsultationPage() {
 		// "Cerrá la boca" cierra apenas se escucha, sin esperar a que se guarde
 		// el turno (eso pasa recién cuando el paciente contesta).
 		onHearing: (text) => hearing.heard(text),
+		onHeardTurnEnd: () => hearing.turnEnded(),
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
 			// Midiendo presión, temperatura o buscando el dolor, otro examen no

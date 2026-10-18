@@ -7,9 +7,8 @@ export function createHearing(onPause: (said: string) => void, pauseMs = 700) {
 	let from = 0;
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	return {
-		// La transcripción acumulada del turno (vuelve a empezar en cada turno).
+		// La transcripción acumulada del turno que se está diciendo.
 		heard(next: string) {
-			if (next.length < text.length) from = 0;
 			text = next;
 			if (timer) clearTimeout(timer);
 			timer = setTimeout(() => {
@@ -17,7 +16,19 @@ export function createHearing(onPause: (said: string) => void, pauseMs = 700) {
 				onPause(text.slice(from));
 			}, pauseMs);
 		},
-		// Se abrió un examen: lo dicho hasta acá no cuenta para cerrarlo.
+		// Terminó el turno (se guardó lo dicho): lo pendiente se juzga ya, así
+		// un "listo, cerrá la boca" seguido enseguida de otra frase no se
+		// pierde, y el turno nuevo empieza de cero.
+		turnEnded() {
+			if (timer) {
+				clearTimeout(timer);
+				timer = null;
+				onPause(text.slice(from));
+			}
+			text = "";
+			from = 0;
+		},
+		// Se abrió un examen: lo dicho hasta acá en este turno no cuenta.
 		examOpened() {
 			from = text.length;
 		},

@@ -3,9 +3,11 @@
 // paciente nunca habla así: por texto, esa respuesta se descarta y contesta
 // el paciente por reglas (Persona 3).
 const OUT_OF_ROLE = [
-	// Consejos de salud y derivaciones. "El especialista me dijo…" es lo que
-	// le pasó al paciente, no un consejo.
-	/\b(consult\w*|anda|vaya|ir|ver) (a|al|con) (un |una |el |la )?especialista\b/,
+	// Consejos de salud y derivaciones, dichos al estudiante: "consultá con un
+	// especialista", "tenés que ir a un especialista". "El médico me mandó a
+	// ver a un especialista" o "consulté con uno" es lo que le pasó.
+	/\b(consulta|consultes|anda|andes|vayas)\b[^.!]{0,25}\bespecialista\b/,
+	/\b(tenes que|tendrias que|deberias|te conviene|lo mejor es que) (ir|ver|consult\w*) (a|al|con) (un |una |el |la )?especialista\b/,
 	/\bte derivo\b/,
 	/\bprofesional de (la )?salud\b/,
 	/\b(te|le|les) (recomiendo|aconsejo|sugiero)\b/,
@@ -21,16 +23,17 @@ const OUT_OF_ROLE = [
 	/\bno puedo (dar|brindar|ofrecer) (consejos|diagnosticos|asesoramiento)/,
 ];
 
-// Frase por frase y sin las preguntas: el paciente sí pregunta "¿se cura con
-// antibióticos?" o "¿me vas a mandar a un especialista?" (se lo pide el
-// prompt cuando le dicen qué tiene).
+// Sin las preguntas: el paciente sí pregunta "¿se cura con antibióticos?" o
+// "¿me vas a mandar a un especialista?" (se lo pide el prompt cuando le dicen
+// qué tiene). Se saca solo la pregunta: "te recomiendo ibuprofeno, ¿dale?"
+// sigue siendo un consejo.
 export function soundsLikeDoctor(text: string): boolean {
 	const t = text
 		.toLowerCase()
 		.normalize("NFD")
-		.replace(/\p{Diacritic}/gu, "");
-	return t
-		.split(/(?<=[.!?\n])\s*/)
-		.filter((s) => !s.includes("?") && !s.includes("¿"))
-		.some((s) => OUT_OF_ROLE.some((re) => re.test(s)));
+		.replace(/\p{Diacritic}/gu, "")
+		// "¿…?" entero, y una pregunta sin "¿" desde el último punto.
+		.replace(/¿[^?]*\?/g, " ")
+		.replace(/(^|[.!])[^.!?]*\?/g, "$1 ");
+	return OUT_OF_ROLE.some((re) => re.test(t));
 }

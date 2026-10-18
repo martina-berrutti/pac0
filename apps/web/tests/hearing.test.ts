@@ -42,11 +42,22 @@ test("lo dicho antes de abrir el examen no cierra el nuevo", () => {
 	expect(closes).toEqual([]);
 });
 
-test("un turno nuevo se juzga entero", () => {
+test("un turno nuevo se juzga entero, aunque sea más largo que el anterior", () => {
 	const { hearing, closes } = setup();
-	hearing.heard("Ahora te miro el oído, quedate quieto");
+	hearing.heard("A ver, abrí la boca");
 	hearing.examOpened();
-	hearing.heard("Ya está");
+	hearing.turnEnded();
+	hearing.heard("Bueno, ahora cerrá la boca, gracias");
 	vi.advanceTimersByTime(700);
-	expect(closes).toEqual(["Ya está"]);
+	expect(closes).toEqual(["Bueno, ahora cerrá la boca, gracias"]);
+});
+
+test("un cierre seguido enseguida de otro turno no se pierde", () => {
+	const { hearing, closes } = setup();
+	hearing.heard("Listo, cerrá la boca");
+	vi.advanceTimersByTime(400);
+	hearing.turnEnded();
+	hearing.heard("Y contame, ¿desde cuándo?");
+	vi.advanceTimersByTime(700);
+	expect(closes).toEqual(["Listo, cerrá la boca"]);
 });
