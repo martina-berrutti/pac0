@@ -57,7 +57,8 @@ const KEEP = [
 	// seguimos con la presión" sí terminan.
 	/\bcabeza\b.{0,15}para atras\b/,
 	/\b(levant|sub)\w* (el )?menton\b|\bmenton (para )?arriba\b/,
-	/\bdescans\w* un (segundo|segundito|momento|poquito)\b/,
+	// Solo si sigue algo después: "ya terminé, descansá un momento" cierra.
+	/\bdescans\w* un (segundo|segundito|momento|poquito)\b.*\b(seguimos|sigo|despues|ahora)\b/,
 	// Con otra instrucción del examen ("listo, ahora sacá la lengua", "ya
 	// está casi, abrí un poco más") sigue examinando.
 	/\b(abr(i|a|as|ime|ame|ila|is|ir)|(deci|diga|hace|haga) a+|sac(a|ate|ar) (la )?lengua|lengua afuera)\b/,

@@ -87,6 +87,8 @@ describe("cerrar el examen hablando (con un examen abierto)", () => {
 		"Casi listo, ya podés cerrar",
 		"puede bajar el mentón",
 		"listo, ya está, podés bajar el mentón",
+		"listo, ya está, podés descansar un poquito",
+		"bueno, ya terminé, descansá un momento",
 		"ya está, baje el mentón",
 		"listo, ya está, seguimos con unas preguntas",
 		"bueno ya vi, gracias, seguimos",
@@ -893,6 +895,7 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["garganta", "toma paracetamol cada 6 horas si te duele"],
 		["garganta", "si te duele, toma un ibuprofeno"],
 		["presion", "seguí tomando el enalapril igual"],
+		["garganta", "toma un ibuprofeno cada 8 horas, ¿dale?"],
 	])("un consejo no es la medicación (%s): %s", (name, t) => {
 		const { text: r, brief } = reply(name, t);
 		expect(r).not.toContain(brief.history.medicacion);

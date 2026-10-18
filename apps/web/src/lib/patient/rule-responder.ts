@@ -139,7 +139,7 @@ const TOPICS: {
 		key: "medicacion",
 		words: ["ibuprofeno", "paracetamol", "enalapril", "antiinflamatorio"],
 		requires:
-			/(tom[aá]s|tomaste|tom[oó]|tomabas|us[aá]s|usaste|est[aá]s? tomando|toma(?=.*\?))(?!\p{L})/u,
+			/(tom[aá]s|tomaste|tom[oó]|tomabas|us[aá]s|usaste|est[aá]s? tomando|(?<=^\s*¿\s*(?:y |usted )?)toma|(?<=^\s*(?:y |usted )?)toma(?=[^,?]*\?\s*$))(?!\p{L})/u,
 	},
 	// Rodilla: cómo se lastimó, hinchazón, si se traba o se va, si apoya.
 	{
