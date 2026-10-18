@@ -192,7 +192,9 @@ export function DolorView({
 			if (r.found) {
 				setFoundKey(keyOf(side, spot));
 				onFound?.();
-			} else setWrong((w) => new Set(w).add(keyOf(side, spot)));
+			}
+			// Solo queda marcada la última zona tocada.
+			else setWrong(new Set([keyOf(side, spot)]));
 		} catch {
 			setSaid("Perdón, no te entendí. ¿Me tocás de nuevo?");
 		} finally {
