@@ -144,27 +144,31 @@ export function askedToRepeat(patientText: string) {
 	return SHORT_REPEAT.test(t) || REPEAT_REQUESTS.some((w) => t.includes(w));
 }
 
-// Empatía, con el texto normalizado. "No entiendo" no lo es, y "tranqui"
-// cuenta suelto o en "quedate tranquila", no en "¿dormís tranquilo?".
-function isEmpathy(t: string, question: boolean) {
+// Empatía, frase por frase: en una pregunta, "¿es normal que tengas fiebre?"
+// no lo es, pero "Entiendo. ¿Tenés fiebre?" sí. "No entiendo" no lo es, y
+// "tranquila" cuenta suelto, no en "¿dormís tranquilo?".
+const FEELING =
+	/(^| )deb(e|e de) ser ((muy|re|bastante|tan|realmente|super|sumamente|una situacion) )*(dificil|feo|feisimo|molesto|horrible|terrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso|complicado|bravo|pesado|jodido|una pesadilla|un garron|un embole)( |$)/;
+
+function sentenceShowsEmpathy(t: string, question: boolean) {
 	if (/(^| )no (te |le |lo |la )?entiendo( |$)/.test(t)) return false;
-	// "Debe ser difícil" sí; "debe ser viral" no.
-	if (
-		/deb(e|e de) ser (muy |re |bastante |tan |una situacion )?(dificil|feo|molesto|horrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso|complicado|bravo|pesado|jodido)/.test(
-			t,
-		)
-	)
-		return !question;
-	// En una pregunta no son empatía: "¿es normal que tengas fiebre?".
-	if (question && /(es normal que|imagino que|debe ser)/.test(t)) return false;
-	if (/(^| )tranqui( |$)/.test(t)) return true;
+	// "Debe ser difícil" (también "debe ser difícil, ¿no?") sí; "debe ser viral" no.
+	if (FEELING.test(t)) return true;
 	if (/(quedate|estate|esta) tranquil[ao]/.test(t)) return true;
-	return EMPATHY.some((w) => t.includes(w));
+	if (question) {
+		if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return false;
+		if (/(es normal que|imagino que|debe ser)/.test(t)) return false;
+	} else if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
+	// Desde el comienzo de una palabra: "reglamento" no es "lamento".
+	return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(t));
 }
 
-// Lo mismo desde el texto crudo. La usa también el paciente sin IA.
+// La usa también el paciente sin IA.
 export function showsEmpathy(text: string) {
-	return isEmpathy(normalize(text), text.includes("?"));
+	const sentences = text.match(/[^.?!]+[.?!]*/g) ?? [];
+	return sentences.some((s) =>
+		sentenceShowsEmpathy(normalize(s), s.includes("?") || s.includes("¿")),
+	);
 }
 
 export type Classification = {
@@ -216,7 +220,7 @@ export function classifyStudentTurn(
 	if (isLeadingQuestion(text)) tags.push("sugestiva");
 	if (JARGON.some((w) => t.includes(w)) && !EXPLAINS.some((w) => t.includes(w)))
 		tags.push("jerga");
-	if (isEmpathy(t, text.includes("?"))) tags.push("empatia");
+	if (showsEmpathy(text)) tags.push("empatia");
 	if (
 		isQuestion &&
 		t.length > 8 &&
