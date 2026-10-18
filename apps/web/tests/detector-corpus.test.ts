@@ -950,6 +950,17 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 	])("una indicación recibe 'bueno' (%s): %s", (name, t) =>
 		expect(reply(name, t).text).toMatch(/^Bueno/),
 	);
+	// Preguntas sin signos que se parecen a una indicación.
+	test.each([
+		["garganta", "hace cuanto te duele"],
+		["garganta", "hace cuánto tenés fiebre"],
+		["garganta", "consultaste con alguien antes"],
+		["garganta", "volves a tener fiebre a la noche"],
+		["garganta", "si claro, y tenés fiebre"],
+		["garganta", "toma algo para el dolor"],
+	])("una pregunta sin signos no recibe 'bueno, dale' (%s): %s", (name, t) =>
+		expect(reply(name, t).text).not.toMatch(/^Bueno, dale/),
+	);
 	test("'¿te diagnosticaron alguna enfermedad?' es un antecedente", () => {
 		const { text: r, brief } = reply(
 			"garganta",
@@ -1022,4 +1033,12 @@ describe("barrido después de #36", () => {
 	);
 	test("'te toco el cuello' sí abre el panel", () =>
 		expect(asksForNeckExam("Ahora te toco el cuello")).toBe(true));
+	test.each(["voy a tocarte el cuello", "¿Me dejás tocarte el cuello?"])(
+		"'tocarte' también abre el panel: %s",
+		(t) => expect(asksForNeckExam(t)).toBe(true),
+	);
+	test.each(["bueno, terminamos ya", "terminamos ya con la garganta"])(
+		"'terminamos ya' cierra: %s",
+		(t) => expect(asksToEndExam(t)).toBe(true),
+	);
 });

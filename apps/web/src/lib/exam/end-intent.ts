@@ -54,7 +54,7 @@ const KEEP = [
 	/\b(enseguida|despues|en un segundit\w*|ya vas a poder) cerr/,
 	/\bcasi\b/,
 	// "Un segundito más y terminamos", "ya terminamos enseguida": todavía no.
-	/\b(mas|segundit\w*|momento|poquito),? y (ya )?terminamos\b|\bterminamos (enseguida|ya)\b/,
+	/\b(mas|segundit\w*|momento|poquito),? y (ya )?terminamos\b|\bterminamos enseguida\b/,
 	/\bno te muevas\b/,
 	// Una pausa o una postura más: "puede bajar un poquito la cabeza para
 	// atrás", "levantá el mentón", "descansá un segundo y después seguimos".
@@ -246,7 +246,7 @@ export function asksForNeckExam(text: string): boolean {
 	);
 	// "Tocar" solo en primera persona: "¿te duele cuando te tocás el cuello?"
 	// es una pregunta de la historia.
-	return /\b((palp|revis|examin|mir|chequ)\w*|toco|tocar)\s+(el|los|tu|tus|ese|esos)\s+(cuello|ganglios?)\b/.test(
+	return /\b((palp|revis|examin|mir|chequ)\w*|toco|tocarle|(?<!\bal )tocarte|tocar)\s+(el|los|tu|tus|ese|esos)\s+(cuello|ganglios?)\b/.test(
 		t,
 	);
 }

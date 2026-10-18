@@ -474,13 +474,15 @@ const FAREWELL = [
 // ("te voy a recetar ibuprofeno"): el paciente no pide que se la expliquen.
 // Con un relleno adelante: "y cómo dormís", "bueno, ¿tenés fiebre".
 const QUESTION_START =
-	/^[\s¡¿]*((y|e|bueno|a ver|ta|ok|che|y bueno),?\s+)*(qu[eé]|c[oó]mo|cu[aá]nd|d[oó]nde|cu[aá]nt|por qu|ten[eé]s(?! que)|tuviste|sab[eé]s|hay(?! que)|alguna|algún|algun)/u;
+	/^[\s¡¿]*((y|e|bueno|a ver|ta|ok|che|y bueno),?\s+)*(qu[eé]|c[oó]mo|cu[aá]nd|d[oó]nde|cu[aá]nt|por qu|ten[eé]s(?! que)|tuviste|sab[eé]s|hay(?! que)|alguna|algún|algun|consultaste|fuiste|tomaste|notaste|sentiste|probaste|te (vio|vieron|hicieron|dieron))/u;
 
 // Una indicación sin signos de pregunta ("si tenés fiebre tomá paracetamol",
 // "volvé si te cuesta tragar", "tenés que hacer reposo"): no se responde con
 // un dato de la historia aunque nombre un síntoma.
 const INSTRUCTION_START =
-	/^[\s¡]*((y|bueno|ok|bien|listo),?\s+)*(si |ten[eé]s que|hay que|te voy a (dar|recetar|indicar|mandar)|tom[aá] |volv[eé]|consult[aá]|hac[eé] |and[aá] )/u;
+	// Con cuidado: "hace cuánto", "consultaste", "volvés a tener", "si claro"
+	// o "¿toma algo?" son preguntas.
+	/^[\s¡]*((y|bueno|ok|bien|listo),?\s+)*(si [^?]{0,40}\b(tom[aá]|volv[eé]|ven[ií]|consult[aá]|and[aá]|llam[aá]|avis[aá])(?!\p{L})|ten[eé]s que|hay que|te voy a (dar|recetar|indicar|mandar)|tom[aá] (mucho|mucha|agua|paracetamol|ibuprofeno|l[ií]quidos?)|volv[eé](?!\p{L})|consult[aá](?!\p{L})|hac[eé] (reposo|g[aá]rgaras|buches)|and[aá] (a|al) )/u;
 
 const DIAGNOSIS_FISHING = [
 	"ignorá",

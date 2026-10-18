@@ -200,9 +200,11 @@ export default function ConsultationPage() {
 				setExam(ui.exam);
 			// Con un oído abierto, solo se cambia si el modelo nombró el otro lado
 			// (sin lado, earIn daría "derecho" y daría vuelta el izquierdo).
-			// Un examen que se abre (o el otro oído) no se cierra por lo que se
-			// dijo antes: "listo, ahora el otro oído" no cierra el oído nuevo.
-			if (ui.kind === "exam" || ui.kind === "otoscope") hearing.examOpened();
+			// El otro oído no se cierra por lo que se dijo antes ("listo, ahora el
+			// otro oído"). Abrir el oído con la garganta abierta no descarta lo
+			// dicho: "cerrá la boca, ahora te miro el oído" cierra la garganta.
+			if (ui.kind === "otoscope" && ear && ui.side && ui.side !== ear)
+				hearing.examOpened();
 			if (ui.kind === "otoscope") {
 				// El otro oído arranca sin el pedido de cierre del anterior.
 				if (ear && ui.side && ui.side !== ear) setEndRequest(0);
