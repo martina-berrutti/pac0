@@ -532,10 +532,10 @@ function tellsDiagnosis(text: string) {
 	)
 		return false;
 	// Preguntas tipeadas sin signos: "tenés un virus o algo así", "tiene una
-	// lesión previa / vieja", "tenés una infección urinaria", "¿tuviste otitis
-	// antes?". "Antes" solo no: "por eso te dolía antes" explica.
+	// lesión previa", "¿tuviste otitis antes?". "Antes" solo no: "por eso te
+	// dolía antes" explica.
 	if (
-		/\b(o algo( asi)?|o no|previa|vieja|cronica|urinaria|otra|tambien|alguna vez|algun lado)\b|\b(tuviste|tenias)\b.*\bantes\b/.test(
+		/\b(o algo( asi)?|o no|previa|de antes|alguna vez|algun lado)\b|\b(tuviste|tenias)\b.*\bantes\b/.test(
 			head,
 		)
 	)
@@ -555,8 +555,13 @@ function tellsDiagnosis(text: string) {
 		// Dicho de frente: "tenés una otitis externa", "te revisé y tenés una
 		// otitis", "te explico: tenés una otitis", "esto es un virus".
 		new RegExp(
-			`(^|[,.;:] ?|\\by |\\b(esto|eso) )(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`,
-		).test(s)
+			`([,.;:] ?|\\by |\\b(esto|eso) )(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`,
+		).test(s) ||
+		// Al principio de todo es ambiguo sin signos: "tenés una otitis
+		// externa" explica, pero "tenés una infección urinaria" o "tiene una
+		// lesión vieja" preguntan (solo se mira esa primera parte de la frase).
+		(new RegExp(`^(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`).test(s) &&
+			!/\b(vieja|urinaria|otra|tambien)\b/.test(s.split(/[,.;]| y /)[0]))
 	);
 }
 
