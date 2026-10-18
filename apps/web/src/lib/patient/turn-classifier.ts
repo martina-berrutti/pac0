@@ -44,6 +44,16 @@ const OPEN_STARTS = [
 	"hay algo mas",
 	"en que te puedo",
 	"que mas",
+	// Con usted: "¿qué le trae por acá?", "cuénteme", "¿cómo se siente?".
+	"que le trae",
+	"que la trae",
+	"que lo trae",
+	"que le pasa",
+	"cuenteme",
+	"como se siente",
+	"en que la puedo",
+	"en que lo puedo",
+	"en que le puedo",
 ];
 const CLOSED_STARTS = [
 	"tenes",
@@ -77,10 +87,14 @@ export function isLeadingQuestion(text: string) {
 	if (/por\s+qu[eé]\s+no\s*\?*\s*$/u.test(t)) return false;
 	// Con signo de pregunta, o con coma antes si la voz no transcribió el signo
 	// ("te duele, no"). Una frase como "eso no" no es una pregunta.
-	return (
-		/(?:^|[\s,¿])(no|verdad|cierto|no es cierto)\s*\?+\s*$/u.test(t) ||
-		/,\s*(no|verdad|cierto|no es cierto)\s*$/u.test(t)
-	);
+	const tag =
+		/(?:^|[\s,¿])(no|verdad|cierto|no es cierto|no es asi|no es así)\s*\?+\s*$/u.exec(
+			t,
+		) ?? /,\s*(no|verdad|cierto|no es cierto|no es asi|no es así)\s*$/u.exec(t);
+	if (!tag) return false;
+	// "Debe ser horrible, ¿no?" o "qué feo, ¿no?" acompañan lo que siente, no
+	// empujan una respuesta.
+	return !saysFeeling(t.slice(0, tag.index));
 }
 // Términos médicos que un paciente no entiende sin explicación.
 const JARGON = [
@@ -102,10 +116,29 @@ const JARGON = [
 	"estreptococo",
 	"hipertermia",
 	"sintomatologia",
+	// Oído, rodilla y presión.
+	"otalgia",
+	"otorrea",
+	"hipoacusia",
+	"prurito",
+	"acufeno",
+	"tinnitus",
+	"edema",
+	"derrame articular",
+	"hemartrosis",
+	"artralgia",
 ];
 const EXPLAINS = ["o sea", "es decir", "quiere decir", "que significa", "osea"];
 const EMPATHY = [
 	"entiendo",
+	"comprendo",
+	"no se preocupe",
+	"lo siento",
+	"siento mucho",
+	"estoy aca para",
+	"es entendible",
+	"es logico que",
+	"me imagino lo",
 	"no te preocupes",
 	"lamento",
 	"que feo",
@@ -116,6 +149,10 @@ const EMPATHY = [
 	"estoy para ayudarte",
 	"vamos a ver juntos",
 ];
+// Exclamaciones que van como palabra entera: "qué mal" sí, "¿qué malestar
+// tenés?" no.
+const EMPATHY_WORDS =
+	/(^| )(que (macana|garron|embole|mal|lastima)|uy pobre|ay pobre|pobrecit[ao])( |$)/;
 
 // El paciente pidió que le repitan ("¿cómo?", "no le escuché"): repetir la
 // pregunta es lo correcto, no una pregunta repetida. La usa también el
@@ -155,23 +192,36 @@ const DENIES_FEELING = new RegExp(String.raw`(?<!\p{L})no\s+${FEELING}`, "u");
 // "No debe ser fácil" sí es empatía.
 const NOT_EASY =
 	/(^| )no deb(e|e de) ser ((nada|muy|tan) )?(facil|lindo|agradable|grato|divertido)( |$)/;
+// "Qué incómodo debe ser", "qué feo, ¿no?".
+const HOW_FEELING =
+	/(^| )que (incomodo|molesto|horrible|dificil|duro|feo|doloroso|feisimo)( (debe|tiene que) ser)?( |$)/;
+
+// Dice lo que el paciente debe sentir. También la usa la pregunta sugestiva:
+// "debe ser horrible, ¿no?" no es sugestiva.
+function saysFeeling(sentence: string) {
+	const t = normalize(sentence);
+	const plain = sentence
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
+	return (
+		NOT_EASY.test(t) ||
+		HOW_FEELING.test(t) ||
+		EMPATHY_WORDS.test(t) ||
+		(SAYS_FEELING.test(plain) && !DENIES_FEELING.test(plain))
+	);
+}
 
 type Kind = "afirma" | "pregunta" | "coletilla";
 
 function sentenceShowsEmpathy(sentence: string, kind: Kind) {
 	const t = normalize(sentence);
 	// Con las comas: "no, debe ser horrible" no niega nada.
-	const plain = sentence
-		.toLowerCase()
-		.normalize("NFD")
-		.replace(/\p{Diacritic}/gu, "");
-	if (/(^| )no (te |le |lo |la )?entiendo( |$)/.test(t)) return false;
+	if (/(^| )no (te |le |lo |la )?(entiendo|comprendo)( |$)/.test(t))
+		return false;
 	// "Debe ser difícil" (también "debe ser difícil, ¿no?") sí; "debe ser
 	// viral" o "no debe ser tan grave" no.
-	const feeling =
-		NOT_EASY.test(t) ||
-		(SAYS_FEELING.test(plain) && !DENIES_FEELING.test(plain));
-	if (kind !== "pregunta" && feeling) return true;
+	if (kind !== "pregunta" && saysFeeling(sentence)) return true;
 	if (kind !== "afirma") {
 		// "¿Es normal que tengas fiebre?", "imagino que tomaste algo, ¿no?",
 		// "¿dormís tranquilo?" o "¿está tranquila?" no son empatía, pero no
@@ -180,8 +230,16 @@ function sentenceShowsEmpathy(sentence: string, kind: Kind) {
 		return sentence.split(",").some((part) => {
 			const c = normalize(part);
 			if (/^(tranqui|tranquil[ao]s?)$/.test(c)) return true;
-			if (/(es normal que|imagino que|debe ser|tranquil)/.test(c)) return false;
-			return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(c));
+			if (
+				/(es normal que|es logico que|es entendible|imagino que|debe ser|tranquil)/.test(
+					c,
+				)
+			)
+				return false;
+			return (
+				EMPATHY_WORDS.test(c) ||
+				EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(c))
+			);
 		});
 	}
 	if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
@@ -191,7 +249,7 @@ function sentenceShowsEmpathy(sentence: string, kind: Kind) {
 
 // Una coletilla al final ("..., ¿no?", "..., o no?", "..., o es la primera
 // vez?") hace pregunta a toda la frase.
-const TAG = /^(o no|no|verdad|cierto|no es cierto|o .+)$/;
+const TAG = /^(o no|no|verdad|cierto|no es cierto|no es asi|o .+)$/;
 
 // Parte el texto en frases. Lo de antes de la pregunta se juzga aparte:
 // "Tranquila, ¿desde cuándo te duele?", y también sin el "¿" ("tranquila,

@@ -20,33 +20,46 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"contacto",
 			"cerca tuyo",
 			"alguien con",
+			"alguien enfermo",
+			"alguien cercano",
 		],
 	},
+	// Antes que la familia: "¿vivís con tu familia?" es dónde vive. "¿Con
+	// quién vive?" (usted) también.
 	{
-		key: "adherencia",
+		key: "vive",
 		words: [
-			"olvid",
-			"te salteás",
-			"te salteas",
-			"dejás de tomar",
-			"dejas de tomar",
-			"todos los días la",
-			"todos los dias la",
+			"vivís",
+			"vivis",
+			"vive con",
+			"vive solo",
+			"vive sola",
+			"con quién vive",
+			"con quien vive",
 		],
 	},
+	// Antes que antecedentes: "¿antecedentes familiares?" o "¿tus padres
+	// tienen alguna enfermedad?" son de la familia.
 	{
-		key: "medicacion",
+		key: "familia",
 		words: [
-			"medicación",
-			"medicacion",
-			"medicamento",
-			"tomaste algo",
-			"estás tomando",
-			"estas tomando",
-			"remedio",
-			"pastilla",
+			"familia",
+			"tus padres",
+			"sus padres",
+			"tu papá",
+			"tu papa",
+			"tu mamá",
+			"tu mama",
+			"tu padre",
+			"tu madre",
+			"su padre",
+			"su madre",
+			"hermanos",
 		],
 	},
+	// Antes que la medicación: "¿sos alérgico a algún medicamento?" es una
+	// alergia (en otitis, la penicilina).
+	{ key: "alergias", words: ["alérgic", "alergic", "alergia"] },
 	{
 		key: "alcohol",
 		// "Tomás" solo no alcanza: "¿tomás mate?" no es una pregunta de alcohol.
@@ -60,10 +73,52 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"cerveza",
 		],
 	},
-	{ key: "tabaco", words: ["fumás", "fumas", "tabaco", "cigarr"] },
+	// Antes que el tabaco: "¿fumás marihuana?" es de drogas.
 	{
 		key: "drogas",
 		words: ["drogas", "consumís", "consumis", "marihuana", "porro"],
+	},
+	// "Fuma" desde el comienzo: "¿fumás?", "¿fuma?" (usted), "¿fumaste?",
+	// "¿fumabas?".
+	{ key: "tabaco", words: ["fuma", "fumás", "tabaco", "cigarr"] },
+	{
+		key: "adherencia",
+		// "Todos los días" solo no: "¿tomás café todos los días?" es del café.
+		words: [
+			"olvid",
+			"te salteás",
+			"te salteas",
+			"saltea",
+			"dejás de tomar",
+			"dejas de tomar",
+			"todos los días la",
+			"todos los dias la",
+			"la tomás todos",
+			"la tomas todos",
+			"las tomás todos",
+			"las tomas todos",
+			"pastilla todos",
+			"pastillas todos",
+		],
+	},
+	{
+		key: "medicacion",
+		words: [
+			"medicación",
+			"medicacion",
+			"medicamento",
+			"tomaste algo",
+			"tomás algo",
+			"tomas algo",
+			"estás tomando",
+			"estas tomando",
+			"remedio",
+			"pastilla",
+			"ibuprofeno",
+			"paracetamol",
+			"enalapril",
+			"antiinflamatorio",
+		],
 	},
 	// Rodilla: cómo se lastimó, hinchazón, si se traba o se va, si apoya.
 	{
@@ -71,8 +126,14 @@ const TOPICS: { key: string; words: string[] }[] = [
 		words: [
 			"cómo te lastimaste",
 			"como te lastimaste",
+			"cómo te lesionaste",
+			"como te lesionaste",
+			"cómo te hiciste",
+			"como te hiciste",
 			"cómo fue",
 			"como fue",
+			"cómo pasó",
+			"como paso",
 			"qué pasó",
 			"que paso",
 			"qué estabas haciendo",
@@ -81,6 +142,8 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"como te golpeaste",
 			"giraste",
 			"te golpe",
+			"te caíste",
+			"te caiste",
 		],
 	},
 	{ key: "hinchazon", words: ["hinch", "inflam"] },
@@ -120,6 +183,7 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"pisar",
 		],
 	},
+	// "¿Cuándo fue?", "¿cuándo arrancó?", "¿cuándo te diagnosticaron?".
 	{
 		key: "inicio",
 		words: [
@@ -127,16 +191,46 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"desde cuando",
 			"cuándo empez",
 			"cuando empez",
+			"que empez",
+			"qué empez",
+			"cuándo fue",
+			"cuando fue",
+			"cuándo pasó",
+			"cuando paso",
+			"cuándo te lastimaste",
+			"cuando te lastimaste",
+			"qué día",
+			"que dia",
+			"arranc",
+			"diagnosticaron",
 			"hace cuánto",
 			"hace cuanto",
 			"cuántos días",
 			"cuantos dias",
 		],
 	},
+	// "¿En qué parte?"; si el caso no la tiene, sigue a dolor.
+	{
+		key: "localizacion",
+		words: [
+			"qué parte",
+			"que parte",
+			"qué zona",
+			"que zona",
+			"en qué lado",
+			"en que lado",
+			"dónde exactamente",
+			"donde exactamente",
+		],
+	},
 	{ key: "pecho", words: ["pecho"] },
 	{ key: "cuello", words: ["cuello", "ganglio", "pelotitas", "bulto"] },
 	// Antes que secreción: "¿te sale algo de la nariz?" es de mocos.
 	{ key: "mocos", words: ["mocos", "nariz", "congest", "estornud"] },
+	{ key: "voz", words: ["voz", "disfon", "disfón", "ronc", "afon", "afón"] },
+	// Antes que la vista: "¿tenés los ojos llorosos?"; si el caso no tiene
+	// ojos, "¿algún problema en los ojos?" sigue a la vista.
+	{ key: "ojos", words: ["ojos", "lloros", "lagrim", "te lloran"] },
 	{
 		key: "secrecion",
 		words: [
@@ -162,8 +256,14 @@ const TOPICS: { key: string; words: string[] }[] = [
 		words: [
 			"escuchás bien",
 			"escuchas bien",
+			"escuchás menos",
+			"escuchas menos",
+			"escuchás peor",
+			"escuchas peor",
 			"oís bien",
 			"ois bien",
+			"oís menos",
+			"ois menos",
 			"audición",
 			"audicion",
 			"tapado",
@@ -185,13 +285,26 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"nadar",
 		],
 	},
-	{ key: "hisopos", words: ["hisopo", "cotonete"] },
+	// "¿Te limpiás los oídos con algo?" es de hisopos.
+	{
+		key: "hisopos",
+		words: ["hisopo", "cotonete", "limpiás", "limpias", "limpiar"],
+	},
 	{ key: "resfrio", words: ["resfri", "engripad", "gripe"] },
 	{
 		key: "dolor",
-		words: ["duele", "dolor", "al tragar", "del 1 al 10", "intensidad"],
+		words: [
+			"duele",
+			"dolor",
+			"al tragar",
+			"tragar",
+			"tragás",
+			"tragas",
+			"del 1 al 10",
+			"intensidad",
+		],
 	},
-	{ key: "fiebre", words: ["fiebre", "temperatura", "chuchos"] },
+	{ key: "fiebre", words: ["fiebre", "temperatura", "chuchos", "escalofr"] },
 	{ key: "tos", words: ["tos", "tosés", "toses", "tosiendo"] },
 	{
 		key: "cansancio",
@@ -199,11 +312,19 @@ const TOPICS: { key: string; words: string[] }[] = [
 	},
 	{
 		key: "vision",
-		words: ["vista", "visión", "vision", "ves bien", "ve bien", "borros"],
+		words: [
+			"vista",
+			"visión",
+			"vision",
+			"ves bien",
+			"ve bien",
+			"borros",
+			"ojos",
+		],
 	},
 	{ key: "cafe", words: ["café", "cafe", "cafeína", "cafeina"] },
 	{ key: "sal", words: ["sal", "salado", "salada", "sodio"] },
-	{ key: "deporte", words: ["deporte", "jugás", "jugas", "entren"] },
+	{ key: "deporte", words: ["deporte", "jugás", "jugas", "juega", "entren"] },
 	{
 		key: "actividad",
 		words: [
@@ -215,33 +336,39 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"caminas",
 		],
 	},
-	{ key: "alergias", words: ["alérgic", "alergic", "alergia"] },
 	{
 		key: "antecedentes",
 		words: [
 			"antecedente",
 			"enfermedad",
 			"operad",
+			"operaron",
+			"operación",
+			"operacion",
+			"cirugía",
+			"cirugia",
 			"internad",
 			"lesión",
 			"lesion",
 			"lesionaste",
+			"problema de salud",
+			"problemas de salud",
+			"otitis",
+			"problemas de oído",
+			"problemas de oido",
 		],
-	},
-	// "¿Con quién viniste?" no es dónde vive.
-	{
-		key: "vive",
-		words: ["vivís", "vivis", "vive con", "vive solo", "vive sola"],
 	},
 	{
 		key: "ocupacion",
 		words: [
 			"trabajás",
 			"trabajas",
+			"trabaja",
 			"estudiás",
 			"estudias",
 			"a qué te dedic",
 			"a que te dedic",
+			"se dedica",
 		],
 	},
 	{ key: "edad", words: ["cuántos años", "cuantos años", "edad"] },
@@ -258,6 +385,22 @@ const OPEN_QUESTION = [
 	"qué te pasa",
 	"que te pasa",
 ];
+// Una despedida no es una pregunta: "chau, que te mejores", "nos vemos".
+const FAREWELL = [
+	"chau",
+	"nos vemos",
+	"que te mejores",
+	"que se mejore",
+	"hasta luego",
+	"adiós",
+	"adios",
+	"gracias por venir",
+];
+// Sin signo de pregunta ni palabra de pregunta al comienzo es una indicación
+// ("te voy a recetar ibuprofeno"): el paciente no pide que se la expliquen.
+const QUESTION_START =
+	/^[\s¡]*(qu[eé]|c[oó]mo|cu[aá]nd|d[oó]nde|cu[aá]nt|por qu|ten[eé]s|tuviste|sab[eé]s|hay|alguna|algún|algun)/u;
+
 const DIAGNOSIS_FISHING = [
 	"ignorá",
 	"ignora tus",
@@ -333,6 +476,15 @@ export function ruleRespond(
 		motivo = "el estudiante mostró empatía";
 	}
 
+	if (!text.includes("?") && has(text, FAREWELL)) {
+		return {
+			text:
+				p.locuacidad < 0.4 ? "Chau, gracias." : "Bueno, muchas gracias. Chau.",
+			delta,
+			motivo,
+		};
+	}
+
 	// Un tema que el caso no tiene no tapa a otro que sí: "¿te duele cuando
 	// tomás agua?" en un caso sin "agua" va a dolor.
 	const matched = TOPICS.filter((t) => has(text, t.words));
@@ -374,6 +526,12 @@ export function ruleRespond(
 			text: "Gracias... sí, esto me tiene bastante mal.",
 			delta,
 			motivo,
+		};
+	}
+	if (!text.includes("?") && !QUESTION_START.test(text)) {
+		return {
+			text: p.locuacidad < 0.4 ? "Bueno." : "Bueno, dale.",
+			delta: null,
 		};
 	}
 	return {
