@@ -1,0 +1,298 @@
+{
+	"id": "rodilla-03",
+	"title": "Dolor de rodilla",
+	"group": "valeria",
+	"problem": "Problema 3",
+	"relevantExams": [],
+	"origin": "banco",
+	"reviewedBy": null,
+	"patient": {
+		"name": "Valeria",
+		"age": 31,
+		"occupation": "contadora; juega al fútbol 5 los miércoles",
+		"sex": "f"
+	},
+	"personality": {
+		"cooperacion": 0.9,
+		"ansiedad": 0.35,
+		"locuacidad": 0.6,
+		"desconfianza": 0.1,
+		"paciencia": 0.6,
+		"audicion": "normal",
+		"vocabulario": "simple"
+	},
+	"personalityStyle": "Simpática y directa, con voseo. Te preocupa no poder volver a jugar. Cuando te preguntan dónde duele, lo mostrás con la mano; si te tocan mal, avisás.",
+	"chiefComplaint": "Me pegaron en la rodilla derecha jugando y me duele por dentro",
+	"profile": {
+		"edad": "31 años",
+		"ocupacion": "soy contadora, y juego al fútbol 5 con amigas",
+		"vive": "con mi pareja"
+	},
+	"hiddenHistory": {
+		"inicio": "ayer, jugando al fútbol 5",
+		"mecanismo": "una rival me pegó con el cuerpo en la cara de afuera de la rodilla, con el pie apoyado, y la rodilla se me fue hacia adentro",
+		"dolor": "me duele en la cara de adentro de la rodilla, sobre todo al empujar o al doblarla hacia adentro",
+		"localizacion": "en el costado interno, a lo largo de un tramo, no en la articulación en sí",
+		"hinchazon": "una hinchazón leve por dentro, nada exagerado",
+		"bloqueo": "no, no se me traba nunca",
+		"inestabilidad": "un poco de inseguridad si cambio de dirección, pero no se me va",
+		"apoyo": "puedo caminar, con dolor; el pie está normal, con sensibilidad y color normal",
+		"fiebre": "no tuve fiebre",
+		"antecedentes": "nunca me lesioné la rodilla",
+		"deporte": "fútbol 5 una vez por semana",
+		"alergias": "no soy alérgica a nada",
+		"medicacion": "un ibuprofeno de 400 ayer a la noche",
+		"alcohol": "alguna cerveza los fines de semana",
+		"tabaco": "no fumo",
+		"drogas": "no"
+	},
+	"vitals": {
+		"pa": [112, 70],
+		"fc": 78,
+		"fr": 14,
+		"tax": 36.7
+	},
+	"exam": {},
+	"expectedChecklist": [
+		{
+			"id": "presentacion",
+			"item": "se presenta y saluda",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["hola", "buen día", "buenas", "me llamo", "soy"]
+		},
+		{
+			"id": "pregunta-abierta",
+			"item": "empieza con una pregunta abierta",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": ["qué te trae", "en qué te puedo", "contame", "qué te pasa"]
+		},
+		{
+			"id": "inicio",
+			"item": "pregunta desde cuándo y cómo empezó",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"desde cuándo",
+				"cuándo empez",
+				"hace cuánto",
+				"cómo te lastimaste",
+				"cómo fue",
+				"qué pasó",
+				"qué hacías"
+			]
+		},
+		{
+			"id": "mecanismo",
+			"item": "pregunta por el mecanismo (golpe externo, valgo, caída)",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"golpe",
+				"te pegaron",
+				"por afuera",
+				"cara externa",
+				"chocaste",
+				"valgo",
+				"caída",
+				"caiste",
+				"giro",
+				"mecanismo",
+				"torc"
+			]
+		},
+		{
+			"id": "localiza-dolor",
+			"item": "localiza el dolor (dónde le duele)",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"dónde te duele",
+				"dónde sentís",
+				"mostrame dónde",
+				"señalame",
+				"en qué parte",
+				"adentro",
+				"afuera",
+				"por dentro",
+				"por fuera"
+			]
+		},
+		{
+			"id": "hinchazon",
+			"item": "pregunta por hinchazón y cuándo apareció",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"hinch",
+				"inflam",
+				"derrame",
+				"se te hinchó",
+				"se puso gorda"
+			]
+		},
+		{
+			"id": "bloqueo",
+			"item": "pregunta si se traba o se bloquea",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"traba",
+				"bloque",
+				"no extiende",
+				"no estira",
+				"no podés estirar",
+				"clic",
+				"chasquido"
+			]
+		},
+		{
+			"id": "inestabilidad",
+			"item": "pregunta si la rodilla se va o falla",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"se va",
+				"se te va",
+				"falla",
+				"inestab",
+				"se afloja",
+				"cede",
+				"se dobla",
+				"inseguridad"
+			]
+		},
+		{
+			"id": "alarma",
+			"item": "descarta signos de alarma (no apoya, deformidad, pie frío o pálido)",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": [
+				"podés apoyar",
+				"caminar",
+				"apoyar",
+				"deform",
+				"pie frío",
+				"frialdad",
+				"palidez",
+				"hormigueo",
+				"sensibilidad",
+				"pie"
+			]
+		},
+		{
+			"id": "alergias",
+			"item": "alergias medicamentosas",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["alérgic", "alergia"]
+		},
+		{
+			"id": "medicacion",
+			"item": "medicación actual",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": [
+				"medicación",
+				"medicamento",
+				"tomaste algo",
+				"estás tomando",
+				"remedio",
+				"ibuprofeno"
+			]
+		},
+		{
+			"id": "antecedentes",
+			"item": "antecedentes de la rodilla y deportes",
+			"dimension": "anamnesis",
+			"weight": 1,
+			"keywords": [
+				"antecedente",
+				"lesión previa",
+				"antes",
+				"operad",
+				"deporte",
+				"entrenás"
+			]
+		},
+		{
+			"id": "resume",
+			"item": "resume y verifica que entendió",
+			"dimension": "comunicacion",
+			"weight": 1,
+			"keywords": ["entonces", "si entendí bien", "resumiendo", "alguna duda"]
+		}
+	],
+	"notApplicable": [
+		"gineco-obstetricos",
+		"palpacion-cv",
+		"contacto-ocular",
+		"expresion-facial"
+	],
+	"criticalErrors": [],
+	"painZone": {
+		"side": "derecha",
+		"spot": "colateral-interno"
+	},
+	"truth": {
+		"diagnosis": "esguince del ligamento colateral medial",
+		"acceptable": [
+			"lesión del ligamento colateral medial",
+			"ligamento colateral medial",
+			"colateral interno",
+			"esguince de rodilla",
+			"lcm"
+		],
+		"differentials": [
+			"lesión de menisco interno",
+			"lesión del ligamento cruzado anterior",
+			"contusión",
+			"fractura"
+		],
+		"keyClues": [
+			{
+				"itemId": "mecanismo",
+				"clue": "Golpe en la cara externa que abre la rodilla hacia adentro",
+				"why": "El estrés en valgo es el mecanismo típico del colateral medial.",
+				"keywords": ["golpe", "pegaron", "por afuera", "valgo", "externa"]
+			},
+			{
+				"itemId": "localiza-dolor",
+				"clue": "Dolor a lo largo de la cara interna",
+				"why": "El dolor sobre el trayecto del ligamento, y no en la interlínea, orienta al colateral.",
+				"keywords": ["interna", "adentro", "por dentro"]
+			},
+			{
+				"itemId": "bloqueo",
+				"clue": "No se traba",
+				"why": "La falta de bloqueo hace menos probable una lesión meniscal.",
+				"keywords": ["traba", "bloque"]
+			},
+			{
+				"itemId": "hinchazon",
+				"clue": "Hinchazón leve",
+				"why": "El colateral aislado da poco derrame articular; un derrame grande sugiere lesión intraarticular.",
+				"keywords": ["hinch", "leve"]
+			}
+		],
+		"differentialHints": {
+			"lesión de menisco interno": "El menisco da bloqueo y dolor en la interlínea tras un giro, no tras un golpe externo.",
+			"lesión del ligamento cruzado anterior": "El cruzado da crack, hinchazón rápida y rodilla que se va.",
+			"contusión": "La contusión duele en el lugar del golpe, no en la cara contraria.",
+			"fractura": "La fractura impide apoyar y el dolor es sobre el hueso."
+		},
+		"conduct": [
+			"reposo",
+			"hielo",
+			"analges",
+			"antiinflamatorio",
+			"rodillera",
+			"vendaje",
+			"traumatolog",
+			"fisioterapia",
+			"rehabilitación",
+			"resonancia"
+		]
+	}
+}

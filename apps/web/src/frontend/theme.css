@@ -81,6 +81,18 @@
 	--animate-breathe: pac0-breathe 4.5s ease-in-out infinite;
 }
 
+/* Algo que aparece desde abajo (la devolución del video). */
+@keyframes pac0-rise {
+	from {
+		opacity: 0;
+		transform: translateY(10px) rotate(-2deg);
+	}
+	to {
+		opacity: 1;
+		transform: rotate(-2deg);
+	}
+}
+
 /* Paco respira. */
 @keyframes pac0-breathe {
 	0%,

@@ -62,19 +62,6 @@ export type OropharynxPhoto = {
 // hallazgo). Zonas ubicadas a ojo; falta que las valide quien valide las
 // fotos.
 export const OROPHARYNX_PHOTOS: Record<string, OropharynxPhoto> = {
-	"throat-exudate-01": {
-		src: "/exam/throat-exudate-01.jpg",
-		alt: "Garganta con amígdalas aumentadas y placas blancas",
-		credit: "Michaelbladon, Wikimedia Commons, dominio público",
-		spots: {
-			"amigdala-izq": { x: 34, y: 42, r: 12 },
-			"amigdala-der": { x: 71, y: 46, r: 11 },
-			uvula: { x: 54, y: 35, r: 6 },
-			paladar: { x: 54, y: 10, r: 11 },
-			lengua: { x: 50, y: 80, r: 13 },
-			"pared-posterior": { x: 55, y: 52, r: 6 },
-		},
-	},
 	"throat-erythema-01": {
 		src: "/exam/throat-erythema-01.jpg",
 		alt: "Garganta con la pared posterior roja, sin placas",

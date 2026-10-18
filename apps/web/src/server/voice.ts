@@ -381,6 +381,26 @@ export async function runTool(
 		}
 		case "mostrar_region": {
 			const args = toolArgs.mostrar_region.parse(rawArgs);
+			// La rodilla (o la pierna) de un caso con zona de dolor: el
+			// estudiante toca en el panel dónde le duele (dolor-view).
+			const knee =
+				clinicalCase.painZone !== undefined &&
+				/rodill|pierna/.test(
+					args.region
+						.toLowerCase()
+						.normalize("NFD")
+						.replace(/\p{Diacritic}/gu, ""),
+				);
+			if (knee) {
+				return {
+					output: {
+						disponible: true,
+						indicacion:
+							"Mostrale con la mano la rodilla que te duele; el estudiante va a tocar dónde. No digas el diagnóstico.",
+					},
+					ui: { kind: "region", region: args.region, available: true },
+				};
+			}
 			// La garganta, la boca o el oído se examinan con examinar (que abre el
 			// examen y lo registra): se le indica al modelo en vez de no hacer nada
 			// o decir que el oído no está.

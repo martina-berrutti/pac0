@@ -1,4 +1,5 @@
-// Banco de casos: solo Lucía con faringitis viral (garganta-02). El avatar es
+// Banco de casos: Lucía con faringitis viral (garganta-02) y Valeria con tres
+// lesiones de rodilla (rodilla-01 a 03). El avatar es
 // una mujer joven: Diego (oído) salió del banco porque no hay avatar varón, y
 // la mononucleosis de Lucía (garganta-03, amígdalas con placas) la sacó el
 // equipo (Persona 3). Para sumar uno: crear el JSON y agregarlo a BANK. Cada
@@ -11,9 +12,13 @@ import garganta02 from "./garganta-02.json";
 import garganta03 from "./garganta-03.json";
 import oido01 from "./oido-01.json";
 import oido02 from "./oido-02.json";
+import rodilla01 from "./rodilla-01.json";
+import rodilla02 from "./rodilla-02.json";
+import rodilla03 from "./rodilla-03.json";
 import { type ClinicalCase, caseSchema } from "./schema";
 
-const BANK: unknown[] = [garganta02];
+// Valeria (rodilla) son borradores: nadie los revisó todavía.
+const BANK: unknown[] = [garganta02, rodilla01, rodilla02, rodilla03];
 
 export const caseBank: ClinicalCase[] = BANK.map((raw) =>
 	caseSchema.parse(raw),

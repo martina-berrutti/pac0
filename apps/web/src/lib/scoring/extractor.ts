@@ -4,6 +4,7 @@
 import {
 	type ExamAction,
 	OTOSCOPY,
+	THERMOMETRY,
 	type VitalsMeasurement,
 } from "@/lib/contracts/exam";
 import type { SessionEvent, Turn } from "@/lib/contracts/session";
@@ -218,7 +219,9 @@ export type Extracted = {
 export function extract(input: EvaluationInput): Extracted {
 	const { clinicalCase, session, examActions, events, turns, vitals } = input;
 	// Las acciones de boca; las otoscopias van aparte.
-	const mouth = examActions.filter((a) => a.maneuver !== OTOSCOPY);
+	const mouth = examActions.filter(
+		(a) => a.maneuver !== OTOSCOPY && a.maneuver !== THERMOMETRY,
+	);
 	const full = mouth.filter((a) => a.variant === "completa");
 
 	const hotspotMs: Record<string, number> = {};

@@ -78,7 +78,32 @@ export function asksForBloodPressure(text: string): boolean {
 	return /\b(presion|tension|tensiometro)\b/.test(t) && MEASURE.test(t);
 }
 
+// Tomar la temperatura ahora ("te tomo la temperatura", "te pongo el
+// termómetro"). Preguntar por la historia ("¿te tomaste la temperatura?",
+// "¿tuviste fiebre?") no abre el termómetro.
+export function asksForTemperature(text: string): boolean {
+	const t = normalize(text);
+	return (
+		/\b(tomo|tomar|tomarte|tomemos|tomamos|tomarla|mido|medir|medirte|chequeo|controlo)\b.{0,25}\b(temperatura|fiebre)\b/.test(
+			t,
+		) ||
+		/\b(pongo|poner|ponerte|coloco|colocar|colocarte)\b.{0,20}\btermometro\b/.test(
+			t,
+		)
+	);
+}
+
 // Qué oído nombró; si no dijo, el derecho.
 export function earIn(text: string): "derecho" | "izquierdo" {
 	return /\bizquierd/.test(normalize(text)) ? "izquierdo" : "derecho";
+}
+
+// "¿Dónde te duele?" como pedido de señalar ("mostrame dónde te duele",
+// "señalame dónde"). "¿Te duele?" o "¿desde cuándo te duele?" no abren nada.
+export function asksWherePain(text: string): boolean {
+	const t = normalize(text);
+	return (
+		/\bdonde\b.{0,15}\bduele/.test(t) ||
+		/\b(mostr|muestr|senal|indic|marc)\w*\b.{0,25}\bdonde\b/.test(t)
+	);
 }

@@ -1,31 +1,8 @@
 import Link from "next/link";
 
+import { ConsultationDemo } from "@/frontend/consultation-demo";
 import { PacoFace } from "@/frontend/logo";
-import {
-	Highlight,
-	linkButtonClass,
-	Note,
-	Paper,
-	Underline,
-} from "@/frontend/ui";
-
-// Una consulta de ejemplo con Paco: lo que dice el estudiante y lo que
-// contesta él. Es una ilustración; la consulta real es por voz.
-const CHAT = [
-	{
-		who: "vos",
-		text: "Hola, soy Ana, estudiante de medicina. ¿Qué te trae por acá?",
-	},
-	{
-		who: "paco",
-		text: "Me duele la garganta hace tres días… y anoche tuve fiebre.",
-	},
-	{
-		who: "vos",
-		text: "Uh, qué feo. ¿Puedo revisarte? Abrí bien grande y decí «aaa».",
-	},
-	{ who: "paco", text: "Aaaaa…" },
-] as const;
+import { Highlight, linkButtonClass, Note, Underline } from "@/frontend/ui";
 
 export default function Home() {
 	return (
@@ -63,35 +40,12 @@ export default function Home() {
 				<h2 className="max-w-xl font-display text-3xl sm:text-4xl">
 					Así es una consulta <Underline>con Paco</Underline>
 				</h2>
-				<div className="grid items-start gap-14 md:grid-cols-[1.15fr_1fr]">
-					<ol className="grid gap-3" aria-label="Ejemplo de consulta">
-						{CHAT.map((m) => (
-							<li
-								key={m.text}
-								className={
-									m.who === "vos"
-										? "max-w-[85%] justify-self-end rounded-2xl rounded-br-sm bg-primary px-4 py-3 text-primary-foreground"
-										: "flex max-w-[85%] items-end gap-2 justify-self-start"
-								}
-							>
-								{m.who === "paco" ? (
-									<>
-										<PacoFace className="size-9" />
-										<span className="rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3">
-											{m.text}
-										</span>
-									</>
-								) : (
-									m.text
-								)}
-							</li>
-						))}
-						<li className="pt-2 text-center font-hand text-muted-foreground text-xl">
-							… y así hasta que cerrás con tu diagnóstico
-						</li>
-					</ol>
-
-					<GradedSheet />
+				<div className="mx-auto w-full max-w-2xl">
+					<ConsultationDemo />
+					<p className="mt-3 text-muted-foreground text-xs">
+						Un clip sin sonido. En la práctica, la paciente te habla por voz,
+						reacciona a cómo la tratás y la examinás con el mouse.
+					</p>
 				</div>
 			</section>
 
@@ -159,39 +113,6 @@ function PacoSaysHi() {
 				strokeWidth={2.2}
 				blush
 			/>
-		</div>
-	);
-}
-
-// La ficha de la consulta, corregida en birome como la devuelve Paco.
-function GradedSheet() {
-	return (
-		<div className="relative mx-auto w-full max-w-sm" aria-hidden="true">
-			<Paper
-				tape="tape"
-				tilt={2}
-				className="grid gap-4 bg-[repeating-linear-gradient(transparent_0,transparent_31px,color-mix(in_oklch,var(--sky)_55%,transparent)_31px,color-mix(in_oklch,var(--sky)_55%,transparent)_32px)] px-6 pt-8 pb-7"
-			>
-				<div className="flex items-baseline justify-between">
-					<span className="font-display font-semibold">Tu devolución</span>
-					<span className="font-hand text-lg text-muted-foreground">Paco</span>
-				</div>
-				<ul className="grid font-hand text-[1.35rem] leading-[32px]">
-					<li>✓ te presentaste</li>
-					<li>✓ ¿desde cuándo? ¿fiebre?</li>
-					<li>✓ pediste permiso para revisar</li>
-					<li className="text-muted-foreground line-through decoration-pen">
-						¿alergias?
-					</li>
-					<li className="text-pen">→ la próxima, preguntá alergias</li>
-				</ul>
-			</Paper>
-			<div className="absolute -right-2 -bottom-12 grid rotate-[-8deg] justify-items-center sm:-right-8">
-				<span className="grid size-20 place-items-center rounded-[48%_52%_45%_55%/55%_45%_55%_45%] border-[2.5px] border-pen bg-card font-hand text-4xl text-pen">
-					87
-				</span>
-				<span className="font-hand text-pen text-xl">¡muy bien!</span>
-			</div>
 		</div>
 	);
 }

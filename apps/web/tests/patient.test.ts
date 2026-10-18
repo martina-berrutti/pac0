@@ -162,8 +162,8 @@ describe("generador de pacientes", () => {
 		expect(clinicalCase.origin).toBe("generado");
 		expect(clinicalCase.reviewedBy).toBeNull();
 		expect(clinicalCase.patient.age).toBe(60);
-		// La personalidad pedida queda en el caso generado.
-		expect(personalityKey).toBe("caso");
+		// La personalidad pedida queda en el caso y elegida en la tarjeta.
+		expect(personalityKey).toBe("ansioso");
 		expect(clinicalCase.personality.ansiedad).toBeGreaterThan(0.8);
 	});
 
@@ -179,7 +179,7 @@ describe("generador de pacientes", () => {
 
 	test("pide algo que no hay: error claro", async () => {
 		await expect(
-			generateCase({ text: "un paciente con dolor de rodilla" }),
+			generateCase({ text: "un paciente con dolor de codo" }),
 		).rejects.toThrow(GenerationError);
 	});
 });

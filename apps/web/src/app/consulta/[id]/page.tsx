@@ -18,13 +18,16 @@ import {
 	PatientAvatar,
 	type PatientAvatarHandle,
 } from "@/components/avatar/patient-avatar";
+import { DolorView } from "@/components/exam/dolor-view";
 import { OidoFotoView } from "@/components/exam/oido-foto-view";
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
 import { TensiometroView } from "@/components/exam/tensiometro-view";
+import { TermometroView } from "@/components/exam/termometro-view";
 import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
 import type { Mood } from "@/lib/avatar/commands";
+import type { ExamPose } from "@/lib/avatar/exam-poses";
 import { moodFor } from "@/lib/avatar/mood";
 import { createPendingCloses } from "@/lib/consulta/pending-closes";
 import type { Ear, ExamResult } from "@/lib/contracts/exam";
@@ -33,7 +36,9 @@ import { cutText } from "@/lib/cut-text";
 import {
 	asksForBloodPressure,
 	asksForEarExam,
+	asksForTemperature,
 	asksToEndExam,
+	asksWherePain,
 	earIn,
 } from "@/lib/exam/end-intent";
 import { getArchetype } from "@/lib/patient/personalities";
@@ -51,10 +56,35 @@ export default function ConsultationPage() {
 	const [exam, setExam] = useState<ExamResult | null>(null);
 	// Tensiómetro abierto, con la medición de medir_presion (voz).
 	const [bp, setBp] = useState<{ start: BpStart | null } | null>(null);
-	const closeBp = useCallback(() => setBp(null), []);
+	const closeBp = useCallback(() => {
+		setBp(null);
+		avatar.current?.exam(null);
+	}, []);
+	// Termómetro en la axila (se pide con palabras, por voz o por texto).
+	const [thermo, setThermo] = useState(false);
+	// El avatar acompaña la presión y la temperatura (lib/avatar/exam-poses).
+	const avatarExam = useCallback(
+		(pose: ExamPose | null) => avatar.current?.exam(pose),
+		[],
+	);
+	const avatarPressure = useCallback(
+		(mmHg: number) => avatar.current?.exam({ kind: "presion", mmHg }),
+		[],
+	);
 	// Oído que se está mirando (foto del otoscopio).
 	const [ear, setEar] = useState<Ear | null>(null);
-	const tool = exam !== null || bp !== null || ear !== null;
+	// "¿Dónde te duele?": el estudiante toca la rodilla del avatar.
+	const [pain, setPain] = useState(false);
+	const closePain = useCallback(() => {
+		setPain(false);
+		avatar.current?.run({ kind: "view", view: "head" });
+	}, []);
+	const tool = exam !== null || bp !== null || ear !== null || thermo || pain;
+	// onTool es un callback viejo: el ref siempre tiene el valor del último render.
+	const toolOpen = useRef(false);
+	toolOpen.current = tool;
+	const measuring = useRef(false);
+	measuring.current = bp !== null || thermo || pain;
 	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
 	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
@@ -92,6 +122,12 @@ export default function ConsultationPage() {
 		lastStudent.current = turn.text;
 		if (examOpen) {
 			if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
+		} else if (!tool && asksForTemperature(turn.text)) {
+			// No hay herramienta de voz para la temperatura: también por voz se
+			// abre con las palabras.
+			setThermo(true);
+		} else if (!tool && view?.case.painZone && asksWherePain(turn.text)) {
+			setPain(true);
 		} else if (byText && !tool) {
 			if (asksForEarExam(turn.text)) setEar(earIn(turn.text));
 			else if (asksForBloodPressure(turn.text)) setBp({ start: null });
@@ -107,6 +143,17 @@ export default function ConsultationPage() {
 		onState: showState,
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
+			// Midiendo presión, temperatura o buscando el dolor, otro examen no
+			// pisa el abierto (garganta y oído sí pueden convivir).
+			if (
+				measuring.current &&
+				(ui.kind === "exam" || ui.kind === "otoscope" || ui.kind === "vitals")
+			) {
+				voice.sendNote(
+					"El estudiante está en medio de otro examen: esperá a que termine, no abras la boca ni muestres nada.",
+				);
+				return;
+			}
 			// Con la garganta bien abierta en pantalla, un pedido nuevo no la
 			// reemplaza: se perdería lo que ya miró.
 			if (ui.kind === "exam" && exam?.action.variant !== "completa")
@@ -129,6 +176,14 @@ export default function ConsultationPage() {
 							start: { measurementId: ui.measurementId, armCm: ui.armCm },
 						},
 				);
+			// Pidió ver la rodilla en un caso con zona de dolor: a localizarlo.
+			if (
+				ui.kind === "region" &&
+				ui.available &&
+				!toolOpen.current &&
+				/rodill|pierna/i.test(ui.region)
+			)
+				setPain(true);
 			if (ui.kind === "region" && !ui.available)
 				toast.info(`"${ui.region}" todavía no está disponible.`);
 			if (ui.kind === "end") {
@@ -323,6 +378,9 @@ export default function ConsultationPage() {
 	function endConsultation() {
 		voice.stop();
 		setBp(null);
+		setThermo(false);
+		setPain(false);
+		avatar.current?.exam(null);
 		setClosing(true);
 	}
 
@@ -489,6 +547,7 @@ export default function ConsultationPage() {
 											onClick={() => {
 												requestClose();
 												setBp(null);
+												closePain();
 											}}
 										>
 											Cerrar el examen
@@ -503,9 +562,23 @@ export default function ConsultationPage() {
 			{/* El examen aparece encima del avatar, desde el primer plano. */}
 			{tool && revealed && (
 				<div
-					className={`absolute inset-0 grid place-items-center overflow-y-auto bg-black/30 p-4 pt-16 ${textMode ? "pb-20" : ""}`}
+					className={`absolute inset-0 grid place-items-center overflow-y-auto p-4 pt-16 ${pain ? "" : "bg-black/30"} ${textMode ? "pb-20" : ""}`}
 				>
-					{exam ? (
+					{pain && view.case.painZone ? (
+						<div className="fade-in zoom-in-50 w-full max-w-md animate-in rounded-lg bg-background p-3 shadow-2xl duration-500 md:justify-self-start">
+							<DolorView
+								avatar={avatar}
+								zone={view.case.painZone}
+								onClose={closePain}
+								onFound={() => {
+									if (voice.status === "live")
+										voice.sendNote(
+											"El estudiante encontró dónde te duele: confirmáselo con tus palabras.",
+										);
+								}}
+							/>
+						</div>
+					) : exam ? (
 						// Solo la foto, grande (es 4:3: el ancho se limita por el alto).
 						<div className="fade-in zoom-in-50 w-[min(92vw,calc((100svh-7rem)*4/3))] animate-in duration-500">
 							<OrofaringeView
@@ -528,11 +601,22 @@ export default function ConsultationPage() {
 						</div>
 					) : bp ? (
 						// El tensiómetro tiene sus pasos (manguito, inflar, marcar).
-						<div className="fade-in zoom-in-50 w-full max-w-2xl animate-in rounded-lg bg-background p-3 shadow-2xl duration-500">
+						// A la izquierda en pantallas anchas: el paciente extiende el brazo
+						// hacia la derecha de la pantalla.
+						<div className="fade-in zoom-in-50 w-full max-w-2xl animate-in rounded-lg bg-background p-3 shadow-2xl duration-500 md:max-w-md md:justify-self-start">
 							<TensiometroView
 								sessionId={id}
 								start={bp.start}
+								onPressure={avatarPressure}
 								onClose={closeBp}
+							/>
+						</div>
+					) : thermo ? (
+						<div className="fade-in zoom-in-50 w-full max-w-md animate-in rounded-lg bg-background p-3 shadow-2xl duration-500 md:justify-self-start">
+							<TermometroView
+								sessionId={id}
+								onAvatar={avatarExam}
+								onClose={() => setThermo(false)}
 							/>
 						</div>
 					) : null}

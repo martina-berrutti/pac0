@@ -51,6 +51,23 @@ export const SENSITIVE_KEYS = ["alcohol", "tabaco", "drogas", "sexualidad"];
 export const EXAM_KINDS = ["orofaringe", "oido", "presion"] as const;
 export type ExamKind = (typeof EXAM_KINDS)[number];
 
+// Dónde le duele a la paciente (rodilla). No es el diagnóstico: puede ir al
+// navegador, para el "tocá donde te duele".
+export const KNEE_SPOTS = [
+	"interlinea-interna",
+	"colateral-interno",
+	"interlinea-externa",
+	"colateral-externo",
+	"rotula",
+	"tendon-rotuliano",
+	"centro",
+] as const;
+export const painZoneSchema = z.object({
+	side: z.enum(["izquierda", "derecha"]),
+	spot: z.enum(KNEE_SPOTS),
+});
+export type PainZone = z.infer<typeof painZoneSchema>;
+
 export const caseSchema = z.object({
 	id: z.string().regex(/^[a-z0-9-]+$/),
 	title: z.string(),
@@ -79,6 +96,7 @@ export const caseSchema = z.object({
 		sex: z.enum(["f", "m"]).optional(),
 	}),
 	personality: personalitySchema,
+	painZone: painZoneSchema.optional(),
 	// Cómo habla con la personalidad propia del caso (opcional).
 	personalityStyle: z.string().optional(),
 	chiefComplaint: z.string(),
@@ -137,6 +155,7 @@ export type CaseSummary = {
 	reviewed: boolean;
 	patient: { name: string; age: number };
 	chiefComplaint: string;
+	painZone?: PainZone;
 };
 
 export function toSummary(c: ClinicalCase): CaseSummary {
@@ -149,5 +168,6 @@ export function toSummary(c: ClinicalCase): CaseSummary {
 		reviewed: c.reviewedBy !== null,
 		patient: { name: c.patient.name, age: c.patient.age },
 		chiefComplaint: c.chiefComplaint,
+		painZone: c.painZone,
 	};
 }

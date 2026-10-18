@@ -14,6 +14,13 @@ import {
 } from "react";
 
 import { type AvatarAction, FACES, type Mood } from "@/lib/avatar/commands";
+import {
+	applyExamPose,
+	type ExamPoint,
+	type ExamPose,
+	examPoint,
+	loadThree,
+} from "@/lib/avatar/exam-poses";
 
 const AVATAR_URL = "/avatar/mpfb.glb";
 const WORKLET_URL = "/avatar/headworklet.min.mjs";
@@ -120,6 +127,12 @@ export type PatientAvatarHandle = {
 	// Si el avatar todavía carga, se conecta apenas termine.
 	connectSpeech: (stream: MediaStream) => Promise<void>;
 	disconnectSpeech: () => void;
+	// Pose de examen (presión o temperatura); null vuelve a la consulta.
+	exam: (pose: ExamPose | null) => void;
+	// Mueve la boca como si hablara, sin audio (el clip del inicio).
+	mimicSpeech: (ms: number) => void;
+	// Dónde está la axila o el brazo en el lienzo (px), o null si no cargó.
+	point: (part: ExamPoint) => { x: number; y: number } | null;
 	// Lleva la cámara a la boca o al oído (null: vuelve a la cara). Se
 	// resuelve cuando termina el recorrido.
 	focus: (part: FocusPart | null) => Promise<void>;
@@ -150,8 +163,11 @@ export function PatientAvatar({
 	ref,
 	mood = "neutral",
 	className,
+	onReady,
 }: {
 	ref?: Ref<PatientAvatarHandle>;
+	// Avisa cuando el modelo terminó de cargar (el clip del inicio).
+	onReady?: () => void;
 	// Ánimo de base; las órdenes con run() se suman encima.
 	mood?: Mood;
 	className?: string;
@@ -293,13 +309,28 @@ export function PatientAvatar({
 			source.current = null;
 			lips.current = null;
 			head.current = null;
-			instance?.dispose();
+			if (instance) {
+				// Sin el manguito ni el termómetro: dispose de TalkingHead se
+				// traba con objetos agregados a los huesos.
+				void applyExamPose(instance, null);
+				try {
+					instance.dispose();
+				} catch (error) {
+					console.warn("Avatar: no se pudo liberar", error);
+				}
+			}
 		};
 	}, [attachSpeech]);
 
 	useEffect(() => {
 		if (status === "listo") head.current?.setMood(mood);
 	}, [mood, status]);
+
+	const ready = useRef(onReady);
+	ready.current = onReady;
+	useEffect(() => {
+		if (status === "listo") ready.current?.();
+	}, [status]);
 
 	useImperativeHandle(ref, () => ({
 		run(action) {
@@ -350,6 +381,33 @@ export function PatientAvatar({
 			speech.current = null;
 			source.current?.disconnect();
 			source.current = null;
+		},
+		exam(pose) {
+			const h = head.current;
+			if (h) void applyExamPose(h, pose);
+		},
+		point(part) {
+			const h = head.current;
+			const el = node.current;
+			if (!h || !el) return null;
+			void loadThree();
+			return examPoint(h, part, el.clientWidth, el.clientHeight);
+		},
+		mimicSpeech(ms) {
+			const h = head.current;
+			if (!h) return;
+			const end = performance.now() + ms;
+			const tick = () => {
+				const left = end - performance.now();
+				if (left <= 0 || head.current !== h) {
+					setShape(h, "jawOpen", 0);
+					return;
+				}
+				// Sílabas: abre y cierra con un ritmo irregular.
+				setShape(h, "jawOpen", 0.08 + Math.random() * 0.22);
+				setTimeout(tick, 90 + Math.random() * 70);
+			};
+			tick();
 		},
 		focus(part) {
 			const h = head.current;

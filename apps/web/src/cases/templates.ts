@@ -6,11 +6,14 @@
 
 import hipertension01 from "./hipertension-01.json";
 import oido01 from "./oido-01.json";
-import type { CaseInput, ChecklistItem } from "./schema";
+import rodilla01 from "./rodilla-01.json";
+import rodilla02 from "./rodilla-02.json";
+import rodilla03 from "./rodilla-03.json";
+import type { CaseInput, ChecklistItem, PainZone } from "./schema";
 
 export type ClinicalTemplate = {
 	id: string;
-	zone: "orofaringe" | "oido" | "presion";
+	zone: "orofaringe" | "oido" | "presion" | "rodilla";
 	// Palabras con las que se pide ("algo de garganta", "anginas").
 	keywords: string[];
 	title: string;
@@ -23,6 +26,8 @@ export type ClinicalTemplate = {
 	// Sin lista propia, la de garganta.
 	checklist?: ChecklistItem[];
 	notApplicable?: string[];
+	// Dónde duele (rodilla): el lado lo sortea el generador.
+	painSpot?: PainZone["spot"];
 	// Edad mínima del paciente inventado, para que la historia cierre.
 	minAge?: number;
 };
@@ -30,12 +35,19 @@ export type ClinicalTemplate = {
 // Plantillas que reutilizan lo clínico de un caso del banco: así se valida
 // una sola vez (con el caso) y no hay dos versiones que se desfasen.
 function fromBankCase(
-	c: typeof oido01 | typeof hipertension01,
+	c: Pick<
+		CaseInput,
+		"title" | "hiddenHistory" | "exam" | "truth" | "notApplicable"
+	> & {
+		vitals: unknown;
+		criticalErrors: string[];
+		expectedChecklist: unknown;
+	},
 	extra: Pick<
 		ClinicalTemplate,
 		"id" | "zone" | "keywords" | "chiefComplaints"
 	> &
-		Partial<Pick<ClinicalTemplate, "minAge">>,
+		Partial<Pick<ClinicalTemplate, "minAge" | "painSpot">>,
 ): ClinicalTemplate {
 	return {
 		...extra,
@@ -168,7 +180,39 @@ export const OROFARINGE_CHECKLIST: ChecklistItem[] = [
 	},
 ];
 
+const RODILLA_WORDS = ["rodilla", "traumatolog"];
+
 export const CLINICAL_TEMPLATES: ClinicalTemplate[] = [
+	fromBankCase(rodilla01, {
+		id: "lesion-menisco",
+		zone: "rodilla",
+		painSpot: "interlinea-interna",
+		keywords: [...RODILLA_WORDS, "menisco", "meniscal", "se traba"],
+		chiefComplaints: [
+			"Me duele la rodilla desde que jugué al fútbol y a veces se me traba",
+			"Me torcí la rodilla girando y me duele por dentro",
+		],
+	}),
+	fromBankCase(rodilla02, {
+		id: "lesion-lca",
+		zone: "rodilla",
+		painSpot: "centro",
+		keywords: [...RODILLA_WORDS, "cruzado", "ligamento", "lca"],
+		chiefComplaints: [
+			"Me lastimé la rodilla jugando y se me hinchó enseguida",
+			"Sentí un crack en la rodilla y siento que se me va",
+		],
+	}),
+	fromBankCase(rodilla03, {
+		id: "esguince-colateral",
+		zone: "rodilla",
+		painSpot: "colateral-interno",
+		keywords: [...RODILLA_WORDS, "colateral", "ligamento", "esguince"],
+		chiefComplaints: [
+			"Me pegaron en la rodilla jugando y me duele por dentro",
+			"Me golpearon la rodilla de costado y me duele",
+		],
+	}),
 	fromBankCase(oido01, {
 		id: "otitis-externa",
 		zone: "oido",

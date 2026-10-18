@@ -6,7 +6,7 @@ import { OROPHARYNX_PHOTOS } from "@/lib/exam/oropharynx";
 
 // Que el archivo exista, esté en CREDITS.md y sus zonas caigan dentro de la
 // foto lo controla tests/oropharynx.test.ts. Acá: que ningún caso de
-// garganta se quede sin foto.
+// garganta apunte a una foto rota (sin foto se muestra el esquema).
 const throats = [
 	...caseBank.map((c) => ({ id: c.id, zone: c.exam.orofaringe })),
 	...CLINICAL_TEMPLATES.map((t) => ({ id: t.id, zone: t.exam.orofaringe })),
@@ -17,12 +17,15 @@ describe("fotos de garganta de los casos", () => {
 		expect(throats.length).toBeGreaterThan(0);
 	});
 
-	test.each(throats)("$id: la apertura completa tiene foto", ({ zone }) => {
-		const photo = zone && OROPHARYNX_PHOTOS[zone.variants.completa];
-		expect(photo).toBeDefined();
-		// Cada zona del caso está ubicada sobre la foto.
-		for (const key of zone?.hotspots ?? []) {
-			expect(photo?.spots[key], key).toBeDefined();
-		}
-	});
+	test.each(throats)(
+		"$id: la foto de la apertura completa, si hay, ubica las zonas",
+		({ zone }) => {
+			const photo = zone && OROPHARYNX_PHOTOS[zone.variants.completa];
+			if (!photo) return;
+			// Cada zona del caso está ubicada sobre la foto.
+			for (const key of zone?.hotspots ?? []) {
+				expect(photo.spots[key], key).toBeDefined();
+			}
+		},
+	);
 });

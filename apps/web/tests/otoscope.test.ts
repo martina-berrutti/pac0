@@ -7,6 +7,7 @@ import {
 	type ExamAction,
 	OTOSCOPY,
 	type OtoscopyRecord,
+	THERMOMETRY,
 } from "@/lib/contracts/exam";
 import type { Turn } from "@/lib/contracts/session";
 import {
@@ -308,5 +309,44 @@ describe("hallazgos de oído por caso", () => {
 					?.status,
 			).toBe("si");
 		});
+	});
+});
+
+describe("termómetro", () => {
+	const thermometry = (startMs: number): ExamAction => ({
+		id: "temp1",
+		sessionId: "s1",
+		zone: "axila",
+		maneuver: THERMOMETRY,
+		clarity: "alta",
+		variant: "completa",
+		hotspotTimesMs: {},
+		startMs,
+		endMs: startMs,
+	});
+
+	test("tomar la temperatura no cuenta como examen de la garganta", () => {
+		const base = evaluate(goodStudent());
+		const input = goodStudent();
+		input.examActions = [...input.examActions, thermometry(120_000)];
+		const report = evaluate(input);
+		expect(report.scores.examen).toBe(base.scores.examen);
+		expect(report.items.find((i) => i.itemId === "orofaringe")?.status).toBe(
+			base.items.find((i) => i.itemId === "orofaringe")?.status,
+		);
+	});
+
+	test("tomar la temperatura antes del permiso es examinar sin consentimiento", () => {
+		const input = goodStudent();
+		input.session = { ...input.session, consentGiven: false };
+		input.events = [
+			{ id: "c1", sessionId: "s1", type: "consentimiento", atMs: 100_000 },
+		];
+		input.examActions = [thermometry(5_000), ...input.examActions];
+		expect(
+			evaluate(input).mistakes.some(
+				(m) => m.critical && m.tag === "examen-sin-consentimiento",
+			),
+		).toBe(true);
 	});
 });
