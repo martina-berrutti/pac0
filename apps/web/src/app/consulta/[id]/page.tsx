@@ -526,18 +526,34 @@ export default function ConsultationPage() {
 						<label htmlFor="hipotesis" className="font-medium">
 							Tu hipótesis (y por qué)
 						</label>
+						<p id="hipotesis-ayuda" className="text-muted-foreground text-xs">
+							Lo que creés que tiene y en qué te basás: lo que te contó y lo que
+							viste.
+						</p>
 						<Textarea
 							id="hipotesis"
+							aria-describedby="hipotesis-ayuda"
 							value={hypothesis}
 							onChange={(e) => setHypothesis(e.target.value)}
 							maxLength={500}
 							required
 						/>
 						<label htmlFor="diferenciales" className="font-medium">
-							Diferenciales, separados por coma
+							Diagnósticos diferenciales
 						</label>
+						{/* El ejemplo es de otro tema a propósito: no da pistas del caso. */}
+						<p
+							id="diferenciales-ayuda"
+							className="text-muted-foreground text-xs"
+						>
+							Otros diagnósticos que también podrían explicar lo que tiene y que
+							pensaste antes de quedarte con tu hipótesis. Por ejemplo, para un
+							dolor de pecho: infarto, reflujo, contractura.
+						</p>
 						<Input
 							id="diferenciales"
+							aria-describedby="diferenciales-ayuda"
+							placeholder="Separados por coma"
 							value={differentials}
 							onChange={(e) => setDifferentials(e.target.value)}
 						/>
