@@ -34,6 +34,7 @@ import {
 	asksToEndExam,
 	earIn,
 } from "@/lib/exam/end-intent";
+import { getArchetype } from "@/lib/patient/personalities";
 import { useVoice } from "@/lib/voice/use-voice";
 import type { SessionView } from "@/server/consultation";
 import type { BpStart } from "@/server/vitals";
@@ -67,8 +68,11 @@ export default function ConsultationPage() {
 	const [now, setNow] = useState(() => Date.now());
 	const avatar = useRef<PatientAvatarHandle>(null);
 	const [mood, setMood] = useState<Mood>("neutral");
+	// Expresión de la personalidad elegida (enojado, feliz…); el ánimo de la
+	// consulta la puede cambiar.
+	const baseMood = useRef<Mood | undefined>(undefined);
 	const showState = useCallback(
-		(state: PatientState) => setMood(moodFor(state)),
+		(state: PatientState) => setMood(moodFor(state, baseMood.current)),
 		[],
 	);
 	// "Cerrá la boca", "ya está": la garganta o el oído abiertos se cierran
@@ -207,6 +211,7 @@ export default function ConsultationPage() {
 					setClosing(true);
 				loadedAt.current = Date.now();
 				setView(v);
+				baseMood.current = getArchetype(v.session.personalityKey)?.mood;
 				showState(v.session.state);
 			})
 			.catch((e) =>
