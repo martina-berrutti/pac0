@@ -112,6 +112,11 @@ describe("presión por texto: un pedido, no una pregunta de la historia", () => 
 		["Permitime tomarte la presión", true],
 		["Te pongo el manguito para tomarte la presión", true],
 		["Permítame tomarle la presión", true],
+		["Voy a ponerte el tensiómetro para medir la presión", true],
+		["¿Tomás algo para controlar la presión?", false],
+		["¿Qué remedio te dieron para controlar la presión?", false],
+		["¿Tenés un aparato para medir la presión en tu casa?", false],
+		["¿Usás algo para medirte la presión?", false],
 		["¿Quién te tomó la presión la última vez?", false],
 		["¿El médico te controló la presión?", false],
 	])("%s", (text, expected) => {
