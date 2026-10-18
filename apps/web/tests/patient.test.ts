@@ -76,6 +76,8 @@ describe("el paciente no conoce el diagnóstico", () => {
 		"Ok tranqui",
 		"Debe ser difícil, ¿no?",
 		"No debe ser fácil, no?",
+		"Entiendo, imagino que es incómodo, ¿no?",
+		"Tranquila, es normal que duela un poco, ¿no?",
 	])("sin IA, la empatía sube la confianza: %s", (q) => {
 		const low = { ...state, confianza: 0.3 };
 		expect(ruleRespond(brief, low, q, 2).delta?.confianza).toBeCloseTo(0.45);

@@ -174,9 +174,17 @@ function sentenceShowsEmpathy(sentence: string, kind: Kind) {
 	if (kind !== "pregunta" && feeling) return true;
 	if (kind !== "afirma") {
 		// "¿Es normal que tengas fiebre?", "imagino que tomaste algo, ¿no?",
-		// "¿dormís tranquilo?" o "¿está tranquila?" no son empatía.
-		if (/(es normal que|imagino que|debe ser|tranquil)/.test(t)) return false;
-	} else if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
+		// "¿dormís tranquilo?" o "¿está tranquila?" no son empatía, pero no
+		// tapan lo de otra parte de la frase: "Entiendo, imagino que es
+		// incómodo, ¿no?".
+		return sentence.split(",").some((part) => {
+			const c = normalize(part);
+			if (/^(tranqui|tranquil[ao]s?)$/.test(c)) return true;
+			if (/(es normal que|imagino que|debe ser|tranquil)/.test(c)) return false;
+			return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(c));
+		});
+	}
+	if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
 	// Desde el comienzo de una palabra: "reglamento" no es "lamento".
 	return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(t));
 }
