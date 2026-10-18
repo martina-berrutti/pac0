@@ -881,10 +881,37 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 	test.each([
 		["oido", "por lo que vi tenes una otitis externa"],
 		["oido", "te saco el otoscopio, tenés una otitis"],
+		["garganta", "lo que tenés es una faringitis"],
+		["garganta", "creo que tenés una angina"],
+		["garganta", "tranquila, tenés una angina, se cura"],
 	])("un diagnóstico dicho no es antecedentes (%s): %s", (name, t) => {
 		const { text: r, brief } = reply(name, t);
 		expect(r).toContain("¿y eso qué es?");
 		expect(r).not.toContain(brief.history.antecedentes);
+	});
+	// Sin signos de pregunta (por voz o tipeado rápido) siguen siendo preguntas,
+	// o hablan de otro.
+	test.each([
+		["oido", "tenes resfrio o algo"],
+		["garganta", "tenes gripe"],
+		["garganta", "tenes una infeccion en algun lado"],
+		["presion", "tu mama tiene artritis"],
+		["garganta", "alguien en tu casa tiene gripe"],
+		["garganta", "la gripe es un virus"],
+	])("no es decirle el diagnóstico (%s): %s", (name, t) =>
+		expect(reply(name, t).text).not.toContain("¿y eso qué es?"),
+	);
+	test("decirle el diagnóstico con empatía también suma confianza", () => {
+		const line = "tranquila, tenés una angina, se cura";
+		const { brief } = reply("garganta", line);
+		expect(ruleRespond(brief, state, line, 3).delta?.confianza).toBeDefined();
+	});
+	test("un consejo con líquidos no es la pregunta de tragar", () => {
+		const { text: r, brief } = reply(
+			"garganta",
+			"hacé reposo y tomá muchos líquidos",
+		);
+		expect(r).not.toContain(brief.history.tragar);
 	});
 	test.each([
 		["garganta", "¿Roncás de noche?"],

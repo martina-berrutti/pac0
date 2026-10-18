@@ -352,8 +352,11 @@ const TOPICS: {
 			"podes tragar",
 			"podés comer",
 			"podes comer",
-			"líquidos",
-			"liquidos",
+			// "Tomá muchos líquidos" es un consejo, no una pregunta.
+			"tomás líquidos",
+			"tomas liquidos",
+			"podés tomar líquidos",
+			"podes tomar liquidos",
 		],
 	},
 	{ key: "voz", words: ["voz", "disfón", "disfon", "ronca"] },
@@ -508,14 +511,33 @@ function asksDiagnosis(text: string) {
 
 // El estudiante le dice qué tiene ("creo que tenés faringitis", "lo que
 // tenés es un resfrío"): el paciente pregunta, no explica (Persona 3).
+const DIAGNOSIS_WORD =
+	"\\w*(itis|gripe|resfri\\w*|angina|esguince|lesion|virus|infeccion)\\b";
+
 function tellsDiagnosis(text: string) {
 	const t = text
 		.toLowerCase()
 		.normalize("NFD")
 		.replace(/\p{Diacritic}/gu, "");
 	if (t.includes("?")) return false;
-	return /\b(tenes|tiene|es) (una |un )?\w*(itis|gripe|resfri\w*|angina|esguince|lesion|virus|infeccion)\b/.test(
-		t,
+	// De otro: "tu mamá tiene artritis", "alguien en tu casa tiene gripe",
+	// "la gripe es un virus".
+	if (
+		/\b(alguien|tu (mama|papa|familia|hermano|hermana|pareja|novio|novia|abuel\w*)|(la|el) \w+ es)\b/.test(
+			t,
+		)
+	)
+		return false;
+	// Como explicación: "lo que tenés es…", "creo que tenés…", "por lo que vi
+	// tenés…", o después de otra cosa ("te saco el otoscopio, tenés una
+	// otitis"). "Tenés gripe" al principio, sin signos, es una pregunta.
+	return (
+		new RegExp(
+			`\\b(lo que (tenes|tiene) es|(creo|parece|me parece|seguro|pienso) que (tenes|tiene|es)|por lo que (vi|veo)[^.?!]{0,10}(tenes|tiene))\\b[^.?!]{0,20}${DIAGNOSIS_WORD}`,
+		).test(t) ||
+		new RegExp(`[,.;] ?(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`).test(t) ||
+		// "Es un virus, no te preocupes": con "es" al principio también explica.
+		new RegExp(`^es (una|un) ${DIAGNOSIS_WORD}`).test(t)
 	);
 }
 
@@ -550,19 +572,22 @@ export function ruleRespond(
 		};
 	}
 
-	if (tellsDiagnosis(text)) {
-		return {
-			text: "Ah... ¿y eso qué es? ¿Es grave? ¿Qué tengo que hacer?",
-			delta: null,
-		};
-	}
-
 	let delta: Partial<PatientState> | null = null;
 	let motivo: string | undefined;
 	// Las mismas reglas que el clasificador: "no entiendo" no es empatía.
 	if (showsEmpathy(studentText)) {
 		delta = { confianza: Math.min(1, state.confianza + 0.15) };
 		motivo = "el estudiante mostró empatía";
+	}
+
+	// Después de la empatía: "tranquila, tenés una angina, se cura" también
+	// suma confianza.
+	if (tellsDiagnosis(text)) {
+		return {
+			text: "Ah... ¿y eso qué es? ¿Es grave? ¿Qué tengo que hacer?",
+			delta,
+			motivo,
+		};
 	}
 
 	if (!text.includes("?") && has(text, FAREWELL)) {
