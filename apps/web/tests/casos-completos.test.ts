@@ -324,6 +324,19 @@ describe("confianza alcanzada (texto)", () => {
 		expect((await store.getSession(id))?.trustReached).toBe(true);
 	});
 
+	test("sin IA, lo sensible que ya podía contar no lo esconde si baja la confianza", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		await store.changeSession(id, {
+			set: {
+				trustReached: true,
+				state: { confianza: 0.2, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
+			},
+		});
+		const { patientTurn } = await sendTurn(ana, id, "¿Tomás alcohol?");
+		expect(patientTurn.text).not.toContain("nada raro");
+	});
+
 	test("con poca confianza no se marca", async () => {
 		const ana = student();
 		const id = await startSession(ana, "garganta-02", "caso");

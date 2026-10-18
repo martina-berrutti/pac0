@@ -206,6 +206,20 @@ describe("herramientas del paciente", () => {
 		expect(bad.techniqueErrors).toContain("piernas-cruzadas");
 	});
 
+	test("la confianza alcanzada por voz queda marcada para seguir por texto", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await store.changeSession(id, {
+			set: {
+				state: { confianza: 0.3, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
+			},
+		});
+		await runTool(ana, id, "actualizar_estado", {
+			delta: { confianza: 0.3 },
+			motivo: "empatía",
+		});
+		expect((await store.getSession(id))?.trustReached).toBe(true);
+	});
+
 	test("actualizar_estado: queda entre 0 y 1 y se registra el evento", async () => {
 		const id = await startSession(ana, lucia.id, "caso");
 		const run = await runTool(ana, id, "actualizar_estado", {

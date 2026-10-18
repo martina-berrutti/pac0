@@ -281,13 +281,18 @@ async function patientReply(
 	const b = brief(session, clinicalCase);
 	const turns = await store.listTurns(session.id);
 	const studentCount = turns.filter((t) => t.speaker === "estudiante").length;
-	const rules = ruleRespond(b, session.state, studentText, studentCount - 1);
+	const rules = ruleRespond(
+		b,
+		{ ...session.state, confianza: trustForSensitive(session) },
+		studentText,
+		studentCount - 1,
+	);
 	if (!aiEnabled()) return rules;
 	try {
 		const text = await chat([
 			{
 				role: "system",
-				content: `${buildPatientPrompt(b, { hideSensitive: !session.trustReached && session.state.confianza < 0.5 })}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
+				content: `${buildPatientPrompt(b, { hideSensitive: trustForSensitive(session) < 0.5 })}\nConfianza actual en el estudiante (0 a 1): ${session.state.confianza.toFixed(2)}.`,
 			},
 			// Solo lo último: el costo no crece sin límite con la charla.
 			...turns.slice(-MAX_CONTEXT_TURNS).map((t) => ({
@@ -495,10 +500,28 @@ export async function classifyStudent(
 	});
 	const after = stateBand(next.state);
 	return {
-		session: next,
+		session: await rememberTrust(next),
 		tags: c.tags,
 		stateNote: after === before ? null : after,
 	};
+}
+
+// Una vez que tuvo confianza (por voz o por texto), lo sensible queda
+// disponible aunque después baje: si no, el paciente esquivaría algo que ya
+// contó.
+export async function rememberTrust(session: Session): Promise<Session> {
+	if (session.trustReached || session.state.confianza < 0.5) return session;
+	return (
+		(await store.changeSession(session.id, { set: { trustReached: true } })) ??
+		session
+	);
+}
+
+// Confianza con la que se decide si cuenta lo sensible.
+function trustForSensitive(session: Session) {
+	return session.trustReached
+		? Math.max(0.5, session.state.confianza)
+		: session.state.confianza;
 }
 
 export type TurnResult = {
@@ -558,13 +581,9 @@ export async function sendTurn(
 		afterStudent = classified.session;
 	}
 
-	let current = await noteConsent(afterStudent, clean, elapsed);
-	// Una vez que tuvo confianza, lo sensible queda en el prompt aunque
-	// después baje: si no, el paciente esquivaría algo que ya contó.
-	if (current.state.confianza >= 0.5 && !current.trustReached)
-		current =
-			(await store.changeSession(sessionId, { set: { trustReached: true } })) ??
-			current;
+	const current = await rememberTrust(
+		await noteConsent(afterStudent, clean, elapsed),
+	);
 
 	let reply: string;
 	let exam: ExamResult | null = null;
