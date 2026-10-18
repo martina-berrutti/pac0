@@ -71,10 +71,21 @@ async function call(path, body) {
 }
 
 await call("/api/auth/guest");
+// Solo los casos que hoy se pueden elegir: el banco cambia y los que salen
+// (como Diego) se saltean en vez de romper la prueba.
+const { cases } = await (
+	await fetch(`${base}/api/cases`, { headers: { cookie } })
+).json();
+const available = new Set(cases.map((c) => c.id));
 let failures = 0;
 let total = 0;
 for (const [caseId, { attempts, forbidden }] of Object.entries(CASES)) {
 	if (only && caseId !== only) continue;
+	if (!available.has(caseId)) {
+		console.log(`
+=== ${caseId}: no está en el banco, se saltea ===`);
+		continue;
+	}
 	console.log(`\n=== ${caseId} ===`);
 	const { sessionId } = await call("/api/sessions", {
 		caseId,
