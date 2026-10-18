@@ -153,6 +153,8 @@ export function OrofaringeView({
 						width: `${h.r * 2}%`,
 						height: `${h.r * 2.66}%`,
 					};
+					// En la consulta a pantalla completa la foto se ve entera.
+					if (photo && bare) return null;
 					if (photo)
 						return hidden ? (
 							<div
@@ -178,9 +180,16 @@ export function OrofaringeView({
 				<div
 					className="pointer-events-none absolute inset-0"
 					style={{
-						background: light
-							? `radial-gradient(circle at ${light.x}% ${light.y}%, transparent ${LIGHT_RADIUS}%, rgba(0,0,0,0.94) ${LIGHT_RADIUS + 6}%)`
-							: "rgba(0,0,0,0.94)",
+						// En la consulta a pantalla completa la foto se ve clara y la
+						// linterna es un brillo encima; si no, solo se ve lo iluminado.
+						background:
+							bare && photo
+								? light
+									? `radial-gradient(circle at ${light.x}% ${light.y}%, rgba(255,250,235,0.18) ${LIGHT_RADIUS}%, transparent ${LIGHT_RADIUS + 6}%)`
+									: "transparent"
+								: light
+									? `radial-gradient(circle at ${light.x}% ${light.y}%, transparent ${LIGHT_RADIUS}%, rgba(0,0,0,0.94) ${LIGHT_RADIUS + 6}%)`
+									: "rgba(0,0,0,0.94)",
 					}}
 				/>
 				{calibrate &&

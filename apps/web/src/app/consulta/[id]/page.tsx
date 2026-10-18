@@ -164,6 +164,17 @@ export default function ConsultationPage() {
 			const timer = setTimeout(() => setExam(null), 2500);
 			return () => clearTimeout(timer);
 		}
+		if (examVariant === "parcial") {
+			// Abre poco la boca: se ve en el primer plano del avatar (no hay
+			// garganta que mostrar) y se avisa cómo pedirlo mejor.
+			a?.run({ kind: "mouth", tongue: false, ms: 4000 });
+			a?.focus("mouth");
+			toast.info(
+				"Abrió solo un poco la boca. Pedile que la abra bien, saque la lengua y diga aaa.",
+			);
+			const timer = setTimeout(() => setExam(null), 4000);
+			return () => clearTimeout(timer);
+		}
 		if (examVariant) {
 			part = "mouth";
 			// Abierta mientras dure el examen (se cierra al volver).
