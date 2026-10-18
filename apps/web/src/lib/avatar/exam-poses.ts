@@ -44,6 +44,12 @@ type State = {
 };
 const states = new WeakMap<TalkingHead, State>();
 
+// Los huesos del avatar, como objetos de three (talkinghead.d.ts los tipa
+// solo para la cámara).
+function bones(h: TalkingHead) {
+	return h.armature as unknown as ThreeObject | null;
+}
+
 function stateOf(h: TalkingHead): State {
 	let s = states.get(h);
 	if (!s) {
@@ -77,7 +83,7 @@ function release(h: TalkingHead) {
 // El manguito: un cilindro de tela en la mitad del brazo (el eje del hueso es
 // su Y), con el tubo hacia el pecho.
 function cuff(three: Three, h: TalkingHead) {
-	const arm = h.armature.getObjectByName("LeftArm");
+	const arm = bones(h)?.getObjectByName("LeftArm");
 	if (!arm) return null;
 	let c = arm.getObjectByName(CUFF);
 	if (!c) {
@@ -107,7 +113,7 @@ function cuff(three: Three, h: TalkingHead) {
 // El termómetro digital: un bastoncito blanco con la punta metálica, entre el
 // brazo y el pecho.
 function thermometer(three: Three, h: TalkingHead) {
-	const arm = h.armature.getObjectByName("LeftArm");
+	const arm = bones(h)?.getObjectByName("LeftArm");
 	if (!arm) return null;
 	let t = arm.getObjectByName(THERMOMETER);
 	if (!t) {
@@ -141,7 +147,7 @@ function thermometer(three: Three, h: TalkingHead) {
 }
 
 function remove(h: TalkingHead, name: string) {
-	const arm = h.armature.getObjectByName("LeftArm");
+	const arm = bones(h)?.getObjectByName("LeftArm");
 	const o = arm?.getObjectByName(name);
 	if (arm && o) arm.remove(o);
 }

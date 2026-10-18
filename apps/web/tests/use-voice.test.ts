@@ -566,4 +566,124 @@ describe("cliente de voz", () => {
 			"paciente:Hace dos días",
 		]);
 	});
+
+	test("una nota que esperaba una herramienta respondida espera al paciente", async () => {
+		const { voice } = mount();
+		await voice.start();
+		delays["/tools:examinar"] = 20;
+		live.callbacks?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		voice.sendNote("cambió tu ánimo");
+		await voice.drain();
+		await new Promise((r) => setTimeout(r, 40));
+		// Se respondió la herramienta: la nota no sale hasta que el paciente termine.
+		expect(live.sent).toContain("toolResponse");
+		expect(live.sent).not.toContain("clientContent");
+		live.callbacks?.onmessage(msg({ turnComplete: true }));
+		expect(live.sent).toContain("clientContent");
+	});
+
+	test("una nota que llega después de responder la herramienta, antes del audio, espera", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.callbacks?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		await voice.drain();
+		await vi.waitFor(() => expect(live.sent).toContain("toolResponse"));
+		// Todavía no llegó audio del paciente: la nota no lo tiene que cortar.
+		voice.sendNote("terminó de revisarte");
+		expect(live.sent).not.toContain("clientContent");
+		live.callbacks?.onmessage(msg({ turnComplete: true }));
+		expect(live.sent).toContain("clientContent");
+	});
+
+	test("si se reconecta con una respuesta de herramienta abierta, las notas no la esperan", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.callbacks?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		await voice.drain();
+		await vi.waitFor(() => expect(live.sent).toContain("toolResponse"));
+		// Se corta antes de que el paciente conteste.
+		live.callbacks?.onclose();
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		live.sent = [];
+		voice.sendNote("cambió tu ánimo");
+		expect(live.sent).toContain("clientContent");
+	});
+
+	test("una nota que llega durante la reconexión sale en la sesión nueva", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.hang = true;
+		live.callbacks?.onclose();
+		// Reconectando: todavía no hay sesión.
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		live.sent = [];
+		voice.sendNote("cambió tu ánimo");
+		expect(live.sent).toEqual([]);
+		live.release();
+		await vi.waitFor(() => expect(live.sent).toContain("clientContent"));
+	});
+
+	test("la nota de ánimo de lo que se guarda al reconectar no se pierde", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.hang = true;
+		// El turno a medias se guarda al reconectar y el servidor devuelve una nota.
+		const base = fakeFetch;
+		vi.stubGlobal("fetch", (url: string, init: { body?: string }) => {
+			if (url.endsWith("/voice-turns"))
+				return new Promise((resolve) =>
+					setTimeout(() => {
+						const body = init.body ? JSON.parse(init.body) : {};
+						resolve(
+							new Response(
+								JSON.stringify({
+									turn: { id: "t", ...body },
+									stateNote: "confianza alta",
+								}),
+								{ status: 200 },
+							),
+						);
+					}, 1),
+				);
+			return base(url, init);
+		});
+		live.callbacks?.onmessage(
+			msg({ inputTranscription: { text: "Gracias por contarme" } }),
+		);
+		live.callbacks?.onclose();
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		live.sent = [];
+		live.release();
+		await vi.waitFor(() => expect(live.sent).toContain("clientContent"));
+	});
 });

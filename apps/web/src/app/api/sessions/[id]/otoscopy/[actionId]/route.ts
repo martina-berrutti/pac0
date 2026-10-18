@@ -22,6 +22,9 @@ const bodySchema = z.object({
 	tympanumMs: ms,
 });
 
+// Vista de solo foto (consulta a pantalla completa): solo cuánto miró.
+const photoSchema = z.object({ mode: z.literal("foto"), lookedMs: ms });
+
 // Termina la otoscopia con lo que hizo el estudiante; el servidor evalúa.
 export async function PATCH(
 	req: Request,
@@ -30,7 +33,7 @@ export async function PATCH(
 	return handle(async () => {
 		const viewer = await requireViewer();
 		const { id, actionId } = await ctx.params;
-		const body = await readBody(req, bodySchema);
+		const body = await readBody(req, z.union([photoSchema, bodySchema]));
 		return finishOtoscopy(viewer, id, actionId, body);
 	});
 }

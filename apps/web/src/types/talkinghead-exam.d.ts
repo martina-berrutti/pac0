@@ -1,11 +1,11 @@
 // Lo que usan las poses de examen del avatar (lib/avatar/exam-poses.ts) y que
-// no está en talkinghead.d.ts: los gestos propios, los huesos y la vista.
+// no está en talkinghead.d.ts: los gestos propios y la vista. Los huesos
+// (armature) los declara ese archivo; acá se los trata como ThreeObject.
 // Se suma a esas declaraciones sin cambiarlas.
 
 declare module "@met4citizen/talkinghead" {
 	interface TalkingHead {
 		gestureTemplates: Record<string, Record<string, unknown>>;
-		armature: ThreeObject;
 		viewName: string;
 		lookAtCamera(ms: number): void;
 	}

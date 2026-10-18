@@ -27,6 +27,84 @@ const JAW_FLOOR = 0.015;
 const JAW_GAIN = 3;
 const JAW_MAX = 0.5;
 
+// Lo que dura el recorrido de cámara de TalkingHead (1 s).
+const FOCUS_MS = 1000;
+// OrbitControls de TalkingHead no deja acercar la cámara a menos de 2 m: el
+// primer plano gira la cámara a esa distancia y cierra el lente (zoom).
+const CAMERA_DISTANCE = 2;
+// Punto a mirar y dirección desde donde se mira, en metros en el sistema del
+// hueso Head (x a la izquierda del paciente, y arriba, z adelante; los ojos
+// están en ±0,032, 0,108, 0,089): así siguen a la cabeza si gira o se
+// inclina. Lente en grados (la vista normal es 10°). Medido sobre el MPFB.
+type Xyz = [number, number, number];
+export type FocusPart = "mouth" | "leftEar" | "rightEar";
+const FOCUS: Record<FocusPart, { target: Xyz; from: Xyz; fov: number }> = {
+	mouth: { target: [0, 0.03, 0.11], from: [0, 0.05, 1], fov: 3.2 },
+	// Oídos del paciente: la cámara se va a su costado.
+	leftEar: { target: [0.075, 0.074, 0], from: [1, 0.05, 0.2], fov: 3 },
+	rightEar: { target: [-0.075, 0.074, 0], from: [-1, 0.05, 0.2], fov: 3 },
+};
+
+// Dónde mirar y desde dónde, según dónde está ahora la cabeza.
+function aim(h: TalkingHead, part: FocusPart) {
+	const head = h.armature?.getObjectByName("Head");
+	if (!head) return null;
+	const v = () => h.camera.position.clone();
+	const { target, from } = FOCUS[part];
+	const origin = head.getWorldPosition(v());
+	const point = head.localToWorld(v().set(...target));
+	// La dirección también gira con la cabeza.
+	const dir = head
+		.localToWorld(
+			v()
+				.set(...from)
+				.normalize(),
+		)
+		.sub(origin)
+		.normalize();
+	const camera = point.clone().add(dir.multiplyScalar(CAMERA_DISTANCE));
+	return { target: point, camera };
+}
+
+// Con la parte en primer plano, la cámara la sigue: durante el recorrido
+// corrige el destino y después se queda encima.
+function followFocus(h: TalkingHead, part: FocusPart) {
+	const shot = aim(h, part);
+	if (!shot) return;
+	if (h.cameraClock !== null && h.cameraClock < 1000) {
+		h.controlsEnd = shot.target;
+		h.cameraEnd = shot.camera;
+		return;
+	}
+	h.controls.target.copy(shot.target);
+	h.camera.position.copy(shot.camera);
+	h.controls.update();
+}
+
+// Zoom de lente animado, con el mismo suavizado que la cámara.
+function zoomLens(h: TalkingHead, to: number, ms = FOCUS_MS) {
+	const from = h.camera.fov;
+	const start = performance.now();
+	return new Promise<void>((resolve) => {
+		const step = (t: number) => {
+			const k = Math.min(1, (t - start) / ms);
+			const ease = k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2;
+			h.camera.fov = from + (to - from) * ease;
+			h.camera.updateProjectionMatrix();
+			if (k < 1) requestAnimationFrame(step);
+			else resolve();
+		};
+		requestAnimationFrame(step);
+	});
+}
+// Mientras se examina, la cabeza queda quieta y sin buscar la cámara.
+const STILL = {
+	avatarIdleEyeContact: 0,
+	avatarSpeakingEyeContact: 0,
+	avatarIdleHeadMove: 0,
+	avatarSpeakingHeadMove: 0,
+};
+
 type Lips = { detector: AudioNode; meter: AnalyserNode };
 
 // Valor en tiempo real de una forma de la cara (el canal que usa HeadAudio).
@@ -47,6 +125,9 @@ export type PatientAvatarHandle = {
 	exam: (pose: ExamPose | null) => void;
 	// Mueve la boca como si hablara, sin audio (el clip del inicio).
 	mimicSpeech: (ms: number) => void;
+	// Lleva la cámara a la boca o al oído (null: vuelve a la cara). Se
+	// resuelve cuando termina el recorrido.
+	focus: (part: FocusPart | null) => Promise<void>;
 };
 
 type Status = "cargando" | "listo" | "error";
@@ -89,6 +170,14 @@ export function PatientAvatar({
 	const speech = useRef<MediaStream | null>(null);
 	const source = useRef<MediaStreamAudioSourceNode | null>(null);
 	const mouthTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// Movimiento de cabeza guardado mientras la cámara está en primer plano.
+	const moving = useRef<Record<string, unknown> | null>(null);
+	// Lente de la vista normal, para volver del primer plano.
+	const baseFov = useRef<number | null>(null);
+	// Parte en primer plano: la cámara la sigue en cada cuadro.
+	const focusPart = useRef<FocusPart | null>(null);
+	// Labios en cada cuadro (cuando hay voz).
+	const lipsTick = useRef<((dt: number) => void) | null>(null);
 	const [status, setStatus] = useState<Status>("cargando");
 	const [progress, setProgress] = useState(0);
 
@@ -106,7 +195,7 @@ export function PatientAvatar({
 			meter.fftSize = 512;
 			const samples = new Float32Array(meter.fftSize);
 			let jaw = 0;
-			h.opt.update = (dt) => {
+			lipsTick.current = (dt) => {
 				detector.update(dt);
 				// HeadAudio está entrenado en inglés: con la voz en castellano
 				// las formas de la boca salen sutiles. La mandíbula se abre con el
@@ -166,6 +255,8 @@ export function PatientAvatar({
 					modelPixelRatio: Math.min(1, 1.5 / window.devicePixelRatio),
 					// Sin módulos de lipsync por texto: los labios salen del audio.
 					lipsyncModules: [],
+					// Que un arrastre sin querer no gire al paciente.
+					cameraRotateEnable: false,
 					avatarIdleEyeContact: 0.4,
 					avatarSpeakingEyeContact: 0.7,
 				});
@@ -177,6 +268,12 @@ export function PatientAvatar({
 				);
 				if (cancelled) return instance.dispose();
 				head.current = instance;
+				// Cada cuadro: labios (si hay voz) y cámara sobre la parte examinada.
+				const h = instance;
+				h.opt.update = (dt) => {
+					lipsTick.current?.(dt);
+					if (focusPart.current) followFocus(h, focusPart.current);
+				};
 				setStatus("listo");
 				await attachSpeech();
 			} catch (error) {
@@ -227,13 +324,18 @@ export function PatientAvatar({
 					break;
 				case "mouth": {
 					if (mouthTimer.current) clearTimeout(mouthTimer.current);
+					if (action.ms === 0) {
+						for (const mt of ["jawOpen", "mouthOpen", "tongueOut"])
+							h.setFixedValue(mt, null);
+						break;
+					}
 					h.setFixedValue("jawOpen", 0.9);
 					h.setFixedValue("mouthOpen", 0.7);
 					h.setFixedValue("tongueOut", action.tongue ? 1 : 0);
 					mouthTimer.current = setTimeout(() => {
 						for (const mt of ["jawOpen", "mouthOpen", "tongueOut"])
 							h.setFixedValue(mt, null);
-					}, MOUTH_MS);
+					}, action.ms ?? MOUTH_MS);
 					break;
 				}
 			}
@@ -270,10 +372,45 @@ export function PatientAvatar({
 			};
 			tick();
 		},
+		focus(part) {
+			const h = head.current;
+			if (!h) return Promise.resolve();
+			baseFov.current ??= h.camera.fov;
+			if (!part) {
+				focusPart.current = null;
+				if (moving.current) Object.assign(h.opt, moving.current);
+				moving.current = null;
+				h.setView("head");
+				return zoomLens(h, baseFov.current);
+			}
+			const shot = aim(h, part);
+			if (!shot) return Promise.resolve();
+			moving.current ??= Object.fromEntries(
+				Object.keys(STILL).map((k) => [k, h.opt[k]]),
+			);
+			Object.assign(h.opt, STILL);
+			// El mismo recorrido animado que usa setView, hacia la boca o el oído.
+			// Después, followFocus mantiene la cámara encima aunque la cabeza se
+			// mueva.
+			h.controlsStart = h.controls.target.clone();
+			h.cameraStart = h.camera.position.clone();
+			h.controlsEnd = shot.target;
+			h.cameraEnd = shot.camera;
+			h.cameraClock = 0;
+			focusPart.current = part;
+			return zoomLens(h, FOCUS[part].fov);
+		},
 	}));
 
 	return (
-		<div className={`relative ${className ?? ""}`}>
+		// Sin posición en className, relative (el canvas va en absolute adentro).
+		<div
+			className={
+				/\b(absolute|fixed|relative)\b/.test(className ?? "")
+					? className
+					: `relative ${className ?? ""}`
+			}
+		>
 			<div ref={node} className="absolute inset-0" />
 			{status !== "listo" && (
 				<p className="absolute inset-0 grid place-items-center text-muted-foreground text-sm">

@@ -1,23 +1,32 @@
 // Arquetipos de personalidad (plan.md, sección 5). Son independientes del caso:
 // el mismo caso con otra personalidad es otra consulta.
 import type { Personality } from "@/cases/schema";
+import type { Mood } from "@/lib/avatar/commands";
 
 export type Archetype = {
 	key: string;
 	label: string;
 	description: string;
 	personality: Personality;
-	// Cómo habla, para el prompt y el paciente simulado sin IA.
+	// Cómo habla, para el prompt y el paciente simulado sin IA. Incluye el
+	// tono de voz: la voz de Gemini lo sigue.
 	style: string;
 	// Palabras con las que alguien lo pide en el generador.
 	keywords: string[];
+	// Expresión de base del avatar (Persona 3); el ánimo de la consulta la
+	// puede cambiar (lib/avatar/mood.ts).
+	mood: Mood;
+	// Voz de Gemini Live acorde, por sexo del paciente (lib/patient/voices.ts).
+	voice: { f: string; m: string };
 };
 
 export const ARCHETYPES: Archetype[] = [
 	{
 		key: "directo",
-		label: "Directo y colaborador",
-		description: "Responde claro, algo preocupado.",
+		label: "Tranquilo",
+		description: "Responde claro y colabora, algo preocupado.",
+		mood: "neutral",
+		voice: { f: "Aoede", m: "Charon" },
 		personality: {
 			cooperacion: 0.9,
 			ansiedad: 0.3,
@@ -27,13 +36,16 @@ export const ARCHETYPES: Archetype[] = [
 			audicion: "normal",
 			vocabulario: "simple",
 		},
-		style: "Responde claro y corto, con voseo, algo preocupado.",
+		style:
+			"Responde claro y corto, con voseo, algo preocupado. Tono de voz calmo y amable.",
 		keywords: ["directo", "colaborador", "tranquilo", "normal", "fácil"],
 	},
 	{
 		key: "ansioso",
 		label: "Ansioso",
 		description: "Pregunta si es grave, habla rápido.",
+		mood: "fear",
+		voice: { f: "Leda", m: "Fenrir" },
 		personality: {
 			cooperacion: 0.7,
 			ansiedad: 0.9,
@@ -44,13 +56,74 @@ export const ARCHETYPES: Archetype[] = [
 			vocabulario: "simple",
 		},
 		style:
-			"Habla rápido, repite sus preocupaciones y pregunta seguido si es grave.",
+			"Habla rápido, repite sus preocupaciones y pregunta seguido si es grave. Tono de voz nervioso y acelerado, con la respiración agitada.",
 		keywords: ["ansios", "nervios", "preocupad", "asustad", "miedo"],
+	},
+	{
+		key: "enojado",
+		label: "Enojado",
+		description:
+			"Molesto por la espera y el dolor; se calma si lo tratan bien.",
+		mood: "angry",
+		voice: { f: "Kore", m: "Orus" },
+		personality: {
+			cooperacion: 0.5,
+			ansiedad: 0.3,
+			locuacidad: 0.5,
+			desconfianza: 0.5,
+			paciencia: 0.15,
+			audicion: "normal",
+			vocabulario: "simple",
+		},
+		style:
+			"Está enojado: esperó mucho y está harto de la molestia. Se queja, contesta cortante y a veces levanta la voz. Si lo escuchan y le explican con respeto, se va calmando. Tono de voz enojado, firme y tenso.",
+		// Sin "molest": "me molesta la garganta" es un síntoma, no un enojo.
+		keywords: ["enojad", "furios", "irritad", "cabread", "de mal humor"],
+	},
+	{
+		key: "feliz",
+		label: "Feliz",
+		description: "De buen humor, charla y hace chistes.",
+		mood: "happy",
+		voice: { f: "Zephyr", m: "Puck" },
+		personality: {
+			cooperacion: 0.95,
+			ansiedad: 0.1,
+			locuacidad: 0.8,
+			desconfianza: 0.05,
+			paciencia: 0.9,
+			audicion: "normal",
+			vocabulario: "simple",
+		},
+		style:
+			"Está de buen humor: simpático, hace algún chiste y le quita un poco de importancia a lo que le pasa, aunque contesta todo. Tono de voz alegre y cálido, con sonrisa.",
+		keywords: ["feliz", "alegre", "contento", "buen humor", "simpátic"],
+	},
+	{
+		key: "triste",
+		label: "Triste",
+		description: "Desanimado, habla poco y bajo.",
+		mood: "sad",
+		voice: { f: "Aoede", m: "Charon" },
+		personality: {
+			cooperacion: 0.7,
+			ansiedad: 0.4,
+			locuacidad: 0.3,
+			desconfianza: 0.2,
+			paciencia: 0.6,
+			audicion: "normal",
+			vocabulario: "simple",
+		},
+		style:
+			"Está triste y desanimado: contesta corto, suspira y se lo nota cansado. Tono de voz bajo, lento y apagado.",
+		keywords: ["triste", "deprimid", "bajonead", "desanimad", "decaíd"],
 	},
 	{
 		key: "mayor",
 		label: "Adulto mayor con audición reducida",
 		description: "Divaga, hay que repetir.",
+		mood: "neutral",
+		voice: { f: "Aoede", m: "Charon" },
 		personality: {
 			cooperacion: 0.8,
 			ansiedad: 0.4,
@@ -61,13 +134,15 @@ export const ARCHETYPES: Archetype[] = [
 			vocabulario: "simple",
 		},
 		style:
-			"Habla lento, se va por las ramas y a veces pide que le repitan porque no escucha bien.",
+			"Habla lento, se va por las ramas y a veces pide que le repitan porque no escucha bien. Tono de voz pausado, de persona mayor.",
 		keywords: ["mayor", "viej", "anciano", "abuel", "sordo", "no escucha"],
 	},
 	{
 		key: "hostil",
-		label: "Hostil o mala onda",
-		description: "Desconfiado, no quiere abrir la boca.",
+		label: "Desconfiado",
+		description: "Mala onda, no quiere abrir la boca.",
+		mood: "disgust",
+		voice: { f: "Kore", m: "Orus" },
 		personality: {
 			cooperacion: 0.2,
 			ansiedad: 0.4,
@@ -78,15 +153,8 @@ export const ARCHETYPES: Archetype[] = [
 			vocabulario: "simple",
 		},
 		style:
-			"Seco, respuestas cortas y desconfiadas. No se deja examinar hasta que le expliquen para qué y le pidan permiso.",
-		keywords: [
-			"hostil",
-			"mala onda",
-			"enojad",
-			"difícil",
-			"desconfiad",
-			"agresiv",
-		],
+			"Seco, respuestas cortas y desconfiadas. No se deja examinar hasta que le expliquen para qué y le pidan permiso. Tono de voz seco y desganado.",
+		keywords: ["hostil", "mala onda", "difícil", "desconfiad", "agresiv"],
 	},
 ];
 

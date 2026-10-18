@@ -151,6 +151,12 @@ export const api = {
 			method: "PATCH",
 			body: record,
 		}),
+	// Vista de solo foto: no hay técnica, solo cuánto miró.
+	finishPhotoOtoscopy: (id: string, actionId: string, lookedMs: number) =>
+		request<{ ok: boolean }>(`/api/sessions/${id}/otoscopy/${actionId}`, {
+			method: "PATCH",
+			body: { mode: "foto", lookedMs: Math.round(lookedMs) },
+		}),
 	finish: (id: string, hypothesis: string, differentials: string[]) =>
 		request<{ report: Report }>(`/api/sessions/${id}/finish`, {
 			method: "POST",

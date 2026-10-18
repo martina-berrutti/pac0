@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 
+import { asksForTemperature } from "@/lib/exam/end-intent";
+
 import {
 	audible,
 	LEAK_PER_S,
@@ -44,5 +46,27 @@ describe("tensiómetro de pera", () => {
 		expect(audible(130, gauge, 1000)).toBe(false);
 		expect(audible(70, gauge, 1000)).toBe(false);
 		expect(audible(100, gauge, 100)).toBe(false);
+	});
+});
+
+describe("pedir la temperatura", () => {
+	test("abre el termómetro cuando se va a tomar ahora", () => {
+		for (const t of [
+			"Te voy a tomar la temperatura, ¿puedo?",
+			"Ahora te tomo la temperatura",
+			"Te pongo el termómetro debajo del brazo",
+			"Vamos a medir si tenés fiebre",
+		])
+			expect(asksForTemperature(t), t).toBe(true);
+	});
+
+	test("preguntar por la historia no lo abre", () => {
+		for (const t of [
+			"¿Te tomaste la temperatura?",
+			"¿Tuviste fiebre?",
+			"¿Cuánta fiebre tuviste?",
+			"¿Tenés termómetro en tu casa?",
+		])
+			expect(asksForTemperature(t), t).toBe(false);
 	});
 });

@@ -27,13 +27,26 @@ const CAN_CALIBRATE = process.env.NODE_ENV !== "production";
 export function OrofaringeView({
 	exam,
 	onClose,
+	endRequest = 0,
+	bare = false,
 }: {
 	exam: ExamResult;
 	onClose: (hotspotTimesMs: Record<string, number>) => void;
+	// Solo la foto con la linterna, sin tiempos ni botones (consulta a
+	// pantalla completa: se cierra hablando; el abatelenguas, con la tecla A).
+	bare?: boolean;
+	// Sube cuando el estudiante termina el examen hablando ("cerrá la boca"):
+	// se cierra igual que con el botón, con los tiempos medidos.
+	endRequest?: number;
 }) {
 	const box = useRef<HTMLDivElement>(null);
 	const [light, setLight] = useState<{ x: number; y: number } | null>(null);
 	const times = useRef<Record<string, number>>({});
+	const close = useRef(onClose);
+	close.current = onClose;
+	useEffect(() => {
+		if (endRequest > 0) close.current({ ...times.current });
+	}, [endRequest]);
 	const [, force] = useState(0);
 	// Abatelenguas: solo con la boca bien abierta (plan.md, sección 6).
 	const canDepress = exam.action.variant === "completa";
@@ -112,7 +125,7 @@ export function OrofaringeView({
 				onPointerMove={move}
 				onPointerDown={move}
 				onPointerLeave={() => setLight(null)}
-				className="relative aspect-[4/3] w-full touch-none select-none overflow-hidden bg-neutral-900"
+				className={`relative aspect-[4/3] w-full touch-none select-none overflow-hidden bg-neutral-900 ${bare ? "rounded-xl shadow-2xl" : ""}`}
 				role="img"
 				aria-label={`Examen de orofaringe, apertura ${exam.action.variant}${depressor ? ", con abatelenguas" : ""}`}
 			>
@@ -140,6 +153,8 @@ export function OrofaringeView({
 						width: `${h.r * 2}%`,
 						height: `${h.r * 2.66}%`,
 					};
+					// En la consulta a pantalla completa la foto se ve entera.
+					if (photo && bare) return null;
 					if (photo)
 						return hidden ? (
 							<div
@@ -165,9 +180,16 @@ export function OrofaringeView({
 				<div
 					className="pointer-events-none absolute inset-0"
 					style={{
-						background: light
-							? `radial-gradient(circle at ${light.x}% ${light.y}%, transparent ${LIGHT_RADIUS}%, rgba(0,0,0,0.94) ${LIGHT_RADIUS + 6}%)`
-							: "rgba(0,0,0,0.94)",
+						// En la consulta a pantalla completa la foto se ve clara y la
+						// linterna es un brillo encima; si no, solo se ve lo iluminado.
+						background:
+							bare && photo
+								? light
+									? `radial-gradient(circle at ${light.x}% ${light.y}%, rgba(255,250,235,0.18) ${LIGHT_RADIUS}%, transparent ${LIGHT_RADIUS + 6}%)`
+									: "transparent"
+								: light
+									? `radial-gradient(circle at ${light.x}% ${light.y}%, transparent ${LIGHT_RADIUS}%, rgba(0,0,0,0.94) ${LIGHT_RADIUS + 6}%)`
+									: "rgba(0,0,0,0.94)",
 					}}
 				/>
 				{calibrate &&
@@ -197,27 +219,31 @@ export function OrofaringeView({
 							: `Esquema. Foto pendiente: ${exam.assetKey ?? "sin imagen"}`}
 				</p>
 			</div>
-			<ul className="grid grid-cols-2 gap-1 text-xs">
-				{visible.map((key) => (
-					<li key={key} className="text-muted-foreground">
-						{ZONE_LABELS[key] ?? key}:{" "}
-						{((times.current[key] ?? 0) / 1000).toFixed(1)} s
-					</li>
-				))}
-			</ul>
-			{canDepress && (
-				<Button
-					variant="outline"
-					aria-pressed={depressor}
-					onClick={() => setDepressor((d) => !d)}
-				>
-					{depressor ? "Sacar el abatelenguas" : "Usar el abatelenguas"} (tecla
-					A)
-				</Button>
+			{!bare && (
+				<>
+					<ul className="grid grid-cols-2 gap-1 text-xs">
+						{visible.map((key) => (
+							<li key={key} className="text-muted-foreground">
+								{ZONE_LABELS[key] ?? key}:{" "}
+								{((times.current[key] ?? 0) / 1000).toFixed(1)} s
+							</li>
+						))}
+					</ul>
+					{canDepress && (
+						<Button
+							variant="outline"
+							aria-pressed={depressor}
+							onClick={() => setDepressor((d) => !d)}
+						>
+							{depressor ? "Sacar el abatelenguas" : "Usar el abatelenguas"}{" "}
+							(tecla A)
+						</Button>
+					)}
+					<Button onClick={() => onClose({ ...times.current })}>
+						Terminar el examen
+					</Button>
+				</>
 			)}
-			<Button onClick={() => onClose({ ...times.current })}>
-				Terminar el examen
-			</Button>
 		</div>
 	);
 }

@@ -10,7 +10,11 @@ import {
 	OTOSCOPY,
 	type OtoscopyRecord,
 } from "@/lib/contracts/exam";
-import { assessOtoscopy, otoscopyScenario } from "@/lib/exam/otoscope";
+import {
+	assessOtoscopy,
+	assessPhotoOtoscopy,
+	otoscopyScenario,
+} from "@/lib/exam/otoscope";
 
 import { HttpError } from "./auth";
 import {
@@ -56,11 +60,14 @@ export async function startOtoscopy(
 	return { actionId: action.id, appearance: scenario.appearance[ear] };
 }
 
+// Vista de solo foto: no hay técnica que registrar, solo cuánto miró.
+export type PhotoOtoscopyRecord = { mode: "foto"; lookedMs: number };
+
 export async function finishOtoscopy(
 	viewer: Viewer,
 	sessionId: string,
 	actionId: string,
-	record: OtoscopyRecord,
+	record: OtoscopyRecord | PhotoOtoscopyRecord,
 ) {
 	const { session, clinicalCase, elapsed } = await activeSession(
 		viewer,
@@ -77,6 +84,14 @@ export async function finishOtoscopy(
 	const before = (await store.listTurns(session.id)).filter(
 		(t) => t.speaker === "estudiante" && t.startMs <= action.startMs,
 	);
+	if ("mode" in record) {
+		await store.updateExamAction(actionId, {
+			hotspotTimesMs: { conducto: record.lookedMs, timpano: record.lookedMs },
+			endMs: elapsed,
+			technique: assessPhotoOtoscopy(record.lookedMs, before),
+		});
+		return { ok: true };
+	}
 	const technique = assessOtoscopy(
 		ear,
 		record,

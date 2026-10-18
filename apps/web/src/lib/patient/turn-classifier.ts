@@ -150,7 +150,7 @@ function isEmpathy(t: string, question: boolean) {
 	if (/(^| )no (te |le |lo |la )?entiendo( |$)/.test(t)) return false;
 	// "Debe ser difícil" sí; "debe ser viral" no.
 	if (
-		/debe ser (muy |re |bastante |tan )?(dificil|feo|molesto|horrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso)/.test(
+		/deb(e|e de) ser (muy |re |bastante |tan |una situacion )?(dificil|feo|molesto|horrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso|complicado|bravo|pesado|jodido)/.test(
 			t,
 		)
 	)

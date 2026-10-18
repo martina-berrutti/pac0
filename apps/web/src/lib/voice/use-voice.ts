@@ -193,6 +193,12 @@ export function useVoice({
 	// Herramientas pedidas por el modelo que todavía no se respondieron: una
 	// nota en ese momento cortaría la respuesta en curso.
 	const toolsPending = useRef(0);
+	// Se respondió una herramienta y el paciente todavía no terminó de contestar
+	// (antes del primer audio, patientTurnStarted sigue en false).
+	const awaitingReply = useRef(false);
+	// Reconectando: todavía no hay sesión, pero va a haber. Las notas esperan en
+	// vez de perderse.
+	const reconnecting = useRef(false);
 	// Guardado diferido del turno del estudiante (ver onMessage).
 	const studentFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -200,7 +206,12 @@ export function useVoice({
 	// paciente está generando su respuesta, mandarlo la cortaría (y contaría
 	// como una interrupción del estudiante): espera a que termine su turno.
 	const deliverNote = useCallback((text: string) => {
-		if (st.current.patientTurnStarted || toolsPending.current > 0) {
+		if (
+			st.current.patientTurnStarted ||
+			toolsPending.current > 0 ||
+			awaitingReply.current ||
+			reconnecting.current
+		) {
 			pendingNotes.current.push(text);
 			return;
 		}
@@ -246,6 +257,7 @@ export function useVoice({
 				studentFlushTimer.current = null;
 			}
 			pendingNotes.current = [];
+			reconnecting.current = false;
 			// Lo último que se dijo antes de cortar también va al informe.
 			flushPending.current();
 			stopPlayback();
@@ -413,8 +425,14 @@ export function useVoice({
 				target &&
 				live.current === target &&
 				openSession(target)
-			)
+			) {
 				safeSend(() => target.sendToolResponse({ functionResponses }));
+				// Se respondió: el paciente va a hablar ahora (las notas esperan a
+				// que termine).
+				awaitingReply.current = true;
+				return true;
+			}
+			return false;
 		},
 		[sessionId, enqueue],
 	);
@@ -424,13 +442,24 @@ export function useVoice({
 			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
 		) => {
 			toolsPending.current += 1;
+			let answered = false;
 			try {
-				await answerTools(calls);
+				answered = await answerTools(calls);
 			} finally {
 				toolsPending.current -= 1;
+				// Solo si no se mandó respuesta (todas canceladas): el paciente no
+				// va a hablar y las notas no tienen por qué esperar. Si se respondió,
+				// el paciente empieza a contestar y las notas esperan a que termine
+				// (turnComplete), o lo cortarían.
+				if (
+					!answered &&
+					toolsPending.current === 0 &&
+					!st.current.patientTurnStarted
+				)
+					for (const note of pendingNotes.current.splice(0)) deliverNote(note);
 			}
 		},
-		[answerTools],
+		[answerTools, deliverNote],
 	);
 
 	const onMessage = useCallback(
@@ -452,6 +481,7 @@ export function useVoice({
 				setStudentSpeaking(true);
 			}
 			if (content?.interrupted) {
+				awaitingReply.current = false;
 				// El estudiante habló encima del paciente: se corta el audio. Solo
 				// cuenta como interrupción (y penaliza) si el paciente ya se
 				// escuchaba; si el audio no había empezado, no interrumpió a nadie.
@@ -483,6 +513,7 @@ export function useVoice({
 			if (content?.outputTranscription?.text)
 				s.patientText += content.outputTranscription.text;
 			if (content?.turnComplete) {
+				awaitingReply.current = false;
 				if (studentFlushTimer.current) {
 					clearTimeout(studentFlushTimer.current);
 					studentFlushTimer.current = null;
@@ -593,6 +624,13 @@ export function useVoice({
 		const old = live.current;
 		live.current = null;
 		conn.current += 1;
+		// Desde acá no hay sesión: las notas esperan a la nueva (incluida la de
+		// ánimo que sale de guardar lo pendiente, justo abajo). Si se corta, stop
+		// y start lo limpian.
+		reconnecting.current = true;
+		// La conexión nueva no recibió la respuesta de herramienta pendiente: el
+		// paciente no va a contestarla, así que las notas no la esperan.
+		awaitingReply.current = false;
 		old.close();
 		stopPlayback();
 		setStatus("reconnecting");
@@ -604,6 +642,9 @@ export function useVoice({
 			if (attempt.current !== mine) return;
 			s.lastActivity = Date.now();
 			setStatus("live");
+			// Las notas que llegaron mientras reconectaba salen en la sesión nueva.
+			reconnecting.current = false;
+			for (const note of pendingNotes.current.splice(0)) deliverNote(note);
 		} catch (e) {
 			// Si la estudiante cortó mientras reconectaba, no es un error.
 			if (attempt.current !== mine) return;
@@ -613,8 +654,13 @@ export function useVoice({
 			callbacks.current.onError(
 				e instanceof Error ? e.message : "No se pudo reconectar la voz",
 			);
+		} finally {
+			// Falló o se cortó: ya no se espera una sesión nueva. Solo si esta
+			// reconexión sigue siendo la vigente (una vieja que termina tarde no
+			// le baja el indicador a una nueva).
+			if (attempt.current === mine) reconnecting.current = false;
 		}
-	}, [connect, flushPatient, flushStudent, stop, stopPlayback]);
+	}, [connect, deliverNote, flushPatient, flushStudent, stop, stopPlayback]);
 	reconnectRef.current = () => {
 		// Red de seguridad: si algo inesperado falla al reconectar, se corta con
 		// aviso en vez de quedar "reconectando" para siempre.
@@ -634,6 +680,10 @@ export function useVoice({
 		// El reloj de una voz anterior no vale mientras conecta.
 		setRemainingMs(null);
 		reconnects.current = 0;
+		// Nada de una consulta anterior pasa a esta.
+		pendingNotes.current = [];
+		awaitingReply.current = false;
+		reconnecting.current = false;
 		const mine = ++attempt.current;
 		const cancelled = () => attempt.current !== mine;
 		// Los AudioContext se crean en el mismo clic (Safari, sobre todo en

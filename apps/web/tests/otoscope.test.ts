@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { caseBank } from "@/cases";
+import { findCase } from "@/cases";
 import type { ClinicalCase } from "@/cases/schema";
 import { EXAM_KINDS } from "@/cases/schema";
 import {
@@ -13,6 +13,7 @@ import type { Turn } from "@/lib/contracts/session";
 import {
 	affectedEar,
 	assessOtoscopy,
+	assessPhotoOtoscopy,
 	describeEars,
 	otoscopyScenario,
 } from "@/lib/exam/otoscope";
@@ -66,6 +67,19 @@ function otoscopy(errors: ExamAction["technique"]): ExamAction {
 		technique: errors,
 	};
 }
+
+describe("otoscopio de solo foto", () => {
+	test("explicó y miró: sin errores, sin pasos de técnica inventados", () => {
+		const r = assessPhotoOtoscopy(3000, explained);
+		expect(r.errors).toEqual([]);
+		expect(r.steps).toEqual(["explica", "observa-conducto", "observa-timpano"]);
+	});
+
+	test("sin explicar y mirando muy poco", () => {
+		const r = assessPhotoOtoscopy(200, []);
+		expect(r.errors).toEqual(["sin-explicar", "no-observa-timpano"]);
+	});
+});
 
 describe("otoscopio", () => {
 	test("técnica completa del afiche: sin errores", () => {
@@ -188,7 +202,7 @@ describe("evaluación de la otoscopia", () => {
 });
 
 describe("hallazgos de oído por caso", () => {
-	const diego = caseBank.find((c) => c.id === "oido-01") as ClinicalCase;
+	const diego = findCase("oido-01") as ClinicalCase;
 	const ear = (zone: "oido-derecho" | "oido-izquierdo", startMs: number) => ({
 		...otoscopy({ steps: [], errors: [] }),
 		id: `oto-${zone}`,

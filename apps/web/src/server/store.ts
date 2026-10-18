@@ -6,7 +6,7 @@ import "server-only";
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
-import { caseBank } from "@/cases";
+import { caseBank, findCase } from "@/cases";
 import type { ClinicalCase } from "@/cases/schema";
 import type { ExamAction, VitalsMeasurement } from "@/lib/contracts/exam";
 import type { MistakeEntry } from "@/lib/contracts/mistakes";
@@ -205,7 +205,7 @@ class MemoryStore implements Store {
 		return [...caseBank, ...own.reverse()];
 	}
 	async getCase(id: string) {
-		return caseBank.find((c) => c.id === id) ?? this.generated.get(id)?.c;
+		return findCase(id) ?? this.generated.get(id)?.c;
 	}
 	async addGeneratedCase(ownerId: string, c: ClinicalCase) {
 		this.generated.set(c.id, { ownerId, c });
@@ -481,10 +481,7 @@ class ConvexStore implements Store {
 		];
 	}
 	async getCase(id: string) {
-		return (
-			caseBank.find((c) => c.id === id) ??
-			(await this.get<ClinicalCase>("case", id))
-		);
+		return findCase(id) ?? (await this.get<ClinicalCase>("case", id));
 	}
 	async addGeneratedCase(ownerId: string, c: ClinicalCase) {
 		await this.put("case", c.id, c, { ownerId });
