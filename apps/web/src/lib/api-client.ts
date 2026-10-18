@@ -1,6 +1,6 @@
 // Cliente de la API para las pantallas. Tira ApiError con el mensaje del
 // servidor, listo para mostrar en un toast.
-import type { CaseSummary } from "@/cases/schema";
+import type { CaseSummary, PainZone } from "@/cases/schema";
 import type {
 	BpReading,
 	CuffSize,
@@ -119,6 +119,12 @@ export const api = {
 		request<{ action: ExamAction }>(`/api/sessions/${id}/exam/${actionId}`, {
 			method: "PATCH",
 			body: { hotspotTimesMs },
+		}),
+	// "¿Te duele acá?": la pista la da el servidor (la zona es el diagnóstico).
+	locatePain: (id: string, side: PainZone["side"], spot: PainZone["spot"]) =>
+		request<{ hint: string; found: boolean }>(`/api/sessions/${id}/pain`, {
+			method: "POST",
+			body: { side, spot },
 		}),
 	takeTemperature: (id: string) =>
 		request<TemperatureReading>(`/api/sessions/${id}/temperature`, {

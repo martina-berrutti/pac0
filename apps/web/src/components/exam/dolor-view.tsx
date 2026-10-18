@@ -2,60 +2,18 @@
 
 // "¿Te duele acá?": panel con las dos rodillas de frente. El estudiante toca
 // una zona; la paciente contesta con una pista hasta que da en el lugar. La
-// zona no es el diagnóstico (puede viajar al navegador).
+// zona correcta es el diagnóstico: no viaja al navegador, la pista la da el
+// servidor.
 import { Button } from "@pac0/ui/components/button";
 import { type RefObject, useEffect, useState } from "react";
 import type { PainZone } from "@/cases/schema";
 import type { PatientAvatarHandle } from "@/components/avatar/patient-avatar";
+import { api } from "@/lib/api-client";
+import { ZONES } from "@/lib/exam/pain-zones";
 
 type Side = PainZone["side"];
 type Spot = PainZone["spot"];
 
-// Centro de cada zona en el dibujo de UNA rodilla, con el lado interno hacia
-// -x (la rodilla izquierda de la paciente, a la derecha de la pantalla). La
-// otra se espeja. `ix` mide hacia adentro (hacia la otra pierna).
-const ZONES: Record<
-	Spot,
-	{ label: string; ix: number; y: number; rx: number; ry: number }
-> = {
-	"interlinea-interna": {
-		label: "línea de la articulación, por dentro",
-		ix: 31,
-		y: 178,
-		rx: 12,
-		ry: 8,
-	},
-	"colateral-interno": {
-		label: "borde interno, a lo largo del ligamento",
-		ix: 34,
-		y: 142,
-		rx: 8,
-		ry: 22,
-	},
-	"interlinea-externa": {
-		label: "línea de la articulación, por fuera",
-		ix: -31,
-		y: 178,
-		rx: 12,
-		ry: 8,
-	},
-	"colateral-externo": {
-		label: "borde externo, a lo largo del ligamento",
-		ix: -34,
-		y: 142,
-		rx: 8,
-		ry: 22,
-	},
-	rotula: { label: "rótula", ix: 0, y: 166, rx: 18, ry: 20 },
-	"tendon-rotuliano": {
-		label: "tendón de la rótula",
-		ix: 0,
-		y: 212,
-		rx: 8,
-		ry: 18,
-	},
-	centro: { label: "adentro, en el centro", ix: 0, y: 172, rx: 36, ry: 38 },
-};
 const SURFACE: Spot[] = [
 	"interlinea-interna",
 	"colateral-interno",
@@ -68,43 +26,21 @@ const SIDES: Side[] = ["derecha", "izquierda"];
 // Centro de cada rodilla en el dibujo. La derecha de la paciente va a la
 // izquierda de la pantalla.
 const KNEE_X: Record<Side, number> = { derecha: 105, izquierda: 295 };
-const NEAR = 12;
 
 const keyOf = (side: Side, spot: Spot) => `${side}:${spot}`;
 
-// Respuesta de la paciente según lo tocado y lo correcto.
-export function painHint(zone: PainZone, side: Side, spot: Spot): string {
-	if (side !== zone.side) return "No, en la otra rodilla.";
-	if (spot === zone.spot) return "¡Ahí! Justo ahí me duele.";
-	if (zone.spot === "centro")
-		return "No es en un punto de afuera… me duele adentro, en el medio de la rodilla.";
-	const from = ZONES[spot];
-	const to = ZONES[zone.spot];
-	const dx = to.ix - from.ix;
-	const dy = to.y - from.y;
-	const side_ =
-		Math.abs(dx) > NEAR ? (dx > 0 ? "hacia adentro" : "hacia afuera") : null;
-	const vert = Math.abs(dy) > NEAR ? (dy > 0 ? "abajo" : "arriba") : null;
-	if (side_ && vert) return `No, más ${side_} y un poco más ${vert}.`;
-	if (side_) return `No, más ${side_}.`;
-	if (vert) return `Un poquito más ${vert}.`;
-	return "Casi, un poquito al lado.";
-}
-
 function Leg({
 	side,
-	zone,
 	hover,
 	wrong,
-	found,
+	foundKey,
 	onHover,
 	onPick,
 }: {
 	side: Side;
-	zone: PainZone;
 	hover: string | null;
 	wrong: Set<string>;
-	found: boolean;
+	foundKey: string | null;
 	onHover: (k: string | null) => void;
 	onPick: (side: Side, spot: Spot) => void;
 }) {
@@ -171,7 +107,7 @@ function Leg({
 			{order.map((spot) => {
 				const z = ZONES[spot];
 				const k = keyOf(side, spot);
-				const isRight = found && side === zone.side && spot === zone.spot;
+				const isRight = foundKey === k;
 				const fill = isRight
 					? "var(--pen)"
 					: wrong.has(k)
@@ -226,17 +162,19 @@ function Leg({
 
 export function DolorView({
 	avatar,
-	zone,
+	sessionId,
 	onClose,
 	onFound,
 }: {
 	avatar: RefObject<PatientAvatarHandle | null>;
-	zone: PainZone;
+	sessionId: string;
 	onClose: () => void;
 	onFound?: () => void;
 }) {
 	const [wrong, setWrong] = useState<Set<string>>(new Set());
-	const [found, setFound] = useState(false);
+	const [foundKey, setFoundKey] = useState<string | null>(null);
+	const found = foundKey !== null;
+	const [asking, setAsking] = useState(false);
 	const [hover, setHover] = useState<string | null>(null);
 	const [said, setSaid] = useState("");
 
@@ -245,15 +183,21 @@ export function DolorView({
 		avatar.current?.run({ kind: "view", view: "full" });
 	}, [avatar]);
 
-	function pick(side: Side, spot: Spot) {
-		if (found) return;
-		setSaid(painHint(zone, side, spot));
-		if (side === zone.side && spot === zone.spot) {
-			setFound(true);
-			onFound?.();
-			return;
+	async function pick(side: Side, spot: Spot) {
+		if (found || asking) return;
+		setAsking(true);
+		try {
+			const r = await api.locatePain(sessionId, side, spot);
+			setSaid(r.hint);
+			if (r.found) {
+				setFoundKey(keyOf(side, spot));
+				onFound?.();
+			} else setWrong((w) => new Set(w).add(keyOf(side, spot)));
+		} catch {
+			setSaid("Perdón, no te entendí. ¿Me tocás de nuevo?");
+		} finally {
+			setAsking(false);
 		}
-		setWrong((w) => new Set(w).add(keyOf(side, spot)));
 	}
 
 	return (
@@ -270,10 +214,9 @@ export function DolorView({
 					<Leg
 						key={side}
 						side={side}
-						zone={zone}
 						hover={hover}
 						wrong={wrong}
-						found={found}
+						foundKey={foundKey}
 						onHover={setHover}
 						onPick={pick}
 					/>

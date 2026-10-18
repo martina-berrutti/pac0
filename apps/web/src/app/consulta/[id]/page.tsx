@@ -126,7 +126,7 @@ export default function ConsultationPage() {
 			// No hay herramienta de voz para la temperatura: también por voz se
 			// abre con las palabras.
 			setThermo(true);
-		} else if (!tool && view?.case.painZone && asksWherePain(turn.text)) {
+		} else if (!tool && view?.case.hasPainZone && asksWherePain(turn.text)) {
 			setPain(true);
 		} else if (byText && !tool) {
 			if (asksForEarExam(turn.text)) setEar(earIn(turn.text));
@@ -564,11 +564,11 @@ export default function ConsultationPage() {
 				<div
 					className={`absolute inset-0 grid place-items-center overflow-y-auto p-4 pt-16 ${pain ? "" : "bg-black/30"} ${textMode ? "pb-20" : ""}`}
 				>
-					{pain && view.case.painZone ? (
+					{pain && view.case.hasPainZone ? (
 						<div className="fade-in zoom-in-50 w-full max-w-md animate-in rounded-lg bg-background p-3 shadow-2xl duration-500 md:justify-self-start">
 							<DolorView
 								avatar={avatar}
-								zone={view.case.painZone}
+								sessionId={id}
 								onClose={closePain}
 								onFound={() => {
 									if (voice.status === "live")

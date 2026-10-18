@@ -65,6 +65,49 @@ const TOPICS: { key: string; words: string[] }[] = [
 		key: "drogas",
 		words: ["drogas", "consumís", "consumis", "marihuana", "porro"],
 	},
+	// Rodilla: cómo se lastimó, hinchazón, si se traba o se va, si apoya.
+	{
+		key: "mecanismo",
+		words: [
+			"cómo te lastimaste",
+			"como te lastimaste",
+			"cómo fue",
+			"como fue",
+			"qué pasó",
+			"que paso",
+			"qué estabas haciendo",
+			"que estabas haciendo",
+			"cómo te golpeaste",
+			"como te golpeaste",
+			"giraste",
+			"te golpe",
+		],
+	},
+	{ key: "hinchazon", words: ["hinch", "inflam"] },
+	{ key: "bloqueo", words: ["traba", "trabó", "trabo", "bloque"] },
+	{
+		key: "inestabilidad",
+		words: [
+			"se te va la rodilla",
+			"se te sale",
+			"te falla",
+			"afloja",
+			"inestab",
+			"se te dobla",
+		],
+	},
+	{
+		key: "apoyo",
+		words: [
+			"apoyar",
+			"apoyás",
+			"apoyas",
+			"caminar",
+			"caminás",
+			"caminas",
+			"pisar",
+		],
+	},
 	{
 		key: "inicio",
 		words: [
@@ -148,6 +191,7 @@ const TOPICS: { key: string; words: string[] }[] = [
 	},
 	{ key: "cafe", words: ["café", "cafe", "cafeína", "cafeina"] },
 	{ key: "sal", words: ["sal", "salado", "salada", "sodio"] },
+	{ key: "deporte", words: ["deporte", "jugás", "jugas", "entren"] },
 	{
 		key: "actividad",
 		words: [
@@ -162,7 +206,15 @@ const TOPICS: { key: string; words: string[] }[] = [
 	{ key: "alergias", words: ["alérgic", "alergic", "alergia"] },
 	{
 		key: "antecedentes",
-		words: ["antecedente", "enfermedad", "operad", "internad"],
+		words: [
+			"antecedente",
+			"enfermedad",
+			"operad",
+			"internad",
+			"lesión",
+			"lesion",
+			"lesionaste",
+		],
 	},
 	// "¿Con quién viniste?" no es dónde vive.
 	{

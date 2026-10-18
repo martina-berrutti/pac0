@@ -155,7 +155,9 @@ export type CaseSummary = {
 	reviewed: boolean;
 	patient: { name: string; age: number };
 	chiefComplaint: string;
-	painZone?: PainZone;
+	// Si se puede localizar el dolor ("¿te duele acá?"). La zona en sí es el
+	// diagnóstico y no viaja al navegador.
+	hasPainZone?: boolean;
 };
 
 export function toSummary(c: ClinicalCase): CaseSummary {
@@ -168,6 +170,6 @@ export function toSummary(c: ClinicalCase): CaseSummary {
 		reviewed: c.reviewedBy !== null,
 		patient: { name: c.patient.name, age: c.patient.age },
 		chiefComplaint: c.chiefComplaint,
-		painZone: c.painZone,
+		hasPainZone: c.painZone ? true : undefined,
 	};
 }

@@ -59,36 +59,42 @@ const SPORTS = [
 		playing: "jugando al fútbol 5",
 		played: "jugué al fútbol 5",
 		plays: "juego al fútbol 5",
+		back: "volver a jugar",
 	},
 	{
 		noun: "hockey",
 		playing: "jugando al hockey",
 		played: "jugué al hockey",
 		plays: "juego al hockey",
+		back: "volver a jugar",
 	},
 	{
 		noun: "básquet",
 		playing: "jugando al básquet",
 		played: "jugué al básquet",
 		plays: "juego al básquet",
+		back: "volver a jugar",
 	},
 	{
 		noun: "vóley",
 		playing: "jugando al vóley",
 		played: "jugué al vóley",
 		plays: "juego al vóley",
+		back: "volver a jugar",
 	},
 	{
 		noun: "pádel",
 		playing: "jugando al pádel",
 		played: "jugué al pádel",
 		plays: "juego al pádel",
+		back: "volver a jugar",
 	},
 	{
 		noun: "running",
 		playing: "corriendo",
 		played: "salí a correr",
 		plays: "salgo a correr",
+		back: "volver a correr",
 	},
 ];
 type Sport = (typeof SPORTS)[number];
@@ -100,6 +106,7 @@ function reskin(text: string, sport: Sport, side: string, name: string) {
 		.replace(/jugué al fútbol( 5)?/g, sport.played)
 		.replace(/juego al fútbol( 5)?/g, sport.plays)
 		.replace(/fútbol( 5)?/g, sport.noun)
+		.replace(/volver a jugar/g, sport.back)
 		.replace(/rodilla (derecha|izquierda)/g, `rodilla ${side}`)
 		.replace(new RegExp(BANK_KNEE_NAME, "g"), name);
 }
@@ -228,7 +235,7 @@ function randomPersona(tpl: ClinicalTemplate, age: number, rand: () => number) {
 		chiefComplaint: pick(tpl.chiefComplaints, rand),
 		profile: {
 			edad: `${age} años`,
-			vive: rand() < 0.5 ? "con mi familia" : "solo",
+			vive: rand() < 0.5 ? "con mi familia" : "sola",
 		},
 	};
 }
@@ -274,7 +281,13 @@ export async function generateCase(
 		: parseAge(req.text, archetype, rand, tpl.minAge);
 	// El avatar es una mujer: los pacientes generados son siempre mujeres.
 	const sex = "f" as const;
-	const sport = pick(SPORTS, rand);
+	// El colateral es por un golpe de otra jugadora: corriendo no pasa.
+	const sport = pick(
+		tpl.id === "esguince-colateral"
+			? SPORTS.filter((s) => s.noun !== "running")
+			: SPORTS,
+		rand,
+	);
 	const side =
 		sideAsked(req.text) ?? pick(["izquierda", "derecha"] as const, rand);
 	const found =
@@ -307,14 +320,18 @@ export async function generateCase(
 		templateId: tpl.id,
 		createdAt: Date.now(),
 		reviewedBy: null,
-		patient: { name, age, occupation: persona.occupation, sex },
+		patient: { name, age, occupation: text(persona.occupation), sex },
 		personality,
 		personalityStyle: text([archetype.style, ...notes].join(" ")),
 		chiefComplaint: text(persona.chiefComplaint),
 		profile: {
-			...persona.profile,
+			// La IA ve el motivo de referencia (con fútbol): el perfil también
+			// pasa al deporte de esta paciente.
+			...Object.fromEntries(
+				Object.entries(persona.profile).map(([k, v]) => [k, text(v)]),
+			),
 			edad: `${age} años`,
-			ocupacion: persona.occupation,
+			ocupacion: text(persona.occupation),
 		},
 		hiddenHistory: history,
 		vitals: tpl.vitals,
@@ -337,6 +354,21 @@ export async function generateCase(
 	});
 	// Si el pedido nombra una personalidad, queda elegida en la tarjeta; si no,
 	// "caso": la sesión usa la personalidad ya ajustada del caso generado.
+	// Con ajustes que la alejan del arquetipo ("enojada que no hable mucho"),
+	// "caso": el arquetipo solo los perdería. "Ansiosa" sola no la aleja.
 	const named = namedArchetype(req.text, req.personalityKey);
-	return { clinicalCase, personalityKey: named?.key ?? "caso" };
+	const baseline = named?.personality;
+	const tweaked =
+		baseline !== undefined &&
+		(Object.keys(personality) as (keyof typeof personality)[]).some((k) => {
+			const mine = personality[k];
+			const base = baseline[k];
+			return typeof mine === "number" && typeof base === "number"
+				? Math.abs(mine - base) > 0.1
+				: mine !== base;
+		});
+	return {
+		clinicalCase,
+		personalityKey: named && !tweaked ? named.key : "caso",
+	};
 }
