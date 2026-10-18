@@ -93,8 +93,16 @@ export function isLeadingQuestion(text: string) {
 		) ?? /,\s*(no|verdad|cierto|no es cierto|no es asi|no es así)\s*$/u.exec(t);
 	if (!tag) return false;
 	// "Debe ser horrible, ¿no?" o "qué feo, ¿no?" acompañan lo que siente, no
-	// empujan una respuesta.
-	return !saysFeeling(t.slice(0, tag.index));
+	// empujan una respuesta. Solo si es lo último antes de la coletilla: "qué
+	// feo, tenés fiebre, ¿no?" sí es sugestiva.
+	const last =
+		t
+			.slice(0, tag.index)
+			.split(/[,¿]/)
+			.map((c) => c.trim())
+			.filter(Boolean)
+			.at(-1) ?? "";
+	return !saysFeeling(last);
 }
 // Términos médicos que un paciente no entiende sin explicación.
 const JARGON = [
@@ -133,7 +141,8 @@ const EMPATHY = [
 	"entiendo",
 	"comprendo",
 	"no se preocupe",
-	"lo siento",
+	// "Lo siento mucho", no "perdón, lo siento, no entendí".
+	"lo siento mucho",
 	"siento mucho",
 	"estoy aca para",
 	"es entendible",

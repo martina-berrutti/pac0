@@ -11,7 +11,14 @@ import { showsEmpathy } from "./turn-classifier";
 // Gana el primero que coincide: los temas puntuales van antes que los síntomas
 // y que "desde cuándo", así "¿alguien más tiene fiebre?" va a contactos y
 // "¿hace cuánto que fumás?" a tabaco.
-const TOPICS: { key: string; words: string[] }[] = [
+// "requires": la pregunta tiene que tener además eso ("¿tomaste ibuprofeno?"
+// sí, "te voy a recetar ibuprofeno" no). "unless": eso la saca del tema.
+const TOPICS: {
+	key: string;
+	words: string[];
+	requires?: RegExp;
+	unless?: RegExp;
+}[] = [
 	{
 		key: "contactos",
 		words: [
@@ -25,13 +32,16 @@ const TOPICS: { key: string; words: string[] }[] = [
 		],
 	},
 	// Antes que la familia: "¿vivís con tu familia?" es dónde vive. "¿Con
-	// quién vive?" (usted) también.
+	// quién vive?" (usted) también; "vive con" suelto no: "¿hace cuánto vive
+	// con la presión alta?".
 	{
 		key: "vive",
 		words: [
 			"vivís",
 			"vivis",
-			"vive con",
+			"vive con alguien",
+			"vive con su",
+			"vive con tu",
 			"vive solo",
 			"vive sola",
 			"con quién vive",
@@ -99,6 +109,10 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"las tomas todos",
 			"pastilla todos",
 			"pastillas todos",
+			// "¿Se acuerda de tomar el enalapril todos los días?"
+			"te acordás de tomar",
+			"te acordas de tomar",
+			"se acuerda de tomar",
 		],
 	},
 	{
@@ -114,11 +128,15 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"estas tomando",
 			"remedio",
 			"pastilla",
-			"ibuprofeno",
-			"paracetamol",
-			"enalapril",
-			"antiinflamatorio",
 		],
+	},
+	// El remedio por su nombre, solo con un verbo de tomar: "¿tomaste
+	// ibuprofeno?" sí, "te voy a recetar ibuprofeno" es una indicación.
+	{
+		key: "medicacion",
+		words: ["ibuprofeno", "paracetamol", "enalapril", "antiinflamatorio"],
+		requires:
+			/(tom[aá]s|tomaste|tom[oó]|toma|tomando|tomabas|us[aá]s|usaste)(?!\p{L})/u,
 	},
 	// Rodilla: cómo se lastimó, hinchazón, si se traba o se va, si apoya.
 	{
@@ -183,9 +201,11 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"pisar",
 		],
 	},
-	// "¿Cuándo fue?", "¿cuándo arrancó?", "¿cuándo te diagnosticaron?".
+	// "¿Cuándo fue?", "¿cuándo arrancó?", "¿cuándo te diagnosticaron?"; no
+	// "¿cuándo fue la última vez que la tomaste?".
 	{
 		key: "inicio",
+		unless: /[uú]ltima vez/u,
 		words: [
 			"desde cuándo",
 			"desde cuando",
@@ -227,7 +247,22 @@ const TOPICS: { key: string; words: string[] }[] = [
 	{ key: "cuello", words: ["cuello", "ganglio", "pelotitas", "bulto"] },
 	// Antes que secreción: "¿te sale algo de la nariz?" es de mocos.
 	{ key: "mocos", words: ["mocos", "nariz", "congest", "estornud"] },
-	{ key: "voz", words: ["voz", "disfon", "disfón", "ronc", "afon", "afón"] },
+	// "¿Estás ronca?" sí; "¿roncás de noche?" no.
+	{
+		key: "voz",
+		words: [
+			"voz",
+			"disfon",
+			"disfón",
+			"estás ronc",
+			"estas ronc",
+			"está ronc",
+			"esta ronc",
+			"ronquera",
+			"afon",
+			"afón",
+		],
+	},
 	// Antes que la vista: "¿tenés los ojos llorosos?"; si el caso no tiene
 	// ojos, "¿algún problema en los ojos?" sigue a la vista.
 	{ key: "ojos", words: ["ojos", "lloros", "lagrim", "te lloran"] },
@@ -285,10 +320,11 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"nadar",
 		],
 	},
-	// "¿Te limpiás los oídos con algo?" es de hisopos.
+	// "¿Te limpiás los oídos con algo?" es de hisopos; "te voy a limpiar el
+	// oído" no.
 	{
 		key: "hisopos",
-		words: ["hisopo", "cotonete", "limpiás", "limpias", "limpiar"],
+		words: ["hisopo", "cotonete", "te limpiás", "te limpias", "se limpia"],
 	},
 	{ key: "resfrio", words: ["resfri", "engripad", "gripe"] },
 	{
@@ -353,7 +389,9 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"lesionaste",
 			"problema de salud",
 			"problemas de salud",
-			"otitis",
+			// "¿Tuviste otitis antes?"; no "tenés una otitis externa".
+			"tuviste otitis",
+			"otitis antes",
 			"problemas de oído",
 			"problemas de oido",
 		],
@@ -398,8 +436,9 @@ const FAREWELL = [
 ];
 // Sin signo de pregunta ni palabra de pregunta al comienzo es una indicación
 // ("te voy a recetar ibuprofeno"): el paciente no pide que se la expliquen.
+// Con un relleno adelante: "y cómo dormís", "bueno, ¿tenés fiebre".
 const QUESTION_START =
-	/^[\s¡]*(qu[eé]|c[oó]mo|cu[aá]nd|d[oó]nde|cu[aá]nt|por qu|ten[eé]s|tuviste|sab[eé]s|hay|alguna|algún|algun)/u;
+	/^[\s¡¿]*((y|e|bueno|a ver|ta|ok|che|y bueno),?\s+)*(qu[eé]|c[oó]mo|cu[aá]nd|d[oó]nde|cu[aá]nt|por qu|ten[eé]s|tuviste|sab[eé]s|hay|alguna|algún|algun)/u;
 
 const DIAGNOSIS_FISHING = [
 	"ignorá",
@@ -487,7 +526,12 @@ export function ruleRespond(
 
 	// Un tema que el caso no tiene no tapa a otro que sí: "¿te duele cuando
 	// tomás agua?" en un caso sin "agua" va a dolor.
-	const matched = TOPICS.filter((t) => has(text, t.words));
+	const matched = TOPICS.filter(
+		(t) =>
+			has(text, t.words) &&
+			(!t.requires || t.requires.test(text)) &&
+			!t.unless?.test(text),
+	);
 	const topic = matched.find((t) => facts[t.key] !== undefined);
 	if (topic) {
 		const answer = facts[topic.key];

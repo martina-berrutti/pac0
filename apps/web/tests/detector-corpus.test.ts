@@ -83,6 +83,9 @@ describe("cerrar el examen hablando (con un examen abierto)", () => {
 		"Ya está, podés guardar la lengua",
 		"Ya terminé con la garganta",
 		"Ya podés cerrar",
+		// Contraejemplos del revisor.
+		"Casi listo, ya podés cerrar",
+		"Listo, relajate",
 	];
 	const sigue: string[] = [
 		"Abrí un poco más",
@@ -120,6 +123,16 @@ describe("cerrar el examen hablando (con un examen abierto)", () => {
 		"No muevas la cabeza",
 		"Relajá la lengua",
 		"Necesito que abras un poco más",
+		"tranquila, relajate, no te va a doler",
+		"relajate, respirá hondo",
+		"ay perdón, relajate un poquito",
+		"Relajate un segundo, que te miro el otro oído",
+		"¿Puede volver a abrirla, por favor?",
+		"Puede volver a mostrarme la lengua",
+		"Puede bajar un poquito la cabeza para atrás",
+		"puede bajar el mentón",
+		"Puede descansar un segundo y después seguimos",
+		"No hace falta que la abras tanto, un poco nomás",
 	];
 	test.each(cierra)("cierra: %s", (t) => expect(asksToEndExam(t)).toBe(true));
 	test.each(sigue)("sigue: %s", (t) => expect(asksToEndExam(t)).toBe(false));
@@ -178,6 +191,15 @@ describe("pedir el oído por texto", () => {
 		["Hay que ver cómo evoluciona el oído", false],
 		["Te voy a dar unas gotas para el oído", false],
 		["Mantené el oído seco unos días", false],
+		// Contraejemplos: el estudiante pide para que él revise.
+		["Inclinate un poco para que te revise el oído", true],
+		["Girá la cabeza para que te mire el oído", true],
+		["Quedate quieto para que te revise bien el oído", true],
+		["sentate derecho para que te revise el oido con el otoscopio", true],
+		["Dejame ver si tenés el oído inflamado", true],
+		["Le revisaré el oído", true],
+		["Andá al otorrino para que te revise bien el oído", false],
+		["Que te vea un especialista para que te revise el oído", false],
 	];
 	test.each(rows)("%s → %s", (t, exp) => expect(asksForEarExam(t)).toBe(exp));
 
@@ -232,6 +254,8 @@ describe("pedir la presión", () => {
 		["Te voy a tomar el pulso", false],
 		["Quiero que te midas la presión en casa", false],
 		["Vamos a bajar la presión con la medicación", false],
+		["Le tomaré la presión", true],
+		["Ahora le tomaré la presión, señora", true],
 	];
 	test.each(rows)("%s → %s", (t, exp) =>
 		expect(asksForBloodPressure(t)).toBe(exp),
@@ -318,6 +342,7 @@ describe("pedir que señale dónde duele (rodilla)", () => {
 		["Te voy a indicar dónde hacer la radiografía", false],
 		["Te marco dónde poner el hielo", false],
 		["¿Dónde jugás al fútbol? ¿Te duele al correr?", false],
+		["¿Qué parte del día te duele más?", false],
 	];
 	test.each(rows)("%s → %s", (t, exp) => expect(asksWherePain(t)).toBe(exp));
 });
@@ -397,6 +422,7 @@ describe("pedir el examen de garganta", () => {
 		["Vamos a mirar los análisis", false],
 		["Te voy a tomar la presión", false],
 		["Te tomo la temperatura", false],
+		["No hace falta que la abras tanto, un poco nomás", false],
 	];
 	test.each(rows)("%s → %s", (t, exp) => expect(isExamRequest(t)).toBe(exp));
 });
@@ -468,6 +494,9 @@ describe("pedir permiso para examinar", () => {
 		["Te voy a recetar ibuprofeno", false],
 		["Vamos a revisar los resultados", false],
 		["¿Te molesta si te pregunto algo personal?", false],
+		["Podría ser una angina, te reviso", false],
+		["Podría ser por el agua, te miro la garganta igual", false],
+		["Podemos decir que es viral, te miro la garganta", false],
 	];
 	test.each(rows)("%s → %s", (t, exp) => expect(asksConsent(t)).toBe(exp));
 });
@@ -566,6 +595,8 @@ describe("empatía", () => {
 		["Abrí la boca", false],
 		["¿Desde cuándo te duele?", false],
 		["Imagino que tomaste algo, ¿no?", false],
+		["perdón, lo siento, no entendí, ¿me repetís?", false],
+		["lo siento, ¿cómo era tu nombre?", false],
 	];
 	test.each(rows)("%s → %s", (t, exp) => expect(showsEmpathy(t)).toBe(exp));
 });
@@ -594,6 +625,11 @@ describe("pregunta sugestiva", () => {
 		["¿Tenés fiebre?", false],
 		["¿Todo bueno?", false],
 		["Eso no", false],
+		// La sensación tiene que ser lo último antes de la coletilla.
+		["uy qué feo, ¿y te duele al tragar, no?", true],
+		["ah qué feo, tenés fiebre, ¿no?", true],
+		["qué macana, pero no fumás, ¿verdad?", true],
+		["qué incómodo, te duele al tragar, no?", true],
 	];
 	test.each(rows)("%s → %s", (t, exp) =>
 		expect(isLeadingQuestion(t)).toBe(exp),
@@ -797,6 +833,17 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["rodilla", "¿Dónde te duele?", "dolor"],
 		["rodilla", "¿En qué parte exactamente?", "localizacion"],
 		["rodilla", "¿Cuánto te duele?", "dolor"],
+		["presion", "¿Hace cuánto vive con la presión alta?", "inicio"],
+		[
+			"presion",
+			"¿Se acuerda de tomar el enalapril todos los días?",
+			"adherencia",
+		],
+		[
+			"presion",
+			"¿Cuándo fue la última vez que tomaste la pastilla?",
+			"medicacion",
+		],
 	];
 	test.each(rows)("%s: %s → %s", (name, text, exp) =>
 		expect(topicOf(name, text)).toBe(exp),
@@ -807,9 +854,29 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		(t) => expect(reply("garganta", t).text).toContain("Chau"),
 	);
 	test.each([
-		"Te voy a recetar ibuprofeno cada 8 horas",
-		"Hacé reposo unos días",
-	])("una indicación no es una pregunta: %s", (t) =>
-		expect(reply("garganta", t).text).not.toContain("la pregunta"),
+		["garganta", "Te voy a recetar ibuprofeno cada 8 horas"],
+		["garganta", "te voy a indicar ibuprofeno"],
+		["garganta", "El paracetamol lo podés tomar cada 6 horas"],
+		["garganta", "Hacé reposo unos días"],
+		["presion", "vamos a aumentar la dosis del enalapril"],
+		["rodilla", "te voy a recetar un antiinflamatorio"],
+		["oido", "por lo que vi tenes una otitis externa"],
+		["oido", "te saco el otoscopio, tenés una otitis"],
+		["oido", "te voy a limpiar un poco el oido"],
+	])("una indicación no es una pregunta (%s): %s", (name, t) =>
+		expect(reply(name, t).text).toMatch(/^Bueno/),
 	);
+	test.each([
+		["garganta", "¿Roncás de noche?"],
+		["garganta", "y como dormis"],
+		["presion", "¿Cuándo fue la última vez que se controló?"],
+	])("no es del tema que parece (%s): %s", (name, t) => {
+		// Ni la voz ni el inicio, y tampoco "Bueno, dale." (es una pregunta).
+		const { text: r, brief } = reply(name, t);
+		expect(r).not.toMatch(/^Bueno/);
+		for (const key of ["voz", "inicio"]) {
+			const fact = brief.history[key];
+			if (fact) expect(r).not.toContain(fact);
+		}
+	});
 });

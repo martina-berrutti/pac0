@@ -87,13 +87,10 @@ const CONSENT_WORDS = [
 	"me permitis",
 	"me permite",
 	"le parece",
-	// Usted y condicional: "¿me deja revisarla?", "¿me dejaría…?", "¿le
-	// molesta si la reviso?", "¿podría revisarla?", "¿podemos revisar?".
+	// Usted: "¿me deja revisarla?", "¿me dejaría…?", "¿le molesta si la
+	// reviso?".
 	"me deja",
 	"le molesta si",
-	"podría",
-	"podria",
-	"podemos",
 	"me autoriz",
 	// Al saludar ("hola, con tu permiso") no alcanza: va con el examen.
 	"con tu permiso",
@@ -145,9 +142,19 @@ export function namesOtherZone(text: string) {
 export function isExamRequest(text: string) {
 	const lower = text.toLowerCase();
 	const plain = plainText(text);
-	if (FOLLOW_UP.test(plain)) return false;
+	// "No hace falta que la abras tanto" pide menos, no abre otro examen.
+	if (
+		FOLLOW_UP.test(plain) ||
+		/\bno hace falta que (la |lo )?abras?\b/.test(plain)
+	)
+		return false;
 	return FIRST_PERSON.test(lower) || EXAM_PATTERNS.some((p) => p.test(plain));
 }
+
+// "¿Podría revisarla?", "¿podemos tomarte la presión?": el condicional pide
+// permiso pegado al verbo. "Podría ser una angina, te reviso" no.
+const MAY_I =
+	/\b(podrias?|podemos)\s+(revisar|examinar|mirar|ver|tomar|medir|chequear)(te|le|la|lo)?\b/;
 
 // Frases que piden o nombran el permiso. "Permiso" a secas no alcanza: "hola,
 // con permiso" es un saludo al entrar, no un permiso para examinar.
@@ -178,7 +185,7 @@ export function asksConsent(text: string) {
 	// "¿Te puedo tomar la temperatura / la presión?" también pide permiso para
 	// examinar.
 	return (
-		includesAny(text, CONSENT_WORDS) &&
+		(includesAny(text, CONSENT_WORDS) || MAY_I.test(plain)) &&
 		(isExamRequest(text) ||
 			asksForTemperature(text) ||
 			asksForBloodPressure(text))
