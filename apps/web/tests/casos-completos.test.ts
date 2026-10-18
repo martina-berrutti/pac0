@@ -349,6 +349,7 @@ describe("confianza alcanzada (texto)", () => {
 		const id = await startSession(ana, "garganta-02", "caso");
 		await store.changeSession(id, {
 			set: {
+				trustReached: false,
 				state: { confianza: 0.2, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
 			},
 		});
