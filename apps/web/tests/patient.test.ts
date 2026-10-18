@@ -5,6 +5,7 @@ import { buildPatientBrief, buildPatientPrompt } from "@/lib/patient/brief";
 import {
 	interpretExamInstruction,
 	isExamRequest,
+	namesOtherZone,
 } from "@/lib/patient/exam-instruction";
 import { GenerationError, generateCase } from "@/lib/patient/generator";
 import { getArchetype } from "@/lib/patient/personalities";
@@ -446,4 +447,33 @@ describe("paciente sin IA: temas nuevos sin falsos aciertos", () => {
 	])("%s responde %s", (q, right) => {
 		expect(answer(q)).toContain(right);
 	});
+});
+
+describe("examen por texto: otra zona no es la garganta", () => {
+	test.each([
+		["Te voy a revisar el cuello", true],
+		["Te reviso los ganglios", true],
+		["Ahora te reviso el pecho", true],
+		["¿Querés que te revise la presión?", true],
+		["Te reviso la garganta y el cuello", false],
+		["Abrí la boca", false],
+		["Quiero revisarte, ¿tenés los ojos llorosos?", false],
+		["Ahora te reviso. ¿La nariz la tenés tapada?", false],
+		["Decí aaa, ¿te duele el pecho?", false],
+		["Te voy a revisar, ¿te duele si te tocás el cuello?", false],
+		["Te voy a revisar, ojo que te puede dar un poco de asco", false],
+	])("%s nombra otra zona: %s", (text, expected) => {
+		expect(namesOtherZone(text)).toBe(expected);
+	});
+
+	test("hacé aaa es pedido", () => {
+		expect(isExamRequest("Hacé aaa")).toBe(true);
+	});
+
+	test.each(["Aaa, ok, ¿y desde cuándo te duele?", "Aaa entiendo"])(
+		"%s no es pedido",
+		(text) => {
+			expect(isExamRequest(text)).toBe(false);
+		},
+	);
 });
