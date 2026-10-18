@@ -84,7 +84,11 @@ const TOPICS: { key: string; words: string[] }[] = [
 		],
 	},
 	{ key: "hinchazon", words: ["hinch", "inflam"] },
-	{ key: "bloqueo", words: ["traba", "trabó", "trabo", "bloque"] },
+	// "Traba" suelto no: "¿de qué trabajás?".
+	{
+		key: "bloqueo",
+		words: ["se te traba", "se traba", "trabada", "se trabó", "bloque"],
+	},
 	{
 		key: "inestabilidad",
 		words: [

@@ -83,7 +83,7 @@ export function asksForBloodPressure(text: string): boolean {
 // "¿tuviste fiebre?") no abre el termómetro, ni un consejo ("podés tomar
 // paracetamol si tenés fiebre"): el verbo apunta al paciente o lo pide.
 const TAKE_TEMPERATURE =
-	/\b((te|le|se la|te la|le la)\s+(voy a\s+|vamos a\s+)?(tomo|tomar|tome|mido|medir|mida|controlo|controlar)|(puedo|podemos|podria|dejame|dejeme|permitime|permitame|me permitis|me permite|me gustaria|quisiera|voy a|vamos a|quiero|necesito|tengo que)\s+(tomar|medir|controlar)(te|le|tela|tele)?|tomemos|midamos)\b.{0,25}\b(temperatura|fiebre)\b/;
+	/\b((te|le|se la|te la|le la)\s+(voy a\s+|vamos a\s+)?(tomo|tomar|tome|mido|medir|mida|controlo|controlar)|(puedo|podemos|podria|dejame|dejeme|dejas|deja|permitime|permitame|me permitis|me permite|me gustaria|quisiera|voy a|vamos a|quiero|necesito|tengo que)\s+(tomar|medir)(te|le|tela|tele)?|(controlarte|controlarle)|tomemos|midamos)\b.{0,25}\b(temperatura|fiebre)\b/;
 const PUT_THERMOMETER =
 	/\b(te|le|vamos a|voy a|dejame|dejeme|dejas|deja|puedo|podemos|podria)\s+(pongo|poner|ponerte|ponerle|coloco|colocar|colocarte|colocarle)\b.{0,20}\btermometro\b/;
 

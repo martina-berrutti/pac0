@@ -66,6 +66,7 @@ describe("paciente sin IA: historia de la rodilla", () => {
 		["¿Se te traba la rodilla?", "bloqueo"],
 		["¿Podés apoyar el pie y caminar?", "apoyo"],
 		["¿Hacés algún deporte?", "deporte"],
+		["¿De qué trabajás?", "ocupacion"],
 	])("%s responde desde %s", (q, key) => {
 		const fact = brief.history[key] ?? brief.profile[key];
 		expect(ruleRespond(brief, state, q, 2).text).toContain(fact);
@@ -105,6 +106,9 @@ describe("temperatura por texto", () => {
 		["¿Querés que te tome la temperatura?", true],
 		["¿Te puedo tomar la temperatura?", true],
 		["¿Me dejás ponerte el termómetro?", true],
+		["¿Me dejás tomarte la temperatura?", true],
+		["Vamos a controlar la fiebre con paracetamol", false],
+		["Quiero controlar la fiebre con ibuprofeno", false],
 	])("%s", (text, expected) => {
 		expect(asksForTemperature(text)).toBe(expected);
 	});
