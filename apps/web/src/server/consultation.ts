@@ -31,6 +31,7 @@ import {
 	isExamRequest,
 	namesOtherZone,
 } from "@/lib/patient/exam-instruction";
+import { soundsLikeDoctor } from "@/lib/patient/out-of-role";
 import { getArchetype, resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
 import { applyDelta, EVENT_DELTAS } from "@/lib/patient/state";
@@ -315,6 +316,9 @@ async function patientReply(
 				content: t.text,
 			})),
 		]);
+		// Si salió del papel (habló como médico o asistente), contesta el
+		// paciente por reglas.
+		if (soundsLikeDoctor(text)) return rules;
 		return { text, delta: rules.delta, motivo: rules.motivo };
 	} catch {
 		return rules;
