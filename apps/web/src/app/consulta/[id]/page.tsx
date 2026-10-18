@@ -292,7 +292,7 @@ export default function ConsultationPage() {
 	// Cierra solo el oído que pidió cerrarse: si ya se pasó al otro, no.
 	function closeEar(which: "derecho" | "izquierdo") {
 		setEar((open) => (open === which ? null : open));
-		closes.closed();
+		if (ear === which) closes.closed();
 	}
 
 	// Cierra la garganta o el oído por su propio camino, que guarda lo que se

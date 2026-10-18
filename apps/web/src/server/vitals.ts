@@ -43,7 +43,8 @@ export async function createMeasurement(
 	if (last && last.cuff === null && last.marked === null) {
 		const updated = await store.patchVitalsIf(
 			last.id,
-			measure(clinicalCase.vitals.pa, steps, null, armCm),
+			// Con la hora de este pedido: el consentimiento se compara con ella.
+			{ ...measure(clinicalCase.vitals.pa, steps, null, armCm), atMs },
 			{ cuff: null },
 		);
 		if (updated) return { measurementId: last.id, armCm };
