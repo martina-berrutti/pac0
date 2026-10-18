@@ -638,4 +638,18 @@ describe("cliente de voz", () => {
 		voice.sendNote("cambió tu ánimo");
 		expect(live.sent).toContain("clientContent");
 	});
+
+	test("una nota que llega durante la reconexión sale en la sesión nueva", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.hang = true;
+		live.callbacks?.onclose();
+		// Reconectando: todavía no hay sesión.
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		live.sent = [];
+		voice.sendNote("cambió tu ánimo");
+		expect(live.sent).toEqual([]);
+		live.release();
+		await vi.waitFor(() => expect(live.sent).toContain("clientContent"));
+	});
 });
