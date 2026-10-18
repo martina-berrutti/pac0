@@ -7,6 +7,15 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CaseSummary } from "@/cases/schema";
 import Loader from "@/components/loader";
+import {
+	Initial,
+	inkForCase,
+	Note,
+	Page,
+	Paper,
+	selectClass,
+	Tag,
+} from "@/frontend/ui";
 import { ApiError, api, type PersonalityOption } from "@/lib/api-client";
 
 // Valor del selector de problema para sortear uno.
@@ -96,101 +105,137 @@ export default function CasesPage() {
 	if (cases === null) return <Loader />;
 
 	return (
-		<div className="container mx-auto grid max-w-xl content-start gap-6 px-4 py-8">
-			<h1 className="font-semibold text-2xl">
-				Hola{alias ? `, ${alias}` : ""}
-			</h1>
-
-			<form onSubmit={generate} className="grid gap-2 border p-3">
-				<label htmlFor="pedido" className="font-medium">
-					Pedime un paciente
-				</label>
-				<Textarea
-					id="pedido"
-					value={request}
-					onChange={(e) => setRequest(e.target.value)}
-					placeholder="Ej.: dame un paciente con algo de garganta, que sea ansioso y de unos 60 años"
-					maxLength={300}
-				/>
-				<Button type="submit" disabled={busy || request.trim().length < 3}>
-					Generar paciente
-				</Button>
-				<p className="text-muted-foreground text-xs">
-					Inventamos a la persona; lo clínico sale de plantillas del equipo. Los
-					casos generados no fueron revisados por un médico.
+		<Page size="lg" className="gap-10">
+			<header className="grid gap-2">
+				<Note className="-rotate-1 text-pen">
+					{alias ? `hola, ${alias}` : "hola"}
+				</Note>
+				<h1 className="font-display text-4xl">¿A quién atendemos hoy?</h1>
+				<p className="max-w-prose text-muted-foreground">
+					Elegí un paciente y su forma de ser. Cada consulta dura hasta 8
+					minutos.
 				</p>
-			</form>
+			</header>
 
-			<section className="grid gap-2">
-				<h2 className="font-medium">Casos</h2>
-				<ul className="grid gap-2">
-					{groupCases(cases).map(({ key, cases: options }) => {
-						const first = options[0];
-						if (!first) return null;
-						const grouped = options.length > 1;
-						return (
-							<li key={key} className="grid gap-2 border p-3">
-								<div>
-									<p className="font-medium">
-										{first.title}
-										{first.origin === "generado" && (
-											<span className="ml-2 text-muted-foreground text-xs">
-												generado
-											</span>
-										)}
-										{!first.reviewed && (
-											<span className="ml-2 text-muted-foreground text-xs">
-												sin revisar
-											</span>
-										)}
-									</p>
-									<p className="text-muted-foreground text-sm">
-										{first.patient.name}, {first.patient.age} años
-										{grouped ? "" : `: “${first.chiefComplaint}”`}
-									</p>
+			<ul className="grid gap-x-6 gap-y-10 pt-2 md:grid-cols-2">
+				{groupCases(cases).map(({ key, cases: options }, index) => {
+					const first = options[0];
+					if (!first) return null;
+					const grouped = options.length > 1;
+					const ink = inkForCase(first.title);
+					return (
+						<Paper
+							as="li"
+							key={key}
+							tape={ink}
+							tilt={index % 2 === 0 ? -0.6 : 0.7}
+							className="grid content-between gap-5 px-6 pt-8 pb-6"
+						>
+							<div className="grid gap-4">
+								<div className="flex items-center gap-4">
+									<Initial name={first.patient.name} ink={ink} />
+									<div className="grid min-w-0 gap-0.5">
+										<h2 className="font-display text-2xl leading-tight">
+											{first.patient.name}, {first.patient.age}
+										</h2>
+										<div className="flex flex-wrap gap-x-3">
+											<Tag ink={ink}>{first.title}</Tag>
+											{first.origin === "generado" && <Tag>inventado</Tag>}
+											{!first.reviewed && <Tag>sin revisar</Tag>}
+										</div>
+									</div>
 								</div>
-								<div className="flex flex-wrap items-center gap-2">
-									{grouped && (
-										<select
-											aria-label="Problema"
-											value={problem[key] ?? first.id}
-											onChange={(e) =>
-												setProblem((cur) => ({ ...cur, [key]: e.target.value }))
-											}
-											className="h-8 border border-input bg-background px-2 text-sm"
-										>
-											{options.map((c) => (
-												<option key={c.id} value={c.id}>
-													{c.problem ?? c.id}
-												</option>
-											))}
-											<option value={RANDOM}>Al azar</option>
-										</select>
-									)}
+								{grouped ? (
+									<p className="text-muted-foreground text-sm">
+										Puede venir por {options.length} motivos distintos. Elegí
+										uno o dejalo librado al azar.
+									</p>
+								) : (
+									<p className="font-hand text-2xl leading-snug">
+										“{first.chiefComplaint}”
+									</p>
+								)}
+							</div>
+							<div className="grid gap-2.5">
+								{grouped && (
 									<select
-										aria-label="Personalidad"
-										value={chosen[key] ?? "caso"}
+										aria-label="Problema"
+										value={problem[key] ?? first.id}
 										onChange={(e) =>
-											setChosen((cur) => ({ ...cur, [key]: e.target.value }))
+											setProblem((cur) => ({ ...cur, [key]: e.target.value }))
 										}
-										className="h-8 border border-input bg-background px-2 text-sm"
+										className={selectClass}
 									>
-										<option value="caso">Personalidad del caso</option>
-										{personalities.map((p) => (
-											<option key={p.key} value={p.key}>
-												{p.label}
+										{options.map((c) => (
+											<option key={c.id} value={c.id}>
+												{c.problem ?? c.id}
 											</option>
 										))}
+										<option value={RANDOM}>Al azar</option>
 									</select>
-									<Button disabled={busy} onClick={() => start(key, options)}>
-										Empezar consulta
-									</Button>
-								</div>
-							</li>
-						);
-					})}
-				</ul>
+								)}
+								<select
+									aria-label="Personalidad"
+									value={chosen[key] ?? "caso"}
+									onChange={(e) =>
+										setChosen((cur) => ({ ...cur, [key]: e.target.value }))
+									}
+									className={selectClass}
+								>
+									<option value="caso">Personalidad del caso</option>
+									{personalities.map((p) => (
+										<option key={p.key} value={p.key}>
+											{p.label}
+										</option>
+									))}
+								</select>
+								<Button
+									size="lg"
+									className="h-12 border-black/25 border-b-[3px] text-base"
+									disabled={busy}
+									onClick={() => start(key, options)}
+								>
+									Hacer pasar a {first.patient.name}
+								</Button>
+							</div>
+						</Paper>
+					);
+				})}
+			</ul>
+
+			<section className="grid gap-4 border-border border-t border-dashed pt-10">
+				<form onSubmit={generate} className="grid max-w-2xl gap-4">
+					<div className="grid gap-1">
+						<label htmlFor="pedido" className="font-display text-2xl">
+							¿Querés otro paciente?
+						</label>
+						<p className="text-muted-foreground text-sm">
+							Contame qué querés practicar y lo invento.
+						</p>
+					</div>
+					<Textarea
+						id="pedido"
+						value={request}
+						onChange={(e) => setRequest(e.target.value)}
+						placeholder="Ej.: dame un paciente con algo de garganta, que sea ansioso y de unos 60 años"
+						maxLength={300}
+					/>
+					<div className="flex flex-wrap items-center gap-4">
+						<Button
+							type="submit"
+							variant="outline"
+							className="h-11 px-5"
+							disabled={busy || request.trim().length < 3}
+						>
+							Inventar paciente
+						</Button>
+						<p className="max-w-sm text-muted-foreground text-xs">
+							Inventamos a la persona; lo clínico sale de plantillas del equipo.
+							Los casos inventados no fueron revisados por un médico.
+						</p>
+					</div>
+				</form>
 			</section>
-		</div>
+		</Page>
 	);
 }

@@ -79,6 +79,9 @@ class FakeAudioContext {
 	createMediaStreamDestination() {
 		return { stream: {} };
 	}
+	createGain() {
+		return { gain: { value: 1 }, connect() {} };
+	}
 	createBuffer(_c: number, length: number, rate: number) {
 		return { duration: length / rate, copyToChannel() {} };
 	}
@@ -95,6 +98,7 @@ class FakeAudioContext {
 
 class FakeWorkletNode {
 	port = { onmessage: null };
+	connect() {}
 	constructor() {
 		workletPort = this.port;
 	}
@@ -532,5 +536,59 @@ describe("cliente de voz", () => {
 		const { voice } = mount();
 		await Promise.all([voice.start(), voice.start()]);
 		expect(live.connects).toBe(1);
+	});
+
+	test("una nota al paciente espera a que termine de responder (no lo corta)", async () => {
+		const { voice } = mount();
+		await voice.start();
+		const on = live.callbacks?.onmessage;
+		// El paciente empieza a responder.
+		on?.(msg({ modelTurn: { parts: [{ inlineData: { data: "AAAAAA==" } }] } }));
+		voice.sendNote("terminó de revisarte");
+		expect(live.sent).not.toContain("clientContent");
+		on?.(msg({ turnComplete: true }));
+		expect(live.sent).toContain("clientContent");
+	});
+
+	test("la transcripción tardía del estudiante no parte su turno en dos", async () => {
+		const { voice, events } = mount();
+		await voice.start();
+		const on = live.callbacks?.onmessage;
+		on?.(msg({ inputTranscription: { text: "¿Desde cuándo" } }));
+		on?.(msg({ modelTurn: { parts: [{ inlineData: { data: "AAAAAA==" } }] } }));
+		// Llega el resto de la pregunta, ya con el paciente hablando.
+		on?.(msg({ inputTranscription: { text: " te duele?" } }));
+		on?.(msg({ outputTranscription: { text: "Hace dos días" } }));
+		on?.(msg({ turnComplete: true }));
+		await voice.drain();
+		expect(events.turns).toEqual([
+			"estudiante:¿Desde cuándo te duele?",
+			"paciente:Hace dos días",
+		]);
+	});
+
+	test("una nota que esperaba una herramienta respondida espera al paciente", async () => {
+		const { voice } = mount();
+		await voice.start();
+		delays["/tools:examinar"] = 20;
+		live.callbacks?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		voice.sendNote("cambió tu ánimo");
+		await voice.drain();
+		await new Promise((r) => setTimeout(r, 40));
+		// Se respondió la herramienta: la nota no sale hasta que el paciente termine.
+		expect(live.sent).toContain("toolResponse");
+		expect(live.sent).not.toContain("clientContent");
+		live.callbacks?.onmessage(msg({ turnComplete: true }));
+		expect(live.sent).toContain("clientContent");
 	});
 });

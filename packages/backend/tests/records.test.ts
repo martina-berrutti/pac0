@@ -316,4 +316,90 @@ describe("changeSession (cambios atómicos)", () => {
 		} as never);
 		expect(turn).not.toBeNull();
 	});
+
+	test("límite por IP: una ventana nueva es un documento nuevo (la limpieza no la corta)", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		vi.useFakeTimers();
+		const t = convexTest(schema, modules);
+		const hit = () =>
+			t.mutation(api.records.hitRate, {
+				secret,
+				key: "sessions:x",
+				windowMs: 60 * 60 * 1000,
+				max: 2,
+			} as never);
+		await hit();
+		vi.advanceTimersByTime(23 * 60 * 60 * 1000 + 59 * 60 * 1000);
+		// Ventana nueva casi 24 horas después del primer pedido.
+		vi.advanceTimersByTime(2 * 60 * 1000);
+		expect(await hit()).toBe(true);
+		const created = await t.run(async (ctx) =>
+			(await ctx.db.query("records").collect()).map((d) => d._creationTime),
+		);
+		expect(created).toHaveLength(1);
+		// La limpieza de 24 horas no borra la ventana recién abierta.
+		await t.mutation(internal.records.purgeExpiredGuests, {});
+		expect(await hit()).toBe(true);
+		expect(await hit()).toBe(false);
+	});
+
+	test("los registros viejos sin guest se completan y los de invitados se borran", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		vi.useFakeTimers();
+		const t = convexTest(schema, modules);
+		await t.run(async (ctx) => {
+			await ctx.db.insert("records", {
+				kind: "session",
+				appId: "vieja",
+				ownerId: "gst_a",
+				data: {},
+			});
+			await ctx.db.insert("records", {
+				kind: "session",
+				appId: "cuenta",
+				ownerId: "ggl_b",
+				data: {},
+			});
+		});
+		vi.advanceTimersByTime(25 * 60 * 60 * 1000);
+		await t.mutation(internal.records.purgeExpiredGuests, {});
+		const left = await t.run((ctx) => ctx.db.query("records").collect());
+		expect(left.map((r) => [r.appId, r.guest])).toEqual([["cuenta", false]]);
+	});
+
+	test("patchIf y replaceIf aplican solo si el registro sigue igual", async () => {
+		vi.stubEnv("STORE_SECRET", secret);
+		const t = convexTest(schema, modules);
+		await t.mutation(api.records.put, {
+			secret,
+			kind: "vitals",
+			appId: "v1",
+			sessionId: "s1",
+			data: { id: "v1", sessionId: "s1", cuff: null },
+		} as never);
+		const patch = (size: string) =>
+			t.mutation(api.records.patchIf, {
+				secret,
+				kind: "vitals",
+				appId: "v1",
+				patch: { cuff: { size } },
+				ifEquals: { cuff: null },
+			} as never);
+		expect(await patch("adecuado")).not.toBeNull();
+		expect(await patch("grande")).toBeNull();
+		const replace = (expected: unknown, data: unknown) =>
+			t.mutation(api.records.replaceIf, {
+				secret,
+				kind: "mistakes",
+				appId: "gst_u",
+				ownerId: "gst_u",
+				expected,
+				data,
+			} as never);
+		expect(await replace([], [{ tag: "a", count: 1 }])).toBe(true);
+		expect(await replace([], [{ tag: "b", count: 1 }])).toBe(false);
+		expect(
+			await replace([{ count: 1, tag: "a" }], [{ tag: "a", count: 2 }]),
+		).toBe(true);
+	});
 });

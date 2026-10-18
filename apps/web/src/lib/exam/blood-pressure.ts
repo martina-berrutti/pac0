@@ -140,7 +140,12 @@ const PREP_QUESTIONS: Record<string, string[]> = {
 
 // Perímetro del brazo y pulso de cada caso. Rosa (caso 2, trampa del afiche)
 // tiene el brazo grande: el manguito de adulto le queda chico.
-const ARM_CM: Record<string, number> = { "hipertension-01": 35 };
+// Por id del caso o por plantilla (templateId de los generados): el paciente
+// generado con la plantilla de hipertensión tiene el mismo brazo grande.
+const ARM_CM: Record<string, number> = {
+	"hipertension-01": 35,
+	hipertension: 35,
+};
 const DEFAULT_ARM_CM = 26;
 
 export function armFor(caseId: string) {

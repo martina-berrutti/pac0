@@ -41,7 +41,7 @@ describe("el paciente no conoce el diagnóstico", () => {
 
 	test("responde desde su historia", () => {
 		expect(ruleRespond(brief, state, "¿Tuviste fiebre?", 2).text).toContain(
-			"38,5",
+			"37 y medio",
 		);
 	});
 
@@ -244,4 +244,80 @@ test("revisión: palabras clave sin falsos positivos", async () => {
 	expect(classifyStudentTurn("Quedate tranquila", []).tags).toContain(
 		"empatia",
 	);
+});
+
+test("revisión final: frases comunes no son examen ni permiso; otros falsos positivos", async () => {
+	const { asksConsent, isExamRequest } = await import(
+		"@/lib/patient/exam-instruction"
+	);
+	const { classifyStudentTurn } = await import("@/lib/patient/turn-classifier");
+	const { ruleRespond } = await import("@/lib/patient/rule-responder");
+	const { buildPatientBrief } = await import("@/lib/patient/brief");
+	const { generateCase } = await import("@/lib/patient/generator");
+	for (const t of [
+		"Bueno, vamos a ver qué te pasa",
+		"¿Puedo ver tus análisis?",
+		"Voy a ver qué hacemos",
+	]) {
+		expect(isExamRequest(t), t).toBe(false);
+		expect(asksConsent(t), t).toBe(false);
+	}
+	expect(isExamRequest("¿Me dejás ver la garganta?")).toBe(true);
+	expect(classifyStudentTurn("No te entiendo", []).tags).not.toContain(
+		"empatia",
+	);
+	expect(classifyStudentTurn("Debe ser viral", []).tags).not.toContain(
+		"empatia",
+	);
+	expect(classifyStudentTurn("Debe ser muy molesto", []).tags).toContain(
+		"empatia",
+	);
+	expect(classifyStudentTurn("¿Qué te trajo por acá?", []).tags).toContain(
+		"pregunta_abierta",
+	);
+	const b = buildPatientBrief(lucia, lucia.personality, "");
+	const st = { confianza: 0.9, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 };
+	expect(
+		ruleRespond(b, st, "¿qué enfermedades tuviste?", 1).text,
+	).not.toContain("para eso vine");
+	expect(ruleRespond(b, st, "¿qué enfermedad tenés?", 1).text).toContain(
+		"para eso vine",
+	);
+	const tos = await generateCase(
+		{ text: "una señora con dolor de garganta y tos hace 2 años" },
+		() => 0,
+	);
+	expect(tos.clinicalCase.patient.age).toBeGreaterThan(16);
+});
+
+test("pedidos de examen sin objeto siguen contando; 'vamos a ver' suelto no", async () => {
+	const { asksConsent, isExamRequest } = await import(
+		"@/lib/patient/exam-instruction"
+	);
+	const { classifyStudentTurn } = await import("@/lib/patient/turn-classifier");
+	for (const t of [
+		"¿Me dejás ver?",
+		"Dejame ver",
+		"¿Puedo ver?",
+		"¿Puedo mirar?",
+		"Voy a revisar",
+		"Vamos a revisar",
+		"¿Puedo ver adentro de la boca?",
+		"¿Me dejás mirar adentro?",
+		"¿Puedo revisar?",
+	])
+		expect(isExamRequest(t), t).toBe(true);
+	expect(asksConsent("¿Me dejás ver?")).toBe(true);
+	for (const t of [
+		"Vamos a ver",
+		"Bueno, vamos a ver qué te pasa",
+		"Voy a ver qué hacemos",
+	])
+		expect(isExamRequest(t), t).toBe(false);
+	for (const t of [
+		"Debe ser complicado",
+		"Debe de ser difícil",
+		"Debe ser bravo",
+	])
+		expect(classifyStudentTurn(t, []).tags, t).toContain("empatia");
 });

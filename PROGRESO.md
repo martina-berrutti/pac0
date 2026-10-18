@@ -2,6 +2,47 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Revisión final sobre main
+
+Tres revisores independientes leyeron enteros los 71 archivos de la Persona 1 en `main` (después del #7) y cerraron con una conclusión explícita.
+
+| Parte | Archivos | Sin problemas | Con hallazgos |
+|---|---|---|---|
+| `server/` y `app/api/` | 38 | 32 | 6 |
+| Cliente de voz, consulta y paciente | 16 | 10 | 6 |
+| `convex/` y contratos | 17 | 15 | 2 |
+
+Arreglado:
+- **Producción:** generar un paciente de oído daba 500 en Convex, porque el caso trae claves con tilde ("tapón de cerumen" en las pistas del diagnóstico). `ConvexStore` codifica al guardar las claves que Convex no acepta y las decodifica al leer, para cualquier dato. Probado con el validador real de Convex (`convexToJson`).
+- "Vamos a ver qué te pasa" y "¿puedo ver tus análisis?" contaban como pedido de examen y permiso: el paciente hostil abría la boca y el evaluador no marcaba el error crítico (o lo inventaba por texto). Ahora el verbo tiene que apuntar al paciente o a una parte del cuerpo.
+- El paciente de hipertensión generado tenía el brazo de 26 cm en vez de 35 (nunca enseñaba el manguito grande).
+- Dos retomas del mismo cierre ganaban las dos; la devolución de la reserva de voz no era atómica; no había tope de exámenes y mediciones por consulta (80); un error pasajero al completar un cierre daba 500 con el informe ya guardado.
+- Voz: aviso de error falso si se cortaba durante la reconexión; una nota podía cortar al paciente mientras esperaba una herramienta.
+- Clasificador y paciente por reglas: "no te entiendo" y "debe ser viral" contaban como empatía; "¿qué te trajo?" no era abierta; "¿qué enfermedades tuviste?" era pedir el diagnóstico y "¿con quién vino?" una pregunta de alcohol. Generador: "tos hace 2 años" no es la edad; "jubilada" para mujeres.
+
+Revisión del propio PR #9 (regresiones): al cerrar "vamos a ver qué te pasa" se habían dejado de reconocer pedidos sin objeto ("¿me dejás ver?", "dejame ver", "¿puedo mirar?", "voy a revisar", "¿puedo ver adentro de la boca?"), y con un paciente poco cooperador "¿me dejás ver?" no registraba el permiso. Arreglado, con test de esas frases. También: se sacó `maxDuration = 60` (con Fluid Compute el límite por defecto es 300 s y lo achicaba), "debe ser complicado/bravo" y "debe de ser difícil" vuelven a ser empatía, "¿tomás vino?" y "¿qué enfermedad puede ser?" vuelven a reconocerse, y las notas que esperaban una herramienta cancelada ya no esperan al próximo turno.
+
+Sobre lo que no se puede probar desde el código, según la documentación: el `expireTime` del token efímero de Gemini es el plazo para mandar mensajes por la conexión ("30 minutes to send messages over that connection"), así que con el token acotado a la consulta Google deja de aceptar audio pasados los 8 minutos y el margen. En Safari, el procesador del micrófono va a la salida a través de una ganancia en 0, que es lo que hace que el navegador lo procese.
+
+Queda, fuera del código: el micrófono en Safari (mitigado, se confirma en un dispositivo) y si Google corta una voz ya abierta al vencer el token (la app corta a los 8 minutos y el servidor rechaza lo que llegue después).
+
+Validación: 290 tests en web y 25 en backend; lint, tipos y build pasan. Estos cambios son solo de la app web: no hace falta volver a desplegar Convex.
+
+## 17/10 · Persona 1 · Evaluación del diagnóstico, informe para el estudiante y dos problemas por paciente
+
+- **Problemas:** se sacaron el Problema 1 de garganta (faringoamigdalitis) y el Problema 3 de oído (dolor que viene de la mandíbula). Quedan Lucía con faringitis viral (Problema 1) y mononucleosis (Problema 2), y Diego con otitis externa (Problema 1) y otitis media aguda (Problema 2).
+- **Sobre lo de la Persona 2:** el evaluador sigue igual (juez por ítem, jerga, pistas ignoradas, salto al diagnóstico, errores críticos, técnica de presión y otoscopio). Sus estudiantes simulados estaban escritos para la faringoamigdalitis: ese caso quedó como fixture de tests (`tests/fixtures/faringoamigdalitis.json`) y sus tests no cambiaron.
+- **¿Encontró el problema?** (`lib/scoring/diagnosis.ts`, con los dos jueces):
+  - Resultado: acertaste, estuviste cerca («otitis» cuando era otitis media), planteaste un diferencial (y qué lo distingue del diagnóstico) o sin diagnóstico. Si juzga la IA, su decisión manda.
+  - Datos clave de cada caso (`truth.keyClues`): cuáles encontró, con la cita de su turno, cuáles no buscó y por qué importaban, y si los usó para justificar el cierre.
+  - Diferenciales que pensó y que le faltaron, con qué distingue a cada uno (`truth.differentialHints`).
+  - Lo que le dijo al paciente: si le dijo un diagnóstico equivocado, es un error (sin puntos) con la cita. Preguntas y descartes no cuentan.
+- **Razonamiento por caso:** la justificación cuenta con los datos clave del caso y la conducta con la del caso (`truth.conduct`: antibiótico sin penicilina en la otitis media, gotas en la externa, monotest en la mononucleosis, sin antibiótico en la viral). Antes en los casos de oído nunca contaban, porque las palabras eran solo de garganta.
+- **Informe:** «Tu diagnóstico», puntajes, «Lo que hiciste bien» (lo destacado y todo lo demás que cumplió), «Lo que hiciste mal» (críticos primero, con la cita), «Puntos a mejorar» (los 5 más importantes, en orden) y «Datos clave del caso».
+- `scripts/probar-consulta.mjs` (Puerta 2) ahora usa a Lucía con faringitis viral y chequea la evaluación del diagnóstico.
+- Validación: 276 tests en web (16 nuevos del diagnóstico); lint, tipos y build pasan.
+- **Para revisar con un médico:** los datos clave, los diferenciales y la conducta de los cuatro problemas son borrador.
+
 ## 17/10 · Persona 2 · Evaluador completo, abatelenguas y listo para las fotos
 
 - **Puntaje:** penalizaciones nuevas (jerga sin explicar, ignorar una pista emocional, saltar al diagnóstico), errores críticos nuevos (insistir contra la negativa, omitir una señal de alarma, trato irrespetuoso) y +5 de comunicación por ganar la confianza de un paciente difícil. Todo lo calcula el código, también con el juez con IA.
@@ -97,6 +138,27 @@ Cinco pasadas buscando errores en lo de la Persona 1, integradas sobre `main`. D
     - Palabras clave: "no entiendo" y "¿dormís tranquilo?" contaban como empatía; "¿por qué no?" como sugestiva; "¿podés abrir la ventana?" como examen; faltaba "esta bien si" sin tilde.
   - Pedidos simultáneos a la misma consulta (dos pestañas o un script): `changeSession` acepta `ifEquals`, que aplica el cambio solo si el campo sigue valiendo lo esperado. El consentimiento se da una sola vez y hay un solo cambio de ánimo del modelo por turno, con el valor actual. La nota de ánimo del clasificador compara con el estado nuevo. Un Convex sin desplegar ignora `ifEquals` (el cambio llega como `v.any()`), así que el orden de despliegue no importa; con `npx convex deploy` queda activo en producción.
   - Séptima integración con `main` (límite por IP; se descarta la prueba en celular): en `/api/sessions` el cupo por IP se contaba antes de validar el caso y el tope diario del usuario, así que pedidos que iban a fallar gastaban el cupo compartido de todo el salón (100 por hora con la IP de la facultad). Ahora se cuenta justo antes de crear la sesión.
+  - Revisión exhaustiva archivo por archivo, con tres revisores independientes que leyeron entero cada archivo de la Persona 1:
+
+    | Parte | Archivos | Sin problemas | Con hallazgos |
+    |---|---|---|---|
+    | `server/` y `app/api/` | 38 | 30 | 8 |
+    | `lib/patient/`, `lib/voice/`, cliente, `proxy.ts`, consulta | 16 | 9 | 7 |
+    | `packages/backend/convex/` y contratos | 17 | 11 | 6 |
+
+    Arreglado:
+    - Servidor: las cuentas de Google quedaban sin poder generar pacientes para siempre (el tope de 15 ahora es por día, con `createdAt`); el generador tiene límite por IP; `saveExamTimes` exige consulta activa y no toca otoscopias (podía dejarlas sin evaluar); si Google no da el token se devuelve la conexión reservada; un cierre con informe y estado "activa" se completa; los tokens de uso solo se suman con la consulta activa; el otoscopio tiene el mismo margen que la voz.
+    - Cliente de voz: las notas internas cortaban al paciente mientras hablaba (y eso contaba como interrupción del estudiante): ahora esperan a que termine; la transcripción tardía partía el turno del estudiante en dos; en Safari el micrófono se reanuda y, si se corta, se avisa; el procesador del micrófono va a una salida en silencio (Safari puede no correrlo sin salida); "Reconectando" no se pisa con "En línea".
+    - Pantalla: sin voz conectada, a los 8 minutos pasa a la hipótesis (antes solo en modo texto).
+    - Paciente simulado: "¿qué?", "¿eh?", "¿perdón?" cuentan como pedido de repetir; negaciones en el generador ("poco colaborador", "que no hable mucho"); "una abuela ansiosa" sale mayor y ansiosa; "hace cuánto que tenés fiebre" ya no es pedir el diagnóstico; "¿algún médico llegó a revisarte?" no abre el examen; "permiso para faltar" y "con tu permiso" al saludar no dan consentimiento, "me permitís" y "le parece si" sí; empatía solo fuera de preguntas; "¿de verdad?" no es sugestiva; preguntas sin "?" (voz) cuentan como preguntas; "humedad" no responde la edad y "¿tomás mate?" no es alcohol.
+    - Convex: Convex Auth quedaba abierto (cualquiera podía crear usuarios anónimos sin límite): sin proveedores; los registros anteriores al campo `guest` se completan solos y se borran a tiempo; una ventana nueva del límite por IP es un documento nuevo (la limpieza la cortaba a mitad de hora).
+
+    **Pedidos simultáneos de un mismo usuario (arreglado después):** el manguito se coloca una sola vez y la otoscopia se termina una sola vez (`patchIf`, atómico); el perfil de errores se guarda solo si nadie lo cambió en el medio y se reintenta (`replaceIf`), así dos consultas cerradas a la vez suman los errores de las dos; el tope diario de consultas usa el contador atómico `hitRate`. Si Convex no tiene `patchIf`/`replaceIf` desplegados, la app vuelve al camino anterior sin romperse.
+
+    - La vista de la consulta ya no manda la evaluación de técnica de la otoscopia: es parte del informe, y verla antes de cerrar dejaba corregir sabiendo qué se puntuaba.
+
+    **Fuera del código (no se puede confirmar desde acá):**
+    - El procesador del micrófono en Safari y si `expireTime` corta una voz ya abierta solo se pueden confirmar en un dispositivo o con Google.
   - **Falta desplegar Convex** para la limpieza con presupuesto, desde `main` después de integrar esta rama.
 - Validación: prueba de punta a punta por HTTP (24 de 24) y `probar-personaje.mjs` (6 de 6), antes de integrar. Después de integrar: tests, lint, tipos y build pasan.
 - Consentimiento de punta a punta: examinar por voz y pedir permiso después sigue siendo error crítico; con permiso antes, no (la regla del extractor de la Persona 2 y la fila de la voz encajan).

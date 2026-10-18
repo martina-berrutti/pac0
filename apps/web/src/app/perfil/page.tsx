@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { Note, Page, Paper } from "@/frontend/ui";
 import { ApiError, api } from "@/lib/api-client";
 
 const YEARS = [
@@ -54,48 +55,63 @@ export default function ProfilePage() {
 	}
 
 	return (
-		<form
-			onSubmit={save}
-			className="container mx-auto grid max-w-sm content-center gap-4 px-4 py-8"
-		>
-			<h1 className="font-semibold text-2xl">Tu perfil</h1>
-			<div className="grid gap-2">
-				<Label htmlFor="alias">Alias</Label>
-				<Input
-					id="alias"
-					value={alias}
-					onChange={(e) => setAlias(e.target.value)}
-					maxLength={24}
-					autoComplete="off"
-					placeholder="Por ejemplo: Doctora Pato"
-					required
-				/>
-				<p className="text-muted-foreground text-xs">
-					No uses tu nombre real, tu cédula ni tu teléfono.
-				</p>
-			</div>
-			<div className="grid gap-2">
-				<Label htmlFor="year">Año de carrera</Label>
-				<select
-					id="year"
-					value={year}
-					onChange={(e) => setYear(e.target.value)}
-					className="h-9 border border-input bg-background px-2 text-sm"
-					required
-				>
-					<option value="" disabled>
-						Elegí uno
-					</option>
-					{YEARS.map((y) => (
-						<option key={y.value} value={y.value}>
-							{y.label}
-						</option>
-					))}
-				</select>
-			</div>
-			<Button type="submit" size="lg" className="h-11" disabled={saving}>
-				{saving ? "Guardando…" : "Continuar"}
-			</Button>
-		</form>
+		<Page size="sm" className="min-h-[calc(100svh-4rem)] content-center">
+			<Paper tape="clay" tilt={1} className="px-7 pt-10 pb-8">
+				<form onSubmit={save} className="grid gap-6">
+					<div className="grid gap-1.5">
+						<Note className="-rotate-1 text-pen">un paso más…</Note>
+						<h1 className="font-display text-3xl">¿Cómo te llamamos?</h1>
+						<p className="text-muted-foreground">
+							Elegí un alias divertido: es lo único que vamos a mostrar.
+						</p>
+					</div>
+					<div className="grid gap-2">
+						<Label htmlFor="alias">Alias</Label>
+						<Input
+							id="alias"
+							value={alias}
+							onChange={(e) => setAlias(e.target.value)}
+							maxLength={24}
+							autoComplete="off"
+							placeholder="Por ejemplo: Doctora Pato"
+							required
+						/>
+						<p className="text-muted-foreground text-xs">
+							No uses tu nombre real, tu cédula ni tu teléfono.
+						</p>
+					</div>
+					<fieldset className="grid gap-2">
+						<legend className="mb-2 font-medium text-sm">Año de carrera</legend>
+						<div className="flex flex-wrap gap-2">
+							{YEARS.map((y) => (
+								<label
+									key={y.value}
+									className="cursor-pointer rounded-[0.6rem] border border-input bg-card px-4 py-2 font-medium text-sm transition-colors hover:bg-muted has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-primary-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50"
+								>
+									<input
+										type="radio"
+										name="year"
+										value={y.value}
+										checked={year === y.value}
+										onChange={() => setYear(y.value)}
+										className="sr-only"
+										required
+									/>
+									{y.label}
+								</label>
+							))}
+						</div>
+					</fieldset>
+					<Button
+						type="submit"
+						size="lg"
+						className="h-12 border-black/25 border-b-[3px] text-base"
+						disabled={saving || !year}
+					>
+						{saving ? "Guardando…" : "Conocer a mis pacientes"}
+					</Button>
+				</form>
+			</Paper>
+		</Page>
 	);
 }

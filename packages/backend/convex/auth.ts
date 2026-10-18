@@ -1,39 +1,9 @@
-import Google from "@auth/core/providers/google";
-import { Anonymous } from "@convex-dev/auth/providers/Anonymous";
 import { convexAuth } from "@convex-dev/auth/server";
 
-import type { MutationCtx } from "./_generated/server";
-
+// La app web tiene su propio login (invitado con cookie y Google por OAuth,
+// apps/web/src/server/). Convex Auth quedó del comienzo y no lo usa nadie:
+// sin proveedores, signIn no crea usuarios. Antes el proveedor anónimo dejaba
+// a cualquiera con la URL del deployment crear usuarios sin límite.
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-	providers: [
-		Google({
-			// Solo el id opaco de la cuenta: sin nombre, correo ni foto. Así
-			// Convex Auth no los copia a ninguna tabla (AGENTS.md).
-			profile: (googleProfile) => ({ id: googleProfile.sub }),
-		}),
-		Anonymous,
-	],
-	callbacks: {
-		// Crea el usuario solo con los campos de schema.ts e ignora el perfil
-		// del proveedor.
-		async createOrUpdateUser(genericCtx, { existingUserId, provider }) {
-			if (existingUserId !== null) {
-				return existingUserId;
-			}
-			const ctx = genericCtx as unknown as MutationCtx;
-			const isAnonymous = provider.id === "anonymous";
-			return await ctx.db.insert("users", {
-				isAnonymous,
-				// El invitado entra directo con un alias temporal.
-				alias: isAnonymous ? guestAlias() : undefined,
-				role: "estudiante",
-				createdAt: Date.now(),
-			});
-		},
-	},
+	providers: [],
 });
-
-function guestAlias() {
-	const n = Math.floor(1000 + Math.random() * 9000);
-	return `Invitado ${n}`;
-}

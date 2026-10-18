@@ -30,7 +30,6 @@ import {
 	giveConsent,
 	noteConsent,
 	nudgeState,
-	ownSession,
 	recordExam,
 } from "./consultation";
 import { newId, store } from "./store";
@@ -223,6 +222,16 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 			console.error(`Gemini authTokens (${apiVersion})`, error);
 		}
 	}
+	// Google no dio el token: se devuelve la reserva, para que una caída de
+	// Google no agote las conexiones de una consulta en la que no se habló.
+	// Atómico: solo si nadie reservó otra en el medio (si no, no se devuelve).
+	const mine = reserved.voiceStarts ?? 1;
+	await store
+		.changeSession(sessionId, {
+			ifEquals: { voiceStarts: mine },
+			set: { voiceStarts: Math.max(0, mine - 1) },
+		})
+		.catch(() => {});
 	throw new HttpError(
 		502,
 		"No pudimos conectar con el paciente. Probá de nuevo en unos segundos.",
@@ -541,7 +550,8 @@ export async function recordVoiceUsage(
 	sessionId: string,
 	usage: UsageInput,
 ) {
-	await ownSession(viewer, sessionId);
+	// Solo durante la consulta (con el margen de la voz): después no se suma.
+	await activeSession(viewer, sessionId, VOICE_GRACE_MS);
 	// Se suma sobre el valor actual (atómico): dos avisos cruzados no se pierden.
 	const updated = await store.changeSession(sessionId, { usageDelta: usage });
 	return updated?.voiceUsage ?? null;

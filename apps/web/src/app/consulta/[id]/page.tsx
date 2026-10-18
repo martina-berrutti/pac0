@@ -236,12 +236,21 @@ export default function ConsultationPage() {
 		const timer = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(timer);
 	}, [view, closing]);
+	// Sin voz conectada (por texto, o con la voz cortada o sin empezar) el
+	// tope lo marca este reloj; con voz, la voz tiene su propio cierre. Para el
+	// docente no: solo lee.
 	useEffect(() => {
-		if (textMode && view && !closing && localRemainingMs === 0) {
+		if (
+			view &&
+			!view.readOnly &&
+			!voiceLive &&
+			!closing &&
+			localRemainingMs === 0
+		) {
 			toast.info("Se terminaron los 8 minutos de la consulta.");
 			setClosing(true);
 		}
-	}, [textMode, view, closing, localRemainingMs]);
+	}, [view, voiceLive, closing, localRemainingMs]);
 
 	async function closeExam(times: Record<string, number>) {
 		if (exam && exam.action.variant !== "negado") {

@@ -1,14 +1,24 @@
 "use client";
 
-// Informe contra el tipo Report. Versión funcional; la Persona 3 la diseña.
+// Informe contra el tipo Report, con el estilo del cuaderno (frontend/).
+// Orden: veredicto, tu diagnóstico, puntajes, lo que hiciste bien, lo que
+// hiciste mal, puntos a mejorar, datos clave, lista de cotejo y el caso.
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
+import {
+	Grade,
+	Highlight,
+	linkButtonClass,
+	Note,
+	Page,
+	Paper,
+} from "@/frontend/ui";
 import { ApiError, api } from "@/lib/api-client";
-import type { Report } from "@/lib/contracts/report";
+import type { DiagnosisFeedback, Report } from "@/lib/contracts/report";
 
 const LABELS = {
 	anamnesis: "Anamnesis",
@@ -16,7 +26,112 @@ const LABELS = {
 	razonamiento: "Razonamiento",
 	comunicacion: "Comunicación",
 } as const;
-const STATUS = { si: "Sí", parcial: "Parcial", no: "No" } as const;
+const STATUS = {
+	si: { label: "sí", className: "text-success" },
+	parcial: { label: "a medias", className: "text-accent-foreground" },
+	no: { label: "no", className: "text-pen" },
+} as const;
+const RESULT: Record<DiagnosisFeedback["result"], string> = {
+	acertaste: "Acertaste el diagnóstico",
+	cerca: "Estuviste cerca",
+	otro_diagnostico: "El diagnóstico era otro",
+	sin_hipotesis: "Sin diagnóstico",
+};
+// Una línea de aliento debajo del veredicto.
+const CHEER: Record<Report["verdict"], string> = {
+	lo_hiciste_bien: "Muy buena consulta. Mirá qué salió bien y seguí así.",
+	error_critico: "Buen trabajo, pero hay algo que no se puede pasar por alto.",
+	casi: "Estás cerca: con estos ajustes la próxima sale redonda.",
+	a_repasar: "Todos empezamos por acá. Arrancá por estos puntos.",
+};
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+	return <h2 className="font-display text-2xl">{children}</h2>;
+}
+
+function DiagnosisSection({ d }: { d: DiagnosisFeedback }) {
+	const right = d.result === "acertaste";
+	return (
+		<Paper tape={right ? "sage" : "clay"} className="grid gap-3 px-6 pt-8 pb-6">
+			<Note className={right ? "text-success" : "text-pen"}>
+				tu diagnóstico
+			</Note>
+			<h2 className="font-display text-2xl">{RESULT[d.result]}</h2>
+			{d.yours && (
+				<p>
+					Planteaste: <span className="font-hand text-xl">“{d.yours}”</span>
+				</p>
+			)}
+			<p className="text-muted-foreground">{d.message}</p>
+			{d.differentialsHit.length > 0 && (
+				<p className="text-sm">
+					Diferenciales que pensaste: {d.differentialsHit.join(", ")}.
+				</p>
+			)}
+			{d.differentialsMissed.length > 0 && (
+				<div className="grid gap-1 text-sm">
+					<p>Diferenciales que te faltaron:</p>
+					<ul className="grid gap-1 pl-4">
+						{d.differentialsMissed.map((x) => (
+							<li key={x.differential} className="list-['–_']">
+								<span className="font-medium">{x.differential}</span>
+								{x.hint && (
+									<span className="text-muted-foreground"> — {x.hint}</span>
+								)}
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
+			{d.toldPatient && (
+				<p className="text-sm">
+					{d.toldPatient.correct
+						? "Le explicaste bien al paciente qué tiene: "
+						: "Lo que le dijiste al paciente no era correcto: "}
+					<q className="text-muted-foreground">{d.toldPatient.quote}</q>
+				</p>
+			)}
+		</Paper>
+	);
+}
+
+function CluesSection({ d }: { d: DiagnosisFeedback }) {
+	if (d.cluesFound.length + d.cluesMissed.length === 0) return null;
+	return (
+		<section className="grid gap-3">
+			<SectionTitle>Datos clave del caso</SectionTitle>
+			<p className="text-muted-foreground text-sm">
+				Lo que llevaba al diagnóstico y por qué.
+			</p>
+			<ul className="grid gap-3">
+				{d.cluesFound.map((k) => (
+					<li key={k.clue} className="grid grid-cols-[1.5rem_1fr] gap-x-2">
+						<span className="font-hand text-2xl text-success leading-6">✓</span>
+						<span className="font-medium">
+							{k.clue}
+							{!k.usedInClosing && (
+								<span className="font-normal text-muted-foreground">
+									{" "}
+									(lo encontraste, pero no lo usaste para justificar)
+								</span>
+							)}
+						</span>
+						<span />
+						<span className="text-muted-foreground text-sm">{k.why}</span>
+					</li>
+				))}
+				{d.cluesMissed.map((k) => (
+					<li key={k.clue} className="grid grid-cols-[1.5rem_1fr] gap-x-2">
+						<span className="font-hand text-2xl text-pen leading-6">✗</span>
+						<span className="font-medium">{k.clue} (no lo buscaste)</span>
+						<span />
+						<span className="text-muted-foreground text-sm">{k.why}</span>
+					</li>
+				))}
+			</ul>
+		</section>
+	);
+}
 
 export default function ReportPage() {
 	const { id } = useParams<{ id: string }>();
@@ -37,27 +152,45 @@ export default function ReportPage() {
 	if (loadError) return <LoadError message={loadError} />;
 	if (!report) return <Loader />;
 
+	// Lo que hizo bien además de lo destacado: el resto de los ítems cumplidos.
+	const highlighted = new Set(report.strengths.map((s) => s.text));
+	const alsoDone = report.items.filter(
+		(i) => i.status === "si" && !highlighted.has(`Bien: ${i.item}.`),
+	);
+	const mistakes = [...report.mistakes].sort(
+		(a, b) => Number(b.critical) - Number(a.critical),
+	);
+
 	return (
-		<div className="container mx-auto grid max-w-2xl content-start gap-6 px-4 py-6">
-			<section>
-				<h1 className="font-semibold text-2xl">{report.verdictMessage}</h1>
-				<p className="text-4xl">{report.total}%</p>
-				<p className="text-muted-foreground text-xs">
-					Evaluado con el juez {report.judge === "ia" ? "con IA" : "por reglas"}
-					.
-				</p>
+		<Page size="md" className="gap-12">
+			<section className="grid items-center gap-6 sm:grid-cols-[auto_1fr]">
+				<Grade value={report.total} />
+				<div className="grid gap-2">
+					<h1 className="text-balance font-display text-3xl leading-tight sm:text-4xl">
+						{report.verdictMessage}
+					</h1>
+					<p className="text-muted-foreground">{CHEER[report.verdict]}</p>
+					<p className="text-muted-foreground text-xs">
+						Evaluado {report.judge === "ia" ? "con IA" : "por reglas"}; el
+						puntaje lo calcula siempre el código.
+					</p>
+				</div>
 			</section>
 
-			<section className="grid gap-2">
+			{report.diagnosis && <DiagnosisSection d={report.diagnosis} />}
+
+			<section className="grid gap-4" aria-label="Puntaje por dimensión">
 				{(Object.keys(LABELS) as (keyof typeof LABELS)[]).map((d) => (
-					<div key={d}>
-						<div className="flex justify-between text-sm">
-							<span>{LABELS[d]}</span>
-							<span>{report.scores[d]}%</span>
+					<div key={d} className="grid gap-1.5">
+						<div className="flex items-baseline justify-between">
+							<span className="font-medium">{LABELS[d]}</span>
+							<span className="font-hand text-2xl leading-none">
+								{report.scores[d]}
+							</span>
 						</div>
-						<div className="h-2 bg-muted">
+						<div className="h-2 rounded-full bg-muted">
 							<div
-								className="h-2 bg-primary"
+								className="h-2 rounded-full bg-primary"
 								style={{ width: `${report.scores[d]}%` }}
 							/>
 						</div>
@@ -65,69 +198,148 @@ export default function ReportPage() {
 				))}
 			</section>
 
-			{report.strengths.length > 0 && (
-				<section>
-					<h2 className="font-medium">Lo que hiciste bien</h2>
-					<ul className="list-disc pl-5 text-sm">
+			{(report.strengths.length > 0 || alsoDone.length > 0) && (
+				<section className="grid gap-3">
+					<SectionTitle>Lo que hiciste bien</SectionTitle>
+					<ul className="grid gap-2">
 						{report.strengths.map((s) => (
-							<li key={s.text}>
-								{s.text}{" "}
-								{s.evidence.quote && (
-									<q className="text-muted-foreground">{s.evidence.quote}</q>
-								)}
+							<li key={s.text} className="grid grid-cols-[1.5rem_1fr] gap-x-2">
+								<span className="font-hand text-2xl text-success leading-6">
+									✓
+								</span>
+								<span>
+									<Highlight>{s.text}</Highlight>
+									{s.evidence.quote && (
+										<span className="block font-hand text-lg text-muted-foreground">
+											“{s.evidence.quote}”
+										</span>
+									)}
+								</span>
+							</li>
+						))}
+						{alsoDone.map((i) => (
+							<li
+								key={i.itemId}
+								className="grid grid-cols-[1.5rem_1fr] gap-x-2 text-muted-foreground"
+							>
+								<span className="font-hand text-2xl text-success leading-6">
+									✓
+								</span>
+								<span>También: {i.item}.</span>
 							</li>
 						))}
 					</ul>
 				</section>
 			)}
 
-			<section>
-				<h2 className="font-medium">Errores y omisiones</h2>
-				<ul className="grid gap-2 text-sm">
-					{report.mistakes.map((m) => (
-						<li
-							key={`${m.tag}-${m.what}`}
-							className={
-								m.critical ? "border border-destructive p-2" : "border p-2"
-							}
-						>
-							<p className="font-medium">{m.what}</p>
-							<p className="text-muted-foreground">Por qué importa: {m.why}</p>
-							<p className="text-muted-foreground">{m.nextTime}</p>
-						</li>
-					))}
-				</ul>
+			<section className="grid gap-3">
+				<SectionTitle>Lo que hiciste mal</SectionTitle>
+				{mistakes.length === 0 ? (
+					<p className="font-hand text-2xl text-success">Nada para marcar.</p>
+				) : (
+					<ul className="grid gap-4">
+						{mistakes.map((m) => (
+							<li
+								key={`${m.tag}-${m.what}`}
+								className={`grid gap-2 border-l-[3px] py-1 pl-4 ${m.critical ? "border-pen" : "border-border"}`}
+							>
+								{m.critical && <Note className="text-pen">error crítico</Note>}
+								<p className="font-medium">{m.what}</p>
+								{m.evidence[0]?.quote && (
+									<p className="font-hand text-lg text-muted-foreground">
+										Dijiste: “{m.evidence[0].quote}”
+									</p>
+								)}
+								<p className="text-muted-foreground text-sm">
+									<span className="font-medium text-foreground">
+										Por qué importa:
+									</span>{" "}
+									{m.why}
+								</p>
+								<p className="text-sm">
+									<span className="font-medium">La próxima vez:</span>{" "}
+									{m.nextTime}
+								</p>
+								{m.source && (
+									<p className="text-muted-foreground text-xs">
+										Fuente: {m.source}
+									</p>
+								)}
+							</li>
+						))}
+					</ul>
+				)}
 			</section>
 
-			<section>
-				<h2 className="font-medium">Lista de cotejo</h2>
-				<ul className="text-sm">
+			{report.improvements && report.improvements.length > 0 && (
+				<Paper tape="tape" tilt={-0.5} className="grid gap-3 px-6 pt-8 pb-6">
+					<SectionTitle>Puntos a mejorar</SectionTitle>
+					<ol className="grid gap-2">
+						{report.improvements.map((x, i) => (
+							<li key={x} className="grid grid-cols-[1.75rem_1fr] gap-x-1">
+								<span className="font-hand text-2xl text-pen leading-6">
+									{i + 1}.
+								</span>
+								<span>{x}</span>
+							</li>
+						))}
+					</ol>
+				</Paper>
+			)}
+
+			{report.diagnosis && <CluesSection d={report.diagnosis} />}
+
+			{report.notices && report.notices.length > 0 && (
+				<section className="grid gap-2">
+					<SectionTitle>Avisos</SectionTitle>
+					<ul className="grid gap-1 text-muted-foreground text-sm">
+						{report.notices.map((n) => (
+							<li key={n}>{n}</li>
+						))}
+					</ul>
+				</section>
+			)}
+
+			<details className="group border-border border-y border-dashed py-4">
+				<summary className="flex cursor-pointer list-none items-center justify-between font-display text-xl">
+					Lista de cotejo
+					<span className="font-hand text-lg text-muted-foreground group-open:hidden">
+						ver todo
+					</span>
+				</summary>
+				<ul className="mt-4 grid text-sm">
 					{report.items.map((i) => (
 						<li
 							key={i.itemId}
-							className="flex justify-between gap-2 border-b py-1"
+							className="flex items-baseline justify-between gap-3 border-border border-b border-dotted py-2 last:border-0"
 						>
 							<span>{i.item}</span>
-							<span className="text-muted-foreground">{STATUS[i.status]}</span>
+							<span
+								className={`font-hand text-xl ${STATUS[i.status].className}`}
+							>
+								{STATUS[i.status].label}
+							</span>
 						</li>
 					))}
 				</ul>
-			</section>
+			</details>
 
-			<section className="text-sm">
-				<h2 className="font-medium">El caso era</h2>
-				<p>
-					{report.truth.diagnosis}. Diferenciales:{" "}
-					{report.truth.differentials.join(", ")}.
+			<section className="grid gap-2">
+				<Note className="text-pen">el caso era…</Note>
+				<p className="font-display text-3xl first-letter:uppercase">
+					{report.truth.diagnosis}
+				</p>
+				<p className="text-muted-foreground">
+					Diferenciales: {report.truth.differentials.join(", ")}.
 				</p>
 				<p className="text-muted-foreground text-xs">
-					No se pudo medir por texto: {report.notMeasurable.join(", ")}.
+					No se pudo medir por voz: {report.notMeasurable.join(", ")}.
 				</p>
 			</section>
 
-			<Link href="/casos" className="underline">
-				Volver a los casos
+			<Link href="/casos" className={`${linkButtonClass("primary")} w-fit`}>
+				Practicar con otro paciente
 			</Link>
-		</div>
+		</Page>
 	);
 }

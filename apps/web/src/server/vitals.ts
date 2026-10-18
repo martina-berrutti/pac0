@@ -17,7 +17,11 @@ import {
 } from "@/lib/exam/blood-pressure";
 
 import { HttpError } from "./auth";
-import { activeSession, FINISH_EXAM_GRACE_MS } from "./consultation";
+import {
+	activeSession,
+	FINISH_EXAM_GRACE_MS,
+	limitExamRecords,
+} from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -31,7 +35,8 @@ export async function createMeasurement(
 	steps: readonly string[],
 	atMs: number,
 ): Promise<BpStart> {
-	const armCm = armFor(clinicalCase.id);
+	await limitExamRecords(sessionId);
+	const armCm = armFor(clinicalCase.templateId ?? clinicalCase.id);
 	const measurement: VitalsMeasurement = {
 		id: newId("vit"),
 		sessionId,
@@ -88,9 +93,15 @@ export async function placeCuff(
 		clinicalCase.vitals.pa,
 		m.stepsCompleted,
 		cuff,
-		armFor(clinicalCase.id),
+		armFor(clinicalCase.templateId ?? clinicalCase.id),
 	);
-	await store.updateVitals(measurementId, { ...reading, cuff });
+	// Atómico: con dos pedidos a la vez, uno solo coloca el manguito.
+	const placed = await store.patchVitalsIf(
+		measurementId,
+		{ ...reading, cuff },
+		{ cuff: null },
+	);
+	if (!placed) throw new HttpError(409, "El manguito ya está colocado");
 	return { gauge: reading.shown, pulse: clinicalCase.vitals.fc };
 }
 

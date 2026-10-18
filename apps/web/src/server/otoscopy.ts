@@ -17,7 +17,11 @@ import {
 } from "@/lib/exam/otoscope";
 
 import { HttpError } from "./auth";
-import { activeSession, FINISH_EXAM_GRACE_MS } from "./consultation";
+import {
+	activeSession,
+	FINISH_EXAM_GRACE_MS,
+	limitExamRecords,
+} from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -28,7 +32,14 @@ export async function startOtoscopy(
 	sessionId: string,
 	ear: Ear,
 ): Promise<OtoscopyStart> {
-	const { clinicalCase, elapsed } = await activeSession(viewer, sessionId);
+	// Mismo margen que la herramienta examinar de la voz, que puede abrir el
+	// otoscopio justo pasados los 8 minutos.
+	const { clinicalCase, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+		FINISH_EXAM_GRACE_MS,
+	);
+	await limitExamRecords(sessionId);
 	const action: ExamAction = {
 		id: newId("exam"),
 		sessionId,
@@ -90,10 +101,16 @@ export async function finishOtoscopy(
 			clinicalCase.patient.age,
 		),
 	);
-	await store.updateExamAction(actionId, {
-		hotspotTimesMs: { conducto: record.canalMs, timpano: record.tympanumMs },
-		endMs: elapsed,
-		technique,
-	});
+	// Atómico: con dos pedidos a la vez, la otoscopia se termina una vez.
+	const finished = await store.patchExamActionIf(
+		actionId,
+		{
+			hotspotTimesMs: { conducto: record.canalMs, timpano: record.tympanumMs },
+			endMs: elapsed,
+			technique,
+		},
+		{ endMs: null },
+	);
+	if (!finished) throw new HttpError(409, "Esta otoscopia ya terminó");
 	return { ok: true };
 }

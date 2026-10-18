@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+	<title>Pac0</title>
+	<rect x="1" y="1" width="46" height="46" rx="15" fill="#007a73"/>
+	<ellipse cx="24" cy="25.5" rx="11.5" ry="13" fill="none" stroke="#fbfdfc" stroke-width="4.5"/>
+	<circle cx="19.8" cy="23.5" r="1.9" fill="#fbfdfc"/>
+	<circle cx="28.2" cy="23.5" r="1.9" fill="#fbfdfc"/>
+	<path d="M19.6 29 q4.4 3.8 8.8 0" fill="none" stroke="#fbfdfc" stroke-width="2.4" stroke-linecap="round"/>
+	<g transform="rotate(-38 32.5 13.5)">
+		<rect x="25.5" y="10.5" width="14" height="6" rx="3" fill="#ef7a5a"/>
+		<rect x="30.5" y="10.5" width="4" height="6" fill="#fde3d9" opacity="0.85"/>
+	</g>
+</svg>

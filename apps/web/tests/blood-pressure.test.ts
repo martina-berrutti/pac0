@@ -12,13 +12,13 @@ import {
 import { BP_STEPS } from "@/lib/patient/tools";
 import { evaluate } from "@/lib/scoring/evaluate";
 
-import { lucia, goodStudent as luciaStudent } from "./helpers";
+import { amigdalitis, goodStudent as luciaStudent } from "./helpers";
 
 // Acá se mide solo la técnica: con todos los exámenes indicados, examinar
 // algo que no es del problema no resta (eso se prueba en cases.test.ts).
 const goodStudent = () => ({
 	...luciaStudent(),
-	clinicalCase: { ...lucia, relevantExams: [...EXAM_KINDS] },
+	clinicalCase: { ...amigdalitis, relevantExams: [...EXAM_KINDS] },
 });
 
 function said(...texts: string[]): Turn[] {
@@ -189,9 +189,9 @@ describe("evaluación de la presión", () => {
 
 	test("un caso con el ítem de presión lo juzga con la medición", () => {
 		const withItem: ClinicalCase = {
-			...lucia,
+			...amigdalitis,
 			expectedChecklist: [
-				...lucia.expectedChecklist,
+				...amigdalitis.expectedChecklist,
 				{
 					id: "presion-arterial",
 					item: "toma la presión con buena técnica",
