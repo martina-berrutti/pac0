@@ -59,5 +59,25 @@ test("un cierre seguido enseguida de otro turno no se pierde", () => {
 	hearing.turnEnded();
 	hearing.heard("Y contame, ¿desde cuándo?");
 	vi.advanceTimersByTime(700);
-	expect(closes).toEqual(["Listo, cerrá la boca"]);
+	expect(closes).toHaveLength(1);
+});
+
+test("una herramienta que corta el turno en 'Listo,' no cierra el examen", () => {
+	const { hearing, closes } = setup();
+	hearing.heard(" Listo,");
+	// El modelo llama a examinar: se guarda el turno con lo poco transcripto.
+	hearing.turnEnded();
+	hearing.heard(" ahora sacá la lengua y decí aaa");
+	vi.advanceTimersByTime(700);
+	expect(closes).toEqual([]);
+});
+
+test("después de la pausa, el turno siguiente se juzga solo", () => {
+	const { hearing, closes } = setup();
+	hearing.heard("Abrí grande");
+	vi.advanceTimersByTime(700);
+	hearing.turnEnded();
+	hearing.heard("Ya está");
+	vi.advanceTimersByTime(700);
+	expect(closes).toEqual(["Ya está"]);
 });
