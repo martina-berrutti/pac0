@@ -32,6 +32,10 @@ describe("pedir el oído o la presión por texto", () => {
 		["Ahora vemos el oído", true],
 		["¿Me mostrás la oreja?", true],
 		["Veo que te duele mucho el oído", false],
+		["Bueno, nos vemos. Si te sigue doliendo el oído, volvé", false],
+		["Nos vemos en una semana para controlar el oído", false],
+		["Veamos, ¿desde cuándo te duele el oído?", false],
+		["Veamos el oído", true],
 		["Vamos a tomar una muestra del oído", false],
 		["¿Alguien te revisó el oído?".normalize("NFD"), false],
 	])("oído: %s", (text, expected) => {

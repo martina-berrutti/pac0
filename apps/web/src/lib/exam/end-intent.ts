@@ -41,7 +41,7 @@ export function asksToEndExam(text: string): boolean {
 // Un pedido, no un pasado ni otra palabra: "¿te revisaron el oído?" o
 // "¿tenés vértigo?" no abren el otoscopio.
 const EXAMINE =
-	/\b(revis(o|ar|arte|arle|arlo|arla|e|emos)|mir(o|ar|arte|arle|arlo|arla|e|emos)|ver(te|le|lo|la)?|veo(?! que)|veamos|vemos|muestr(ame|ale|e|eme)|mostra(me|le|s)?|examin(o|ar|arte|arle|arlo|arla|e|emos)|chequ(ear|earte|earle|eemos))\b/;
+	/\b(revis(o|ar|arte|arle|arlo|arla|e|emos)|mir(o|ar|arte|arle|arlo|arla|e|emos)|ver(te|le|lo|la)?|veo(?! que)|(veamos|vemos) (el|la|los|las|tu|tus|ese|esa) (oido|oidos|oreja|orejas)|muestr(ame|ale|e|eme)|mostra(me|le|s)?|examin(o|ar|arte|arle|arlo|arla|e|emos)|chequ(ear|earte|earle|eemos))\b/;
 
 export function asksForEarExam(text: string): boolean {
 	// Los pasados se sacan antes de quitar las tildes ("te revisó" no es "te
