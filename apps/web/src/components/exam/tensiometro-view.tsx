@@ -88,11 +88,14 @@ function ArmDrawing({
 export function TensiometroView({
 	sessionId,
 	start,
+	onPressure,
 	onClose,
 }: {
 	sessionId: string;
 	// Medición que ya creó medir_presion (voz); sin ella, se crea al abrir.
 	start: BpStart | null;
+	// La presión del manguito, para inflarlo también en el avatar.
+	onPressure?: (mmHg: number) => void;
 	onClose: () => void;
 }) {
 	const [stage, setStage] = useState<Stage>(start ? "colocar" : "cargando");
@@ -118,6 +121,9 @@ export function TensiometroView({
 	const valveRef = useRef<Valve>("cerrada");
 	const lastPump = useRef(0);
 	const lastBeat = useRef(0);
+	const lastSent = useRef(-1);
+	const pressureListener = useRef(onPressure);
+	pressureListener.current = onPressure;
 	const audio = useRef<AudioContext | null>(null);
 	const [valve, setValve] = useState<Valve>("cerrada");
 	const [shown, setShown] = useState(0);
@@ -183,7 +189,13 @@ export function TensiometroView({
 				setBeat(true);
 				setTimeout(() => setBeat(false), 140);
 			}
-			setShown(Math.round(pressure.current / 2) * 2);
+			const rounded = Math.round(pressure.current / 2) * 2;
+			setShown(rounded);
+			// Al avatar, solo cuando cambia (no en cada cuadro).
+			if (Math.abs(rounded - lastSent.current) >= 2) {
+				lastSent.current = rounded;
+				pressureListener.current?.(rounded);
+			}
 			frame = requestAnimationFrame(loop);
 		};
 		frame = requestAnimationFrame(loop);

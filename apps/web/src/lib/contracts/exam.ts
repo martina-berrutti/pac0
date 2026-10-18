@@ -25,6 +25,12 @@ export const OTOSCOPY = "otoscopia";
 
 export type Ear = "derecho" | "izquierdo";
 
+// Temperatura axilar con termómetro digital. Se guarda como una acción de
+// examen con maneuver "termometria" y zona "axila" (cuenta para el
+// consentimiento); la temperatura sale del caso (vitals.tax).
+export const THERMOMETRY = "termometria";
+export type TemperatureReading = { actionId: string; celsius: number };
+
 export type OtoscopyPrep = "higiene" | "inspeccion-externa" | "verificar-luz";
 
 export type OtoscopyError =

@@ -43,8 +43,8 @@ export default function Home() {
 				<div className="mx-auto w-full max-w-2xl">
 					<ConsultationDemo />
 					<p className="mt-3 text-muted-foreground text-xs">
-						Es una ilustración. En la app, Paco habla de verdad, se mueve y
-						reacciona a cómo lo tratás.
+						Un clip sin sonido. En la práctica, la paciente te habla por voz,
+						reacciona a cómo la tratás y la examinás con el mouse.
 					</p>
 				</div>
 			</section>

@@ -1,0 +1,62 @@
+// Lo que usan las poses de examen del avatar (lib/avatar/exam-poses.ts) y que
+// no está en talkinghead.d.ts: los gestos propios, los huesos y la vista.
+// Se suma a esas declaraciones sin cambiarlas.
+
+declare module "@met4citizen/talkinghead" {
+	interface TalkingHead {
+		gestureTemplates: Record<string, Record<string, unknown>>;
+		armature: ThreeObject;
+		viewName: string;
+		lookAtCamera(ms: number): void;
+	}
+}
+
+// Lo mínimo de three para armar el manguito y el termómetro.
+interface ThreeObject {
+	name: string;
+	visible: boolean;
+	position: { set(x: number, y: number, z: number): void };
+	rotation: { set(x: number, y: number, z: number): void };
+	scale: { set(x: number, y: number, z: number): void };
+	add(...objects: ThreeObject[]): void;
+	remove(...objects: ThreeObject[]): void;
+	getObjectByName(name: string): ThreeObject | undefined;
+}
+
+declare module "three" {
+	export class Group implements ThreeObject {
+		name: string;
+		visible: boolean;
+		position: ThreeObject["position"];
+		rotation: ThreeObject["rotation"];
+		scale: ThreeObject["scale"];
+		add(...objects: ThreeObject[]): void;
+		remove(...objects: ThreeObject[]): void;
+		getObjectByName(name: string): ThreeObject | undefined;
+	}
+	export class Mesh extends Group {
+		constructor(geometry: unknown, material: unknown);
+	}
+	export class CylinderGeometry {
+		constructor(
+			radiusTop: number,
+			radiusBottom: number,
+			height: number,
+			radialSegments?: number,
+		);
+	}
+	export class SphereGeometry {
+		constructor(
+			radius: number,
+			widthSegments?: number,
+			heightSegments?: number,
+		);
+	}
+	export class MeshStandardMaterial {
+		constructor(params: {
+			color: number;
+			roughness?: number;
+			metalness?: number;
+		});
+	}
+}

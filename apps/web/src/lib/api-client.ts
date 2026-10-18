@@ -7,6 +7,7 @@ import type {
 	Ear,
 	ExamAction,
 	OtoscopyRecord,
+	TemperatureReading,
 } from "@/lib/contracts/exam";
 import type { MistakeEntry } from "@/lib/contracts/mistakes";
 import type { Report } from "@/lib/contracts/report";
@@ -118,6 +119,10 @@ export const api = {
 		request<{ action: ExamAction }>(`/api/sessions/${id}/exam/${actionId}`, {
 			method: "PATCH",
 			body: { hotspotTimesMs },
+		}),
+	takeTemperature: (id: string) =>
+		request<TemperatureReading>(`/api/sessions/${id}/temperature`, {
+			method: "POST",
 		}),
 	startBp: (id: string) =>
 		request<BpStart>(`/api/sessions/${id}/vitals`, { method: "POST" }),

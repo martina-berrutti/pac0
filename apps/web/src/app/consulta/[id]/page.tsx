@@ -16,10 +16,12 @@ import {
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
 import { OtoscopioView } from "@/components/exam/otoscopio-view";
 import { TensiometroView } from "@/components/exam/tensiometro-view";
+import { TermometroView } from "@/components/exam/termometro-view";
 import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
 import type { Mood } from "@/lib/avatar/commands";
+import type { ExamPose } from "@/lib/avatar/exam-poses";
 import { moodFor } from "@/lib/avatar/mood";
 import type { ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
@@ -38,9 +40,22 @@ export default function ConsultationPage() {
 	// Tensiómetro abierto: con la medición de medir_presion (voz) o sin ella
 	// (botón).
 	const [bp, setBp] = useState<{ start: BpStart | null } | null>(null);
-	const closeBp = useCallback(() => setBp(null), []);
+	const closeBp = useCallback(() => {
+		setBp(null);
+		avatar.current?.exam(null);
+	}, []);
 	const [otoscopy, setOtoscopy] = useState(false);
-	const tool = exam !== null || bp !== null || otoscopy;
+	const [thermo, setThermo] = useState(false);
+	const tool = exam !== null || bp !== null || otoscopy || thermo;
+	// El avatar acompaña el examen: brazo con el manguito o el termómetro.
+	const avatarExam = useCallback(
+		(pose: ExamPose | null) => avatar.current?.exam(pose),
+		[],
+	);
+	const avatarPressure = useCallback(
+		(mmHg: number) => avatar.current?.exam({ kind: "presion", mmHg }),
+		[],
+	);
 	const [closing, setClosing] = useState(false);
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
@@ -309,9 +324,20 @@ export default function ConsultationPage() {
 				{exam ? (
 					<OrofaringeView exam={exam} onClose={closeExam} />
 				) : bp ? (
-					<TensiometroView sessionId={id} start={bp.start} onClose={closeBp} />
+					<TensiometroView
+						sessionId={id}
+						start={bp.start}
+						onPressure={avatarPressure}
+						onClose={closeBp}
+					/>
 				) : otoscopy ? (
 					<OtoscopioView sessionId={id} onClose={() => setOtoscopy(false)} />
+				) : thermo ? (
+					<TermometroView
+						sessionId={id}
+						onAvatar={avatarExam}
+						onClose={() => setThermo(false)}
+					/>
 				) : (
 					<ol className="grid max-h-[55svh] gap-2 overflow-y-auto border p-3">
 						{view.turns.length === 0 && (
@@ -382,6 +408,9 @@ export default function ConsultationPage() {
 						</Button>
 						<Button variant="outline" onClick={() => setOtoscopy(true)}>
 							Examinar el oído
+						</Button>
+						<Button variant="outline" onClick={() => setThermo(true)}>
+							Tomar la temperatura
 						</Button>
 					</div>
 				)}
