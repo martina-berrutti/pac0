@@ -352,8 +352,11 @@ const TOPICS: {
 			"podes tragar",
 			"podés comer",
 			"podes comer",
-			"líquidos",
-			"liquidos",
+			// "Tomá muchos líquidos" es un consejo, no una pregunta.
+			"tomás líquidos",
+			"tomas liquidos",
+			"podés tomar líquidos",
+			"podes tomar liquidos",
 		],
 	},
 	{ key: "voz", words: ["voz", "disfón", "disfon", "ronca"] },
@@ -508,14 +511,57 @@ function asksDiagnosis(text: string) {
 
 // El estudiante le dice qué tiene ("creo que tenés faringitis", "lo que
 // tenés es un resfrío"): el paciente pregunta, no explica (Persona 3).
+const DIAGNOSIS_WORD =
+	"\\w*(itis|gripe|resfri\\w*|angina|esguince|lesion|virus|infeccion)\\b";
+
 function tellsDiagnosis(text: string) {
 	const t = text
 		.toLowerCase()
 		.normalize("NFD")
 		.replace(/\p{Diacritic}/gu, "");
-	if (t.includes("?")) return false;
-	return /\b(tenes|tiene|es) (una |un )?\w*(itis|gripe|resfri\w*|angina|esguince|lesion|virus|infeccion)\b/.test(
-		t,
+	// Hasta la primera pregunta: "tenés una otitis, ¿se entiende?" explica;
+	// "tenés gripe?" (sin "¿") pregunta.
+	const head = t.split("¿")[0];
+	if (head.includes("?")) return false;
+	// De otro: "tu mamá tiene artritis", "alguien en tu casa tiene gripe",
+	// "tu compañera tiene una angina", "la gripe es un virus".
+	if (
+		/\b(alguien|tu (mama|papa|familia|hermano|hermana|pareja|novio|novia|marido|esposo|esposa|abuel\w*|companer\w*|amig\w*)|su (mama|papa|madre|padre|marido|esposo|esposa)|(la|el) (gripe|angina|\w+itis|infeccion|virus|lesion|resfrio) es)\b/.test(
+			head,
+		)
+	)
+		return false;
+	// Preguntas tipeadas sin signos: "tenés un virus o algo así", "tiene una
+	// lesión previa", "¿tuviste otitis antes?". "Antes" solo no: "por eso te
+	// dolía antes" explica.
+	if (
+		/\b(o algo( asi)?|o no|previa|de antes|alguna vez|algun lado)\b|\b(tuviste|tenias)\b.*\bantes\b/.test(
+			head,
+		)
+	)
+		return false;
+	// Sin las muletillas del principio: "bueno, tenés…", "y decime, tenés…".
+	const s = head.replace(
+		/^((y|e|bueno|a ver|ok|che|decime|mira|bien)[\s,]+)+/,
+		"",
+	);
+	return (
+		// Como explicación: "lo que tenés es…", "lo que te pasa es que…",
+		// "creo que tenés…", "por lo que veo en la rodilla tenés…", "debe ser
+		// un virus", "la rodilla tiene una lesión".
+		new RegExp(
+			`\\b(lo que (tenes|tiene|te pasa)\\b[^.?!]{0,25}\\b(es|que tenes|que tiene)|(creo|parece|me parece|seguro|pienso) que (tenes|tiene|es)|por lo que (vi|veo)[^.?!]{0,30}\\b(tenes|tiene|es)|(debe|puede|podria) ser|(seguramente|probablemente) (sea|es)|(es probable|lo mas probable es) que (sea|tengas|tenga)|(la|el|tu|su) (rodilla|oido|garganta|menisco|ligamento) (tiene|tenes))\\b[^.?!]{0,20}${DIAGNOSIS_WORD}`,
+		).test(s) ||
+		// Dicho de frente: "tenés una otitis externa", "te revisé y tenés una
+		// otitis", "te explico: tenés una otitis", "esto es un virus".
+		new RegExp(
+			`([,.;:] ?|\\by |\\b(esto|eso) )(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`,
+		).test(s) ||
+		// Al principio de todo es ambiguo sin signos: "tenés una otitis
+		// externa" explica, pero "tenés una infección urinaria" o "tiene una
+		// lesión vieja" preguntan (solo se mira esa primera parte de la frase).
+		(new RegExp(`^(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`).test(s) &&
+			!/\b(vieja|urinaria|otra|tambien)\b/.test(s.split(/[,.;]| y /)[0]))
 	);
 }
 
@@ -550,19 +596,22 @@ export function ruleRespond(
 		};
 	}
 
-	if (tellsDiagnosis(text)) {
-		return {
-			text: "Ah... ¿y eso qué es? ¿Es grave? ¿Qué tengo que hacer?",
-			delta: null,
-		};
-	}
-
 	let delta: Partial<PatientState> | null = null;
 	let motivo: string | undefined;
 	// Las mismas reglas que el clasificador: "no entiendo" no es empatía.
 	if (showsEmpathy(studentText)) {
 		delta = { confianza: Math.min(1, state.confianza + 0.15) };
 		motivo = "el estudiante mostró empatía";
+	}
+
+	// Después de la empatía: "tranquila, tenés una angina, se cura" también
+	// suma confianza.
+	if (tellsDiagnosis(text)) {
+		return {
+			text: "Ah... ¿y eso qué es? ¿Es grave? ¿Qué tengo que hacer?",
+			delta,
+			motivo,
+		};
 	}
 
 	if (!text.includes("?") && has(text, FAREWELL)) {

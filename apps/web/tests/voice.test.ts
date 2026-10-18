@@ -199,7 +199,11 @@ describe("herramientas del paciente", () => {
 		expect(saved?.shown).toEqual({ pas, pad });
 		// Ni el modelo ni la pantalla reciben el valor: lo mide el estudiante.
 		expect(JSON.stringify(run.output)).not.toContain(String(pas));
-		expect(JSON.stringify(run.ui)).not.toContain("112");
+		// Los valores, no el JSON entero: el id aleatorio de la medición a veces
+		// contiene "112" y el test fallaba de a ratos.
+		expect(run.ui).not.toHaveProperty("shown");
+		expect(Object.values(run.ui)).not.toContain(pas);
+		expect(Object.values(run.ui)).not.toContain(pad);
 		expect(run.ui.kind === "vitals" && run.ui.measurementId).toBe(saved?.id);
 		const bad = measure([112, 70], [], null, 26);
 		expect(bad.shown.pas).toBeGreaterThan(112);

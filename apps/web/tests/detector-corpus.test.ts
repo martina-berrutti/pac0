@@ -881,10 +881,65 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 	test.each([
 		["oido", "por lo que vi tenes una otitis externa"],
 		["oido", "te saco el otoscopio, tenés una otitis"],
+		["garganta", "lo que tenés es una faringitis"],
+		["garganta", "creo que tenés una angina"],
+		["garganta", "tranquila, tenés una angina, se cura"],
+		["oido", "Tenés una otitis externa"],
+		["garganta", "tenés una faringitis viral, así que reposo"],
+		["oido", "Te revisé y tenés una otitis"],
+		["rodilla", "Tiene una lesión de menisco, señora"],
+		["rodilla", "por lo que veo en la rodilla tenés una lesión del menisco"],
+		["oido", "Lo que tenés en el oído es una otitis"],
+		["garganta", "Lo que te pasa es que tenés una angina"],
+		["garganta", "Debe ser un virus"],
+		["rodilla", "La rodilla tiene una lesión del menisco"],
+		["garganta", "esto es un virus"],
+		["oido", "Te explico: tenés una otitis externa"],
+		["oido", "Es una otitis, por eso te dolía antes de meterte al agua"],
+		["rodilla", "Es probable que tengas una lesión del menisco"],
+		["garganta", "lo más probable es que sea un virus"],
+		["oido", "tenés una otitis, ¿se entiende?"],
+		["oido", "Es una otitis crónica reagudizada"],
+		["oido", "Tenés una otitis y también un tapón de cera"],
+		["garganta", "tenés una faringitis, también podés hacer gárgaras"],
+		["rodilla", "Es una lesión de menisco, la otra rodilla está bien"],
+		["garganta", "es un virus, otra cosa no parece"],
 	])("un diagnóstico dicho no es antecedentes (%s): %s", (name, t) => {
 		const { text: r, brief } = reply(name, t);
 		expect(r).toContain("¿y eso qué es?");
 		expect(r).not.toContain(brief.history.antecedentes);
+	});
+	// Sin signos de pregunta (por voz o tipeado rápido) siguen siendo preguntas,
+	// o hablan de otro.
+	test.each([
+		["oido", "tenes resfrio o algo"],
+		["garganta", "tenes gripe"],
+		["garganta", "tenes una infeccion en algun lado"],
+		["presion", "tu mama tiene artritis"],
+		["garganta", "alguien en tu casa tiene gripe"],
+		["garganta", "la gripe es un virus"],
+		["garganta", "y decime, tenes una infeccion urinaria o algo"],
+		["rodilla", "bueno, tiene una lesion previa en esa rodilla"],
+		["garganta", "a ver, tenes un virus o algo asi"],
+		["garganta", "tu compañera de apartamento, tiene una angina"],
+		["garganta", "tenes una infeccion urinaria"],
+		["rodilla", "tiene una lesion vieja en esa rodilla"],
+		["rodilla", "tenes una lesion en la otra rodilla tambien"],
+		["oido", "tuviste otitis antes"],
+	])("no es decirle el diagnóstico (%s): %s", (name, t) =>
+		expect(reply(name, t).text).not.toContain("¿y eso qué es?"),
+	);
+	test("decirle el diagnóstico con empatía también suma confianza", () => {
+		const line = "tranquila, tenés una angina, se cura";
+		const { brief } = reply("garganta", line);
+		expect(ruleRespond(brief, state, line, 3).delta?.confianza).toBeDefined();
+	});
+	test("un consejo con líquidos no es la pregunta de tragar", () => {
+		const { text: r, brief } = reply(
+			"garganta",
+			"hacé reposo y tomá muchos líquidos",
+		);
+		expect(r).not.toContain(brief.history.tragar);
 	});
 	test.each([
 		["garganta", "¿Roncás de noche?"],
