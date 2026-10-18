@@ -619,6 +619,9 @@ export function useVoice({
 		const old = live.current;
 		live.current = null;
 		conn.current += 1;
+		// La conexión nueva no recibió la respuesta de herramienta pendiente: el
+		// paciente no va a contestarla, así que las notas no la esperan.
+		awaitingReply.current = false;
 		old.close();
 		stopPlayback();
 		setStatus("reconnecting");
