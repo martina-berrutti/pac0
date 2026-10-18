@@ -96,6 +96,8 @@ export default function ConsultationPage() {
 	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
 	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
+	const closingNow = useRef(closing);
+	closingNow.current = closing;
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
 	// Plan B si falla la voz o el wifi (plan.md, sección 14): la consulta sigue
@@ -128,6 +130,8 @@ export default function ConsultationPage() {
 	function checkStudent(turn: Turn, byText: boolean) {
 		if (turn.speaker !== "estudiante") return;
 		lastStudent.current = turn.text;
+		// Una respuesta que llega con la consulta ya cerrándose no abre nada.
+		if (closingNow.current) return;
 		if (examOpen) {
 			if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
 		} else if (!tool && asksForTemperature(turn.text)) {
@@ -177,7 +181,7 @@ export default function ConsultationPage() {
 			}
 			// Con el tensiómetro abierto se sigue con el que está (el servidor
 			// actualiza esa medición si todavía no tiene manguito).
-			if (ui.kind === "vitals")
+			if (ui.kind === "vitals" && !closingNow.current)
 				setBp(
 					(open) =>
 						open ?? {
@@ -189,6 +193,7 @@ export default function ConsultationPage() {
 				ui.kind === "region" &&
 				ui.available &&
 				!toolOpen.current &&
+				!closingNow.current &&
 				/rodill|pierna/i.test(ui.region)
 			)
 				setPain(true);
@@ -440,13 +445,12 @@ export default function ConsultationPage() {
 			const { list } = prepareDifferentials(differentials);
 			// Primero se terminan de guardar los últimos turnos de la voz y el
 			// examen abierto: si no, el informe sale sin ellos y el servidor los
-			// rechaza por consulta cerrada. Cada guardado ya tiene su tope (15 s
-			// por pedido, 10 s por examen); este es un resguardo por encima de
-			// esos, no uno más corto que los corte. El botón dice qué está pasando.
+			// rechaza por consulta cerrada. No hace falta otro tope: cada guardado
+			// ya tiene el suyo (15 s por pedido, 10 s por examen), y uno más corto
+			// los cortaría. El botón dice qué está pasando.
 			setFinishStep("guardando");
-			const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-			await Promise.race([voice.drain(), wait(20_000)]);
-			await Promise.race([closes.settled(), wait(12_000)]);
+			await voice.drain();
+			await closes.settled();
 			setFinishStep("informe");
 			await api.finish(id, hypothesis, list);
 			router.push(`/informe/${id}`);
