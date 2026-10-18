@@ -44,6 +44,46 @@ type State = {
 };
 const states = new WeakMap<TalkingHead, State>();
 
+// three se carga una sola vez (lo usan las poses y examPoint).
+let threeModule: Three | null = null;
+export async function loadThree() {
+	threeModule ??= await import("three");
+	return threeModule;
+}
+
+export type ExamPoint = "axila" | "brazo";
+
+// Dónde cae en pantalla la axila o la mitad del brazo izquierdo, en píxeles
+// dentro del lienzo del avatar. Sirve para soltar el termómetro o el
+// manguito "sobre" el paciente aunque se mueva.
+export function examPoint(
+	h: TalkingHead,
+	part: ExamPoint,
+	width: number,
+	height: number,
+) {
+	const three = threeModule;
+	const arm = h.armature?.getObjectByName("LeftArm");
+	const other = h.armature?.getObjectByName(
+		part === "brazo" ? "LeftForeArm" : "Spine2",
+	);
+	if (!three || !arm || !other) return null;
+	const a = arm.getWorldPosition(
+		new three.Vector3(),
+	) as unknown as InstanceType<Three["Vector3"]>;
+	const b = other.getWorldPosition(
+		new three.Vector3(),
+	) as unknown as InstanceType<Three["Vector3"]>;
+	// Brazo: casi la mitad entre el hombro y el codo. Axila: un poco hacia
+	// el pecho y por debajo del hombro.
+	const p = a
+		.clone()
+		.add(b.sub(a).multiplyScalar(part === "brazo" ? 0.45 : 0.3));
+	if (part === "axila") p.y -= 0.09;
+	p.project(h.camera);
+	return { x: ((p.x + 1) / 2) * width, y: ((1 - p.y) / 2) * height };
+}
+
 // Los huesos del avatar, como objetos de three (talkinghead.d.ts los tipa
 // solo para la cámara).
 function bones(h: TalkingHead) {
@@ -163,7 +203,7 @@ export async function applyExamPose(h: TalkingHead, pose: ExamPose | null) {
 		s.previousView = null;
 		return;
 	}
-	const three = await import("three");
+	const three = await loadThree();
 	if (s.previousView === null) s.previousView = h.viewName;
 	// Plano medio: entran la cara y el brazo extendido o levantado.
 	if (h.viewName !== "mid") h.setView("mid");

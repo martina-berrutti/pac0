@@ -14,6 +14,8 @@ import {
 	type PatientAvatarHandle,
 } from "@/components/avatar/patient-avatar";
 
+import { TryIt, type TryMode } from "./try-it";
+
 const SCENE_MS = 5000;
 const SCENES = [
 	{
@@ -64,6 +66,9 @@ export function ConsultationDemo() {
 	const [ready, setReady] = useState(false);
 	const [t, setT] = useState(0);
 	const [playing, setPlaying] = useState(true);
+	// "Probalo vos": el mismo avatar, manejado por quien visita.
+	const [mode, setMode] = useState<"clip" | TryMode>("clip");
+	const clip = mode === "clip";
 	const lastScene = useRef(-1);
 	const spoke = useRef(-1);
 
@@ -90,13 +95,13 @@ export function ConsultationDemo() {
 	}, []);
 
 	useEffect(() => {
-		if (!playing || !ready) return;
+		if (!playing || !ready || !clip) return;
 		const id = setInterval(
 			() => setT((x) => (x + TICK_MS) % TOTAL_MS),
 			TICK_MS,
 		);
 		return () => clearInterval(id);
-	}, [playing, ready]);
+	}, [playing, ready, clip]);
 
 	const scene = Math.floor(t / SCENE_MS);
 	const local = t % SCENE_MS;
@@ -105,7 +110,7 @@ export function ConsultationDemo() {
 	// Lo que hace el avatar en cada momento.
 	useEffect(() => {
 		const a = avatar.current;
-		if (!a || !ready) return;
+		if (!a || !ready || !clip) return;
 		if (scene !== lastScene.current) {
 			lastScene.current = scene;
 			spoke.current = -1;
@@ -126,7 +131,20 @@ export function ConsultationDemo() {
 			spoke.current = scene;
 			a.mimicSpeech(1600);
 		}
-	}, [scene, local, ready, current.patient]);
+	}, [scene, local, ready, current.patient, clip]);
+
+	function tryIt(next: TryMode) {
+		avatar.current?.exam(null);
+		avatar.current?.run({ kind: "mood", mood: "neutral" });
+		setMode(next);
+	}
+
+	function backToClip() {
+		avatar.current?.exam(null);
+		lastScene.current = -1;
+		setT(0);
+		setMode("clip");
+	}
 
 	const jump = useCallback((i: number) => {
 		lastScene.current = -1;
@@ -154,12 +172,12 @@ export function ConsultationDemo() {
 					)}
 
 					{/* Lecturas sobre la escena */}
-					{ready && scene === 1 && local >= 1800 && (
+					{ready && clip && scene === 1 && local >= 1800 && (
 						<span className="absolute top-4 left-4 rounded-md border-2 border-foreground/70 bg-card px-2 py-0.5 font-mono text-xl tabular-nums">
 							{temp.toFixed(1).replace(".", ",")} °C
 						</span>
 					)}
-					{ready && scene === 2 && (
+					{ready && clip && scene === 2 && (
 						<span className="absolute top-4 left-4 grid rounded-md border-2 border-foreground/70 bg-card px-2 py-1 leading-tight">
 							<span className="font-mono text-xl tabular-nums">
 								{Math.round(cuffAt(local) / 2) * 2}
@@ -172,7 +190,7 @@ export function ConsultationDemo() {
 					)}
 
 					{/* La devolución */}
-					{ready && scene === 3 && (
+					{ready && clip && scene === 3 && (
 						<div className="absolute inset-0 grid place-items-center bg-background/55">
 							<div
 								className="relative w-[70%] max-w-xs rotate-[-2deg] border border-border bg-card px-5 py-4 shadow-lg"
@@ -195,7 +213,7 @@ export function ConsultationDemo() {
 					)}
 
 					{/* Subtítulos */}
-					{ready && scene < 3 && (
+					{ready && clip && scene < 3 && (
 						<div className="absolute inset-x-3 bottom-3 grid gap-1.5 text-sm sm:text-[0.95rem]">
 							<p className="w-fit max-w-[85%] justify-self-end rounded-xl rounded-br-sm bg-primary px-3 py-1.5 text-primary-foreground">
 								{current.you}
@@ -207,6 +225,9 @@ export function ConsultationDemo() {
 								</p>
 							)}
 						</div>
+					)}
+					{ready && mode !== "clip" && (
+						<TryIt mode={mode} avatar={avatar} onMode={tryIt} />
 					)}
 				</div>
 
@@ -237,21 +258,56 @@ export function ConsultationDemo() {
 				</div>
 			</div>
 
-			{/* Capítulos: también sirven para saltar de escena */}
-			<figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-				{SCENES.map((s, i) => (
+			{/* Capítulos (en el clip) o la salida del modo interactivo */}
+			{clip ? (
+				<figcaption className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+					{SCENES.map((s, i) => (
+						<button
+							key={s.label}
+							type="button"
+							disabled={!ready}
+							onClick={() => jump(i)}
+							className={`underline-offset-4 hover:underline disabled:opacity-40 ${i === scene ? "font-semibold text-foreground underline decoration-2 decoration-pen" : "text-muted-foreground"}`}
+							aria-current={i === scene ? "step" : undefined}
+						>
+							{i + 1}. {s.label}
+						</button>
+					))}
+				</figcaption>
+			) : (
+				<button
+					type="button"
+					onClick={backToClip}
+					className="w-fit text-muted-foreground text-sm underline-offset-4 hover:underline"
+				>
+					← Volver al clip
+				</button>
+			)}
+
+			{/* Probalo vos: el mismo avatar, con el mouse */}
+			<div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border border-dashed px-4 py-3">
+				<span className="font-hand text-2xl text-pen leading-none">
+					¡probalo vos!
+				</span>
+				{(["temperatura", "presion"] as const).map((m) => (
 					<button
-						key={s.label}
+						key={m}
 						type="button"
 						disabled={!ready}
-						onClick={() => jump(i)}
-						className={`underline-offset-4 hover:underline disabled:opacity-40 ${i === scene ? "font-semibold text-foreground underline decoration-2 decoration-pen" : "text-muted-foreground"}`}
-						aria-current={i === scene ? "step" : undefined}
+						onClick={() => tryIt(m)}
+						aria-pressed={mode === m}
+						className={`rounded-[0.7rem] px-3.5 py-2 font-semibold text-sm transition-colors disabled:opacity-40 ${
+							mode === m
+								? "border-black/25 border-b-[3px] bg-primary text-primary-foreground"
+								: "border border-input bg-card hover:bg-muted"
+						}`}
 					>
-						{i + 1}. {s.label}
+						{m === "temperatura"
+							? "Tomale la temperatura"
+							: "Tomale la presión"}
 					</button>
 				))}
-			</figcaption>
+			</div>
 		</figure>
 	);
 }

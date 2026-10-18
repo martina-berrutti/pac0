@@ -53,3 +53,22 @@ export function audible(
 		pressure >= gauge.pad
 	);
 }
+
+// Válvula que se gira arrastrando en círculo (el "Probalo vos" del inicio):
+// grados girados → mmHg que baja por segundo. Hasta 90° es la apertura justa
+// para escuchar (2 a 3 mmHg/s); pasados los 180° se desinfla de golpe.
+export const VALVE_MAX_DEG = 270;
+export const TOO_FAST_PER_S = 8;
+
+export function valveRate(deg: number) {
+	const d = Math.min(VALVE_MAX_DEG, Math.max(0, deg));
+	if (d <= 90) return 0.3 + (d / 90) * 2.7;
+	if (d <= 180) return 3 + ((d - 90) / 90) * 3;
+	return 6 + ((d - 180) / 90) * 34;
+}
+
+// Rueda del mouse o dos dedos en el touchpad: cada evento infla un poco. El
+// touchpad manda muchos eventos chicos y la rueda pocos grandes.
+export function wheelPump(pressure: number, deltaY: number) {
+	return Math.min(MAX_MMHG, pressure + Math.min(30, Math.abs(deltaY)) * 0.25);
+}

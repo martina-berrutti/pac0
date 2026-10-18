@@ -10,6 +10,9 @@ import {
 	NEXT_VALVE,
 	needleAngle,
 	pump,
+	TOO_FAST_PER_S,
+	valveRate,
+	wheelPump,
 } from "@/lib/exam/manometer";
 
 describe("tensiómetro de pera", () => {
@@ -68,5 +71,21 @@ describe("pedir la temperatura", () => {
 			"¿Tenés termómetro en tu casa?",
 		])
 			expect(asksForTemperature(t), t).toBe(false);
+	});
+});
+
+describe("válvula giratoria y rueda", () => {
+	test("hasta 90° baja de 2 a 3 mmHg/s; pasados 180°, de golpe", () => {
+		expect(valveRate(0)).toBeLessThan(1);
+		expect(valveRate(90)).toBeCloseTo(3);
+		expect(valveRate(60)).toBeGreaterThanOrEqual(2);
+		expect(valveRate(270)).toBe(40);
+		expect(valveRate(200)).toBeGreaterThan(TOO_FAST_PER_S);
+	});
+
+	test("la rueda infla de a poco y no pasa el máximo", () => {
+		expect(wheelPump(0, 4)).toBe(1);
+		expect(wheelPump(0, -100)).toBe(7.5);
+		expect(wheelPump(299, 100)).toBe(MAX_MMHG);
 	});
 });

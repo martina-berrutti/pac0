@@ -14,7 +14,13 @@ import {
 } from "react";
 
 import { type AvatarAction, FACES, type Mood } from "@/lib/avatar/commands";
-import { applyExamPose, type ExamPose } from "@/lib/avatar/exam-poses";
+import {
+	applyExamPose,
+	type ExamPoint,
+	type ExamPose,
+	examPoint,
+	loadThree,
+} from "@/lib/avatar/exam-poses";
 
 const AVATAR_URL = "/avatar/mpfb.glb";
 const WORKLET_URL = "/avatar/headworklet.min.mjs";
@@ -125,6 +131,8 @@ export type PatientAvatarHandle = {
 	exam: (pose: ExamPose | null) => void;
 	// Mueve la boca como si hablara, sin audio (el clip del inicio).
 	mimicSpeech: (ms: number) => void;
+	// Dónde está la axila o el brazo en el lienzo (px), o null si no cargó.
+	point: (part: ExamPoint) => { x: number; y: number } | null;
 	// Lleva la cámara a la boca o al oído (null: vuelve a la cara). Se
 	// resuelve cuando termina el recorrido.
 	focus: (part: FocusPart | null) => Promise<void>;
@@ -355,6 +363,13 @@ export function PatientAvatar({
 		exam(pose) {
 			const h = head.current;
 			if (h) void applyExamPose(h, pose);
+		},
+		point(part) {
+			const h = head.current;
+			const el = node.current;
+			if (!h || !el) return null;
+			void loadThree();
+			return examPoint(h, part, el.clientWidth, el.clientHeight);
 		},
 		mimicSpeech(ms) {
 			const h = head.current;

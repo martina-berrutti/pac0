@@ -37,6 +37,20 @@ declare module "three" {
 	export class Mesh extends Group {
 		constructor(geometry: unknown, material: unknown);
 	}
+	export class Vector3 {
+		constructor(x?: number, y?: number, z?: number);
+		x: number;
+		y: number;
+		z: number;
+		clone(): Vector3;
+		add(v: Vector3): Vector3;
+		sub(v: Vector3): Vector3;
+		multiplyScalar(s: number): Vector3;
+		set(x: number, y: number, z: number): Vector3;
+		normalize(): Vector3;
+		copy(v: Vector3): Vector3;
+		project(camera: unknown): Vector3;
+	}
 	export class CylinderGeometry {
 		constructor(
 			radiusTop: number,
