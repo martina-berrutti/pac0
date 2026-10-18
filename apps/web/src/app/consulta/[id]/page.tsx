@@ -29,10 +29,15 @@ import { ApiError, api } from "@/lib/api-client";
 import type { Mood } from "@/lib/avatar/commands";
 import type { ExamPose } from "@/lib/avatar/exam-poses";
 import { moodFor } from "@/lib/avatar/mood";
+import {
+	differentialsNotice,
+	MAX_DIFFERENTIALS,
+	MAX_HYPOTHESIS_LENGTH,
+	prepareDifferentials,
+} from "@/lib/consulta/differentials";
 import { createPendingCloses } from "@/lib/consulta/pending-closes";
 import type { Ear, ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
-import { cutText } from "@/lib/cut-text";
 import {
 	asksForBloodPressure,
 	asksForEarExam,
@@ -417,12 +422,9 @@ export default function ConsultationPage() {
 		event.preventDefault();
 		setSending(true);
 		try {
-			const list = differentials
-				.split(",")
-				.map((d) => cutText(d.trim(), 100))
-				.filter(Boolean)
-				// El servidor acepta hasta 10; más darían "Datos inválidos".
-				.slice(0, 10);
+			// Hasta 10, de hasta 100 caracteres: el servidor no acepta más. La
+			// pantalla ya avisó lo que se recorta.
+			const { list } = prepareDifferentials(differentials);
 			// Primero se terminan de guardar los últimos turnos de la voz: si no,
 			// el informe sale sin ellos y el servidor los rechaza por consulta cerrada.
 			// Con tope: si la voz quedó colgada, no se traba la ida al informe.
@@ -643,35 +645,53 @@ export default function ConsultationPage() {
 						</label>
 						<p id="hipotesis-ayuda" className="text-muted-foreground text-xs">
 							Lo que creés que tiene y en qué te basás: lo que te contó y lo que
-							viste.
+							viste. Hasta {MAX_HYPOTHESIS_LENGTH} caracteres.
 						</p>
 						<Textarea
 							id="hipotesis"
-							aria-describedby="hipotesis-ayuda"
+							aria-describedby="hipotesis-ayuda hipotesis-cuenta"
 							value={hypothesis}
 							onChange={(e) => setHypothesis(e.target.value)}
-							maxLength={500}
+							maxLength={MAX_HYPOTHESIS_LENGTH}
 							required
 						/>
+						<p
+							id="hipotesis-cuenta"
+							aria-live="polite"
+							className={`justify-self-end text-xs ${hypothesis.length >= MAX_HYPOTHESIS_LENGTH ? "text-destructive" : "text-muted-foreground"}`}
+						>
+							{hypothesis.length >= MAX_HYPOTHESIS_LENGTH
+								? `Llegaste al máximo de ${MAX_HYPOTHESIS_LENGTH} caracteres.`
+								: `${hypothesis.length} / ${MAX_HYPOTHESIS_LENGTH}`}
+						</p>
 						<label htmlFor="diferenciales" className="font-medium">
 							Diagnósticos diferenciales
 						</label>
-						{/* El ejemplo es de otro tema a propósito: no da pistas del caso. */}
+						{/* El ejemplo es de un tema que no está en ningún caso ni plantilla
+						(abdomen): no da pistas. Si se suma un caso de panza, cambiarlo. */}
 						<p
 							id="diferenciales-ayuda"
 							className="text-muted-foreground text-xs"
 						>
 							Otros diagnósticos que también podrían explicar lo que tiene y que
-							pensaste antes de quedarte con tu hipótesis. Por ejemplo, para un
-							dolor de pecho: infarto, reflujo, contractura.
+							pensaste antes de quedarte con tu hipótesis. Escribilos separados
+							por coma, hasta {MAX_DIFFERENTIALS}. Por ejemplo, para un dolor de
+							panza: apendicitis, gastroenteritis, cólico renal.
 						</p>
 						<Input
 							id="diferenciales"
-							aria-describedby="diferenciales-ayuda"
+							aria-describedby="diferenciales-ayuda diferenciales-aviso"
 							placeholder="Separados por coma"
 							value={differentials}
 							onChange={(e) => setDifferentials(e.target.value)}
 						/>
+						<p
+							id="diferenciales-aviso"
+							aria-live="polite"
+							className="text-destructive text-xs empty:hidden"
+						>
+							{differentialsNotice(differentials)}
+						</p>
 						<Button type="submit" disabled={sending || !hypothesis.trim()}>
 							Ver mi informe
 						</Button>
