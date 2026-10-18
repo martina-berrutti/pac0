@@ -411,11 +411,18 @@ export default function ConsultationPage() {
 				.slice(0, 10);
 			// Primero se terminan de guardar los últimos turnos de la voz: si no,
 			// el informe sale sin ellos y el servidor los rechaza por consulta cerrada.
-			await voice.drain();
-			await closes.settled();
+			// Con tope: si la voz quedó colgada, no se traba la ida al informe.
+			const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+			await Promise.race([voice.drain(), wait(4000)]);
+			await Promise.race([closes.settled(), wait(4000)]);
 			await api.finish(id, hypothesis, list);
 			router.push(`/informe/${id}`);
 		} catch (e) {
+			// Ya estaba cerrada (por ejemplo, un primer clic que llegó): al informe.
+			if (e instanceof ApiError && e.status === 409) {
+				router.push(`/informe/${id}`);
+				return;
+			}
 			toast.error(
 				e instanceof ApiError ? e.message : "No se pudo cerrar la consulta.",
 			);
