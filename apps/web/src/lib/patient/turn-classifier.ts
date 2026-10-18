@@ -152,20 +152,23 @@ const FEELING =
 
 function sentenceShowsEmpathy(t: string, question: boolean) {
 	if (/(^| )no (te |le |lo |la )?entiendo( |$)/.test(t)) return false;
-	// "Debe ser difícil" (también "debe ser difícil, ¿no?") sí; "debe ser viral" no.
-	if (FEELING.test(t)) return true;
-	if (/(quedate|estate|esta) tranquil[ao]/.test(t)) return true;
 	if (question) {
-		if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return false;
-		if (/(es normal que|imagino que|debe ser)/.test(t)) return false;
-	} else if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
+		// "¿Es normal que tengas fiebre?", "¿dormís tranquilo?", "¿está
+		// tranquila?" o "¿debe ser doloroso?" no son empatía.
+		if (/(es normal que|imagino que|debe ser|tranquil)/.test(t)) return false;
+	} else {
+		// "Debe ser difícil" sí; "debe ser viral" o "no debe ser tan grave" no.
+		if (FEELING.test(t) && !/(^| )no deb/.test(t)) return true;
+		if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
+	}
 	// Desde el comienzo de una palabra: "reglamento" no es "lamento".
 	return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(t));
 }
 
-// La usa también el paciente sin IA.
+// La usa también el paciente sin IA. Lo de antes del "¿" se juzga aparte:
+// "Tranquila, ¿desde cuándo te duele?" o "debe ser difícil, ¿no?".
 export function showsEmpathy(text: string) {
-	const sentences = text.match(/[^.?!]+[.?!]*/g) ?? [];
+	const sentences = text.replace(/¿/g, ".¿").match(/[^.?!]+[.?!]*/g) ?? [];
 	return sentences.some((s) =>
 		sentenceShowsEmpathy(normalize(s), s.includes("?") || s.includes("¿")),
 	);
