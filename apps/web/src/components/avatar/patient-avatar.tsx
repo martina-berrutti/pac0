@@ -36,11 +36,12 @@ const CAMERA_DISTANCE = 2;
 // están en ±0,032, 0,108, 0,089): así siguen a la cabeza si gira o se
 // inclina. Lente en grados (la vista normal es 10°). Medido sobre el MPFB.
 type Xyz = [number, number, number];
-export type FocusPart = "mouth" | "ear";
+export type FocusPart = "mouth" | "leftEar" | "rightEar";
 const FOCUS: Record<FocusPart, { target: Xyz; from: Xyz; fov: number }> = {
 	mouth: { target: [0, 0.03, 0.11], from: [0, 0.05, 1], fov: 3.2 },
-	// Oído izquierdo del paciente: la cámara se va a su costado.
-	ear: { target: [0.075, 0.074, 0], from: [1, 0.05, 0.2], fov: 3 },
+	// Oídos del paciente: la cámara se va a su costado.
+	leftEar: { target: [0.075, 0.074, 0], from: [1, 0.05, 0.2], fov: 3 },
+	rightEar: { target: [-0.075, 0.074, 0], from: [-1, 0.05, 0.2], fov: 3 },
 };
 
 // Dónde mirar y desde dónde, según dónde está ahora la cabeza.

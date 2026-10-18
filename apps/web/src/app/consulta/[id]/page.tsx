@@ -18,17 +18,22 @@ import {
 	PatientAvatar,
 	type PatientAvatarHandle,
 } from "@/components/avatar/patient-avatar";
+import { OidoFotoView } from "@/components/exam/oido-foto-view";
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
-import { OtoscopioView } from "@/components/exam/otoscopio-view";
 import { TensiometroView } from "@/components/exam/tensiometro-view";
 import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
 import type { Mood } from "@/lib/avatar/commands";
 import { moodFor } from "@/lib/avatar/mood";
-import type { ExamResult } from "@/lib/contracts/exam";
+import type { Ear, ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
-import { asksToEndExam } from "@/lib/exam/end-intent";
+import {
+	asksForBloodPressure,
+	asksForEarExam,
+	asksToEndExam,
+	earIn,
+} from "@/lib/exam/end-intent";
 import { useVoice } from "@/lib/voice/use-voice";
 import type { SessionView } from "@/server/consultation";
 import type { BpStart } from "@/server/vitals";
@@ -44,8 +49,9 @@ export default function ConsultationPage() {
 	// Tensiómetro abierto, con la medición de medir_presion (voz).
 	const [bp, setBp] = useState<{ start: BpStart | null } | null>(null);
 	const closeBp = useCallback(() => setBp(null), []);
-	const [otoscopy, setOtoscopy] = useState(false);
-	const tool = exam !== null || bp !== null || otoscopy;
+	// Oído que se está mirando (foto del otoscopio).
+	const [ear, setEar] = useState<Ear | null>(null);
+	const tool = exam !== null || bp !== null || ear !== null;
 	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
 	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
@@ -68,23 +74,33 @@ export default function ConsultationPage() {
 	// "Cerrá la boca", "ya está": la garganta o el oído abiertos se cierran
 	// solos (el tensiómetro no, tiene sus pasos).
 	const [endRequest, setEndRequest] = useState(0);
-	const examOpen = exam !== null || otoscopy;
-	function checkEnd(turn: Turn) {
-		if (examOpen && turn.speaker === "estudiante" && asksToEndExam(turn.text))
-			setEndRequest((n) => n + 1);
+	const examOpen = exam !== null || ear !== null;
+	// Lo último que dijo el estudiante: de ahí sale qué oído pidió.
+	const lastStudent = useRef("");
+	// Por voz, el modelo abre los exámenes con herramientas; por texto (plan
+	// B), se piden con las mismas palabras.
+	function checkStudent(turn: Turn, byText: boolean) {
+		if (turn.speaker !== "estudiante") return;
+		lastStudent.current = turn.text;
+		if (examOpen) {
+			if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
+		} else if (byText && !tool) {
+			if (asksForEarExam(turn.text)) setEar(earIn(turn.text));
+			else if (asksForBloodPressure(turn.text)) setBp({ start: null });
+		}
 	}
 
 	const voice = useVoice({
 		sessionId: id,
 		onTurn: (turn: Turn) => {
 			setView((v) => (v ? { ...v, turns: [...v.turns, turn] } : v));
-			checkEnd(turn);
+			checkStudent(turn, false);
 		},
 		onState: showState,
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
 			if (ui.kind === "exam") setExam(ui.exam);
-			if (ui.kind === "otoscope") setOtoscopy(true);
+			if (ui.kind === "otoscope") setEar(earIn(lastStudent.current));
 			if (ui.kind === "vitals")
 				setBp({
 					start: { measurementId: ui.measurementId, armCm: ui.armCm },
@@ -140,9 +156,15 @@ export default function ConsultationPage() {
 		let cancelled = false;
 		let part: FocusPart | null = null;
 		if (examVariant === "negado") {
-			// No abre la boca: niega con la cabeza y el examen avisa por qué.
+			// No abre la boca: niega con la cabeza, sin zoom ni foto.
 			a?.run({ kind: "face", face: "no" });
-		} else if (examVariant) {
+			toast.info(
+				"No quiso abrir la boca. Explicale qué vas a hacer y pedile permiso.",
+			);
+			const timer = setTimeout(() => setExam(null), 2500);
+			return () => clearTimeout(timer);
+		}
+		if (examVariant) {
 			part = "mouth";
 			// Abierta mientras dure el examen (se cierra al volver).
 			a?.run({
@@ -150,8 +172,8 @@ export default function ConsultationPage() {
 				tongue: examVariant === "completa",
 				ms: 10 * 60_000,
 			});
-		} else if (otoscopy) {
-			part = "ear";
+		} else if (ear) {
+			part = ear === "izquierdo" ? "leftEar" : "rightEar";
 		}
 		(part ? (a?.focus(part) ?? Promise.resolve()) : Promise.resolve()).then(
 			() => {
@@ -161,7 +183,7 @@ export default function ConsultationPage() {
 		return () => {
 			cancelled = true;
 		};
-	}, [tool, examVariant, otoscopy]);
+	}, [tool, examVariant, ear]);
 
 	useEffect(() => {
 		api
@@ -224,7 +246,7 @@ export default function ConsultationPage() {
 		voice.stop();
 		setExam(null);
 		setBp(null);
-		setOtoscopy(false);
+		setEar(null);
 		setClosing(true);
 	}
 
@@ -239,8 +261,10 @@ export default function ConsultationPage() {
 			setView((v) =>
 				v ? { ...v, turns: [...v.turns, r.studentTurn, r.patientTurn] } : v,
 			);
-			checkEnd(r.studentTurn);
-			if (r.exam) setExam(r.exam);
+			checkStudent(r.studentTurn, true);
+			// El servidor por texto toma "revisar" como pedido de garganta: si
+			// nombró el oído, se muestra el oído.
+			if (r.exam && !asksForEarExam(text)) setExam(r.exam);
 		} catch (e) {
 			toast.error(
 				e instanceof ApiError
@@ -355,25 +379,6 @@ export default function ConsultationPage() {
 									{typing ? "…" : "Enviar"}
 								</Button>
 							</form>
-							{/* Por texto solo se abre la garganta: el resto, con botones. */}
-							<div
-								className={`flex justify-center gap-2 ${tool ? "hidden" : ""}`}
-							>
-								<Button
-									size="sm"
-									variant="secondary"
-									onClick={() => setBp({ start: null })}
-								>
-									Tomar la presión
-								</Button>
-								<Button
-									size="sm"
-									variant="secondary"
-									onClick={() => setOtoscopy(true)}
-								>
-									Examinar el oído
-								</Button>
-							</div>
 						</div>
 					) : (
 						<div className="grid max-w-sm justify-items-center gap-2 rounded-lg bg-background/85 p-3 text-center shadow backdrop-blur">
@@ -408,28 +413,35 @@ export default function ConsultationPage() {
 				<div
 					className={`absolute inset-0 grid place-items-center overflow-y-auto bg-black/30 p-4 pt-16 ${textMode ? "pb-20" : ""}`}
 				>
-					{/* La foto es 4:3: el ancho se limita para que entre a lo alto. */}
-					<div className="fade-in zoom-in-50 w-full max-w-[min(42rem,calc((100svh-18rem)*4/3))] animate-in rounded-lg bg-background p-3 shadow-2xl duration-500">
-						{exam ? (
+					{exam ? (
+						// Solo la foto, grande (es 4:3: el ancho se limita por el alto).
+						<div className="fade-in zoom-in-50 w-[min(92vw,calc((100svh-7rem)*4/3))] animate-in duration-500">
 							<OrofaringeView
 								exam={exam}
 								onClose={closeExam}
 								endRequest={endRequest}
+								bare
 							/>
-						) : bp ? (
+						</div>
+					) : ear ? (
+						<div className="fade-in zoom-in-50 animate-in duration-500">
+							<OidoFotoView
+								sessionId={id}
+								ear={ear}
+								onClose={() => setEar(null)}
+								endRequest={endRequest}
+							/>
+						</div>
+					) : bp ? (
+						// El tensiómetro tiene sus pasos (manguito, inflar, marcar).
+						<div className="fade-in zoom-in-50 w-full max-w-2xl animate-in rounded-lg bg-background p-3 shadow-2xl duration-500">
 							<TensiometroView
 								sessionId={id}
 								start={bp.start}
 								onClose={closeBp}
 							/>
-						) : (
-							<OtoscopioView
-								sessionId={id}
-								onClose={() => setOtoscopy(false)}
-								endRequest={endRequest}
-							/>
-						)}
-					</div>
+						</div>
+					) : null}
 				</div>
 			)}
 

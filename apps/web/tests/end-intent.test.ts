@@ -1,6 +1,35 @@
 import { describe, expect, test } from "vitest";
 
-import { asksToEndExam } from "@/lib/exam/end-intent";
+import {
+	asksForBloodPressure,
+	asksForEarExam,
+	asksToEndExam,
+	earIn,
+} from "@/lib/exam/end-intent";
+
+describe("pedir el oído o la presión por texto", () => {
+	test.each([
+		["Te voy a revisar el oído, ¿puedo?", true],
+		["Mostrame el oído izquierdo", true],
+		["¿Te duele el oído?", false],
+		["Te miro las orejas con el otoscopio", true],
+	])("oído: %s", (text, expected) => {
+		expect(asksForEarExam(text)).toBe(expected);
+	});
+
+	test.each([
+		["Te voy a tomar la presión", true],
+		["¿Sos hipertensa? ¿Tenés la presión alta?", false],
+		["Te mido la tensión arterial", true],
+	])("presión: %s", (text, expected) => {
+		expect(asksForBloodPressure(text)).toBe(expected);
+	});
+
+	test("qué oído", () => {
+		expect(earIn("Mostrame el oído izquierdo")).toBe("izquierdo");
+		expect(earIn("Te reviso el oído")).toBe("derecho");
+	});
+});
 
 describe("terminar el examen hablando", () => {
 	test.each([

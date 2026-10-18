@@ -28,3 +28,25 @@ export function asksToEndExam(text: string): boolean {
 	if (KEEP.some((re) => re.test(t))) return false;
 	return END.some((re) => re.test(t));
 }
+
+// Por texto (plan B) no hay herramientas del modelo: el oído y la presión se
+// piden con palabras, igual que por voz.
+const EXAMINE = /\b(revis|mir|ver|veo|muestr|mostr|examin|chequ|fij)\w*/;
+
+export function asksForEarExam(text: string): boolean {
+	const t = normalize(text);
+	return /\b(oido|oidos|oreja|orejas|otoscop\w*)\b/.test(t) && EXAMINE.test(t);
+}
+
+export function asksForBloodPressure(text: string): boolean {
+	const t = normalize(text);
+	return (
+		/\b(presion|tension|tensiometro)\b/.test(t) &&
+		/\b(tom|med|mid|control)\w*/.test(t)
+	);
+}
+
+// Qué oído nombró; si no dijo, el derecho.
+export function earIn(text: string): "derecho" | "izquierdo" {
+	return /\bizquierd/.test(normalize(text)) ? "izquierdo" : "derecho";
+}

@@ -28,9 +28,13 @@ export function OrofaringeView({
 	exam,
 	onClose,
 	endRequest = 0,
+	bare = false,
 }: {
 	exam: ExamResult;
 	onClose: (hotspotTimesMs: Record<string, number>) => void;
+	// Solo la foto con la linterna, sin tiempos ni botones (consulta a
+	// pantalla completa: se cierra hablando; el abatelenguas, con la tecla A).
+	bare?: boolean;
 	// Sube cuando el estudiante termina el examen hablando ("cerrá la boca"):
 	// se cierra igual que con el botón, con los tiempos medidos.
 	endRequest?: number;
@@ -121,7 +125,7 @@ export function OrofaringeView({
 				onPointerMove={move}
 				onPointerDown={move}
 				onPointerLeave={() => setLight(null)}
-				className="relative aspect-[4/3] w-full touch-none select-none overflow-hidden bg-neutral-900"
+				className={`relative aspect-[4/3] w-full touch-none select-none overflow-hidden bg-neutral-900 ${bare ? "rounded-xl shadow-2xl" : ""}`}
 				role="img"
 				aria-label={`Examen de orofaringe, apertura ${exam.action.variant}${depressor ? ", con abatelenguas" : ""}`}
 			>
@@ -206,27 +210,31 @@ export function OrofaringeView({
 							: `Esquema. Foto pendiente: ${exam.assetKey ?? "sin imagen"}`}
 				</p>
 			</div>
-			<ul className="grid grid-cols-2 gap-1 text-xs">
-				{visible.map((key) => (
-					<li key={key} className="text-muted-foreground">
-						{ZONE_LABELS[key] ?? key}:{" "}
-						{((times.current[key] ?? 0) / 1000).toFixed(1)} s
-					</li>
-				))}
-			</ul>
-			{canDepress && (
-				<Button
-					variant="outline"
-					aria-pressed={depressor}
-					onClick={() => setDepressor((d) => !d)}
-				>
-					{depressor ? "Sacar el abatelenguas" : "Usar el abatelenguas"} (tecla
-					A)
-				</Button>
+			{!bare && (
+				<>
+					<ul className="grid grid-cols-2 gap-1 text-xs">
+						{visible.map((key) => (
+							<li key={key} className="text-muted-foreground">
+								{ZONE_LABELS[key] ?? key}:{" "}
+								{((times.current[key] ?? 0) / 1000).toFixed(1)} s
+							</li>
+						))}
+					</ul>
+					{canDepress && (
+						<Button
+							variant="outline"
+							aria-pressed={depressor}
+							onClick={() => setDepressor((d) => !d)}
+						>
+							{depressor ? "Sacar el abatelenguas" : "Usar el abatelenguas"}{" "}
+							(tecla A)
+						</Button>
+					)}
+					<Button onClick={() => onClose({ ...times.current })}>
+						Terminar el examen
+					</Button>
+				</>
 			)}
-			<Button onClick={() => onClose({ ...times.current })}>
-				Terminar el examen
-			</Button>
 		</div>
 	);
 }

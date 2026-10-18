@@ -12,6 +12,7 @@ import type { Turn } from "@/lib/contracts/session";
 import {
 	affectedEar,
 	assessOtoscopy,
+	assessPhotoOtoscopy,
 	describeEars,
 	otoscopyScenario,
 } from "@/lib/exam/otoscope";
@@ -65,6 +66,19 @@ function otoscopy(errors: ExamAction["technique"]): ExamAction {
 		technique: errors,
 	};
 }
+
+describe("otoscopio de solo foto", () => {
+	test("explicó y miró: sin errores, sin pasos de técnica inventados", () => {
+		const r = assessPhotoOtoscopy(3000, explained);
+		expect(r.errors).toEqual([]);
+		expect(r.steps).toEqual(["explica", "observa-conducto", "observa-timpano"]);
+	});
+
+	test("sin explicar y mirando muy poco", () => {
+		const r = assessPhotoOtoscopy(200, []);
+		expect(r.errors).toEqual(["sin-explicar", "no-observa-timpano"]);
+	});
+});
 
 describe("otoscopio", () => {
 	test("técnica completa del afiche: sin errores", () => {

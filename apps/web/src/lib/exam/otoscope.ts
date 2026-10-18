@@ -174,7 +174,21 @@ export type EarPhoto = { src: string; alt: string; credit: string };
 // Mismas reglas que las de la orofaringe (lib/exam/oropharynx.ts): archivo en
 // apps/web/public/exam/, registrado en CREDITS.md, nunca generado con IA. Sin
 // foto, la vista del otoscopio dibuja el esquema.
-export const EAR_PHOTOS: Record<string, EarPhoto> = {};
+// Las de la Persona 3: recortadas en cuadrado sin tocar el color (la vista
+// del otoscopio las muestra redondas). Falta la del conducto con secreción
+// (otitis externa): no hay una vista otoscópica con licencia libre.
+export const EAR_PHOTOS: Record<string, EarPhoto> = {
+	"timpano-nacarado": {
+		src: "/exam/ear-tympanum-normal-01.jpg",
+		alt: "Tímpano normal, nacarado, con el mango del martillo",
+		credit: "B. Welleschik, Wikimedia Commons, CC BY-SA 3.0",
+	},
+	"timpano-abombado": {
+		src: "/exam/ear-tympanum-bulging-01.jpg",
+		alt: "Tímpano rojo y abombado",
+		credit: "B. Welleschik, Wikimedia Commons, CC BY-SA 3.0",
+	},
+};
 
 export function earPhoto(part: "conducto" | "timpano", value: string) {
 	return EAR_PHOTOS[`${part}-${value}`] ?? null;
@@ -192,6 +206,26 @@ function normalize(s: string) {
 		.toLowerCase()
 		.normalize("NFD")
 		.replace(/\p{Diacritic}/gu, "");
+}
+
+// Otoscopia de solo foto (la consulta a pantalla completa de la Persona 3):
+// no hay mano, espéculo ni tracción que evaluar. Cuenta solo lo que se puede
+// hacer ahí: explicar antes qué va a hacer y mirar el tiempo suficiente.
+export function assessPhotoOtoscopy(
+	lookedMs: number,
+	studentTurnsBefore: Turn[],
+): { steps: string[]; errors: OtoscopyError[] } {
+	const steps: string[] = [];
+	const errors: OtoscopyError[] = [];
+	const explained = studentTurnsBefore.some((t) =>
+		EXPLAIN_WORDS.some((w) => normalize(t.text).includes(w)),
+	);
+	if (explained) steps.push("explica");
+	else errors.push("sin-explicar");
+	if (lookedMs >= MIN_LOOK_MS)
+		steps.push("observa-conducto", "observa-timpano");
+	else errors.push("no-observa-timpano");
+	return { steps, errors };
 }
 
 export function assessOtoscopy(
