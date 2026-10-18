@@ -27,6 +27,8 @@ import type { Viewer } from "./token";
 
 export type OtoscopyStart = { actionId: string; appearance: EarAppearance };
 
+const TRANSCRIPT_LAG_MS = 5000;
+
 export async function startOtoscopy(
 	viewer: Viewer,
 	sessionId: string,
@@ -81,8 +83,12 @@ export async function finishOtoscopy(
 	if (action.endMs !== null)
 		throw new HttpError(409, "Esta otoscopia ya terminó");
 	const ear: Ear = action.zone === "oido-izquierdo" ? "izquierdo" : "derecho";
+	// Por voz, la transcripción de lo que dijo antes de empezar ("te voy a
+	// revisar el oído") puede guardarse unos segundos después.
 	const before = (await store.listTurns(session.id)).filter(
-		(t) => t.speaker === "estudiante" && t.startMs <= action.startMs,
+		(t) =>
+			t.speaker === "estudiante" &&
+			t.startMs <= action.startMs + TRANSCRIPT_LAG_MS,
 	);
 	if ("mode" in record) {
 		// Atómico, igual que la otoscopia completa: un doble envío no la evalúa

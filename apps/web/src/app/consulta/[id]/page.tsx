@@ -111,7 +111,12 @@ export default function ConsultationPage() {
 			// reemplaza: se perdería lo que ya miró.
 			if (ui.kind === "exam" && exam?.action.variant !== "completa")
 				setExam(ui.exam);
-			if (ui.kind === "otoscope") setEar(ui.side ?? earIn(lastStudent.current));
+			// Con un oído abierto, solo se cambia si el modelo nombró el otro lado
+			// (sin lado, earIn daría "derecho" y daría vuelta el izquierdo).
+			if (ui.kind === "otoscope")
+				setEar((open) =>
+					open ? (ui.side ?? open) : (ui.side ?? earIn(lastStudent.current)),
+				);
 			if (ui.kind === "vitals")
 				setBp({
 					start: { measurementId: ui.measurementId, armCm: ui.armCm },
@@ -504,6 +509,8 @@ export default function ConsultationPage() {
 					) : ear ? (
 						<div className="fade-in zoom-in-50 animate-in duration-500">
 							<OidoFotoView
+								// Otro oído es otra otoscopia: se guarda la anterior y empieza una nueva.
+								key={ear}
 								sessionId={id}
 								ear={ear}
 								onClose={closeEar}
@@ -514,6 +521,8 @@ export default function ConsultationPage() {
 						// El tensiómetro tiene sus pasos (manguito, inflar, marcar).
 						<div className="fade-in zoom-in-50 w-full max-w-2xl animate-in rounded-lg bg-background p-3 shadow-2xl duration-500">
 							<TensiometroView
+								// Una medición nueva (preparación corregida) reemplaza la abierta.
+								key={bp.start?.measurementId ?? "texto"}
 								sessionId={id}
 								start={bp.start}
 								onClose={closeBp}
