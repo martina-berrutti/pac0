@@ -246,7 +246,7 @@ export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
 	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
-	| { kind: "otoscope" }
+	| { kind: "otoscope"; side: "derecho" | "izquierdo" | null }
 	| { kind: "end" }
 	// Ánimo nuevo del paciente, para la cara del avatar (Persona 3).
 	| { kind: "state"; state: PatientState }
@@ -301,7 +301,16 @@ export async function runTool(
 						que_pasa:
 							"Te van a revisar el oído con el otoscopio. Decí algo breve para que se note que entendiste (por ejemplo: dale, revisame) y quedate quieto. Si te tiran de la oreja y según tu historia eso te duele, quejate; si no, no. Seguí respondiendo si te hablan.",
 					},
-					ui: { kind: "otoscope" },
+					// El lado sale de la zona que mandó el modelo: la transcripción del
+					// estudiante puede llegar tarde.
+					ui: {
+						kind: "otoscope",
+						side: /izquierd/i.test(args.zona)
+							? "izquierdo"
+							: /derech/i.test(args.zona)
+								? "derecho"
+								: null,
+					},
 				};
 			}
 			// Sin zona clara, se examina la zona principal del caso.
@@ -371,17 +380,28 @@ export async function runTool(
 		}
 		case "mostrar_region": {
 			const args = toolArgs.mostrar_region.parse(rawArgs);
-			const available =
-				zoneFor(args.region, Object.keys(clinicalCase.exam)) !== undefined;
+			// La garganta, la boca o el oído se examinan con examinar (que abre el
+			// examen y lo registra): se le indica al modelo en vez de no hacer nada
+			// o decir que el oído no está.
+			if (
+				/o[ií]do|oreja/i.test(args.region) ||
+				zoneFor(args.region, Object.keys(clinicalCase.exam)) !== undefined
+			) {
+				return {
+					output: {
+						disponible: true,
+						mensaje:
+							"Eso se examina: llamá ahora a la herramienta examinar con esa zona (y si te pidieron permiso, consentimiento true).",
+					},
+					ui: { kind: "none" },
+				};
+			}
 			return {
-				output: available
-					? { disponible: true }
-					: {
-							disponible: false,
-							mensaje:
-								"Esa parte del cuerpo no está disponible en esta versión.",
-						},
-				ui: { kind: "region", region: args.region, available },
+				output: {
+					disponible: false,
+					mensaje: "Esa parte del cuerpo no está disponible en esta versión.",
+				},
+				ui: { kind: "region", region: args.region, available: false },
 			};
 		}
 		case "actualizar_estado": {
