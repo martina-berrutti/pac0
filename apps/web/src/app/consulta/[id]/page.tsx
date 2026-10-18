@@ -113,14 +113,22 @@ export default function ConsultationPage() {
 				setExam(ui.exam);
 			// Con un oído abierto, solo se cambia si el modelo nombró el otro lado
 			// (sin lado, earIn daría "derecho" y daría vuelta el izquierdo).
-			if (ui.kind === "otoscope")
+			if (ui.kind === "otoscope") {
+				// El otro oído arranca sin el pedido de cierre del anterior.
+				if (ear && ui.side && ui.side !== ear) setEndRequest(0);
 				setEar((open) =>
 					open ? (ui.side ?? open) : (ui.side ?? earIn(lastStudent.current)),
 				);
+			}
+			// Con el tensiómetro abierto se sigue con el que está (el servidor
+			// actualiza esa medición si todavía no tiene manguito).
 			if (ui.kind === "vitals")
-				setBp({
-					start: { measurementId: ui.measurementId, armCm: ui.armCm },
-				});
+				setBp(
+					(open) =>
+						open ?? {
+							start: { measurementId: ui.measurementId, armCm: ui.armCm },
+						},
+				);
 			if (ui.kind === "region" && !ui.available)
 				toast.info(`"${ui.region}" todavía no está disponible.`);
 			if (ui.kind === "end") {
@@ -281,8 +289,9 @@ export default function ConsultationPage() {
 		closes.closed();
 	}
 
-	function closeEar() {
-		setEar(null);
+	// Cierra solo el oído que pidió cerrarse: si ya se pasó al otro, no.
+	function closeEar(which: "derecho" | "izquierdo") {
+		setEar((open) => (open === which ? null : open));
 		closes.closed();
 	}
 
@@ -513,7 +522,7 @@ export default function ConsultationPage() {
 								key={ear}
 								sessionId={id}
 								ear={ear}
-								onClose={closeEar}
+								onClose={() => closeEar(ear)}
 								endRequest={endRequest}
 							/>
 						</div>
@@ -521,8 +530,6 @@ export default function ConsultationPage() {
 						// El tensiómetro tiene sus pasos (manguito, inflar, marcar).
 						<div className="fade-in zoom-in-50 w-full max-w-2xl animate-in rounded-lg bg-background p-3 shadow-2xl duration-500">
 							<TensiometroView
-								// Una medición nueva (preparación corregida) reemplaza la abierta.
-								key={bp.start?.measurementId ?? "texto"}
 								sessionId={id}
 								start={bp.start}
 								onClose={closeBp}

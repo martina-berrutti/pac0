@@ -412,3 +412,40 @@ describe("voz: la transcripción llega después de empezar la otoscopia", () => 
 		expect((await store.getSession(id))?.trustReached).toBe(true);
 	});
 });
+
+describe("voz: medir_presion dos veces", () => {
+	test("sin manguito todavía, actualiza la misma medición", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const first = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [],
+		});
+		const again = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [...BP_STEPS],
+		});
+		if (first.ui.kind !== "vitals" || again.ui.kind !== "vitals")
+			throw new Error("no abrió el tensiómetro");
+		expect(again.ui.measurementId).toBe(first.ui.measurementId);
+		const vitals = await store.listVitals(id);
+		expect(vitals).toHaveLength(1);
+		expect(vitals[0].stepsCompleted.length).toBeGreaterThan(0);
+	});
+
+	test("con el manguito puesto, la medición en curso no se toca", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const first = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [...BP_STEPS],
+		});
+		if (first.ui.kind !== "vitals") throw new Error("no abrió el tensiómetro");
+		await placeCuff(ana, id, first.ui.measurementId, "adecuado", false);
+		const again = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [],
+		});
+		if (again.ui.kind !== "vitals") throw new Error("no abrió el tensiómetro");
+		expect(again.ui.measurementId).not.toBe(first.ui.measurementId);
+		const firstId = first.ui.measurementId;
+		const kept = (await store.listVitals(id)).find((v) => v.id === firstId);
+		expect(kept?.cuff).not.toBeNull();
+	});
+});

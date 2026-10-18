@@ -35,8 +35,20 @@ export async function createMeasurement(
 	steps: readonly string[],
 	atMs: number,
 ): Promise<BpStart> {
-	await limitExamRecords(sessionId);
 	const armCm = armFor(clinicalCase.templateId ?? clinicalCase.id);
+	// Si la última medición todavía no tiene manguito (el modelo volvió a
+	// pedir la presión, o corrigió la preparación), se actualiza esa: así la
+	// pantalla sigue con la misma y no se pierde lo que ya hizo.
+	const last = (await store.listVitals(sessionId)).at(-1);
+	if (last && last.cuff === null && last.marked === null) {
+		const updated = await store.patchVitalsIf(
+			last.id,
+			measure(clinicalCase.vitals.pa, steps, null, armCm),
+			{ cuff: null },
+		);
+		if (updated) return { measurementId: last.id, armCm };
+	}
+	await limitExamRecords(sessionId);
 	const measurement: VitalsMeasurement = {
 		id: newId("vit"),
 		sessionId,
