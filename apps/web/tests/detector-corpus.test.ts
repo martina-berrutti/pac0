@@ -893,6 +893,12 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["garganta", "Lo que te pasa es que tenés una angina"],
 		["garganta", "Debe ser un virus"],
 		["rodilla", "La rodilla tiene una lesión del menisco"],
+		["garganta", "esto es un virus"],
+		["oido", "Te explico: tenés una otitis externa"],
+		["oido", "Es una otitis, por eso te dolía antes de meterte al agua"],
+		["rodilla", "Es probable que tengas una lesión del menisco"],
+		["garganta", "lo más probable es que sea un virus"],
+		["oido", "tenés una otitis, ¿se entiende?"],
 	])("un diagnóstico dicho no es antecedentes (%s): %s", (name, t) => {
 		const { text: r, brief } = reply(name, t);
 		expect(r).toContain("¿y eso qué es?");
@@ -911,6 +917,10 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["rodilla", "bueno, tiene una lesion previa en esa rodilla"],
 		["garganta", "a ver, tenes un virus o algo asi"],
 		["garganta", "tu compañera de apartamento, tiene una angina"],
+		["garganta", "tenes una infeccion urinaria"],
+		["rodilla", "tiene una lesion vieja en esa rodilla"],
+		["rodilla", "tenes una lesion en la otra rodilla tambien"],
+		["oido", "tuviste otitis antes"],
 	])("no es decirle el diagnóstico (%s): %s", (name, t) =>
 		expect(reply(name, t).text).not.toContain("¿y eso qué es?"),
 	);
