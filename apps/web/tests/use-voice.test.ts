@@ -614,4 +614,28 @@ describe("cliente de voz", () => {
 		live.callbacks?.onmessage(msg({ turnComplete: true }));
 		expect(live.sent).toContain("clientContent");
 	});
+
+	test("si se reconecta con una respuesta de herramienta abierta, las notas no la esperan", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.callbacks?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		await voice.drain();
+		await vi.waitFor(() => expect(live.sent).toContain("toolResponse"));
+		// Se corta antes de que el paciente conteste.
+		live.callbacks?.onclose();
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		live.sent = [];
+		voice.sendNote("cambió tu ánimo");
+		expect(live.sent).toContain("clientContent");
+	});
 });
