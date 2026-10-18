@@ -215,6 +215,8 @@ export async function startSession(
 		voice: voiceFor(getArchetype(key)?.voice, clinicalCase.patient.sex),
 		inventedFacts: {},
 		voiceUsage: null,
+		// Un paciente que ya arranca con confianza la tiene desde el principio.
+		trustReached: state.confianza >= 0.5,
 	};
 	await store.createSession(session);
 	return session.id;
