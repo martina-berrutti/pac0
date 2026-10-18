@@ -93,6 +93,8 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"pus",
 			"sale algo del o",
 			"sale del o",
+			"sale algo por el o",
+			"sale por el o",
 		],
 	},
 	// "Pica" suelto no: "¿comés picante?".
