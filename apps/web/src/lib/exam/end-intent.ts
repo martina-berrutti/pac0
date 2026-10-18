@@ -41,12 +41,13 @@ export function asksToEndExam(text: string): boolean {
 // Un pedido, no un pasado ni otra palabra: "¿te revisaron el oído?" o
 // "¿tenés vértigo?" no abren el otoscopio.
 const EXAMINE =
-	/\b(revis(o|ar|arte|arle|arlo|arla|e|emos)|mir(o|ar|arte|arle|arlo|arla|e|emos)|ver(te|le|lo|la)?|veo|muestr(a|ame|ale|e|eme)|mostra(me|le)?|examin(o|ar|arte|arle|arlo|arla|e|emos)|chequ(ear|earte|earle|emos))\b/;
+	/\b(revis(o|ar|arte|arle|arlo|arla|e|emos)|mir(o|ar|arte|arle|arlo|arla|e|emos)|ver(te|le|lo|la)?|veo(?! que)|veamos|vemos|muestr(ame|ale|e|eme)|mostra(me|le|s)?|examin(o|ar|arte|arle|arlo|arla|e|emos)|chequ(ear|earte|earle|eemos))\b/;
 
 export function asksForEarExam(text: string): boolean {
 	// Los pasados se sacan antes de quitar las tildes ("te revisó" no es "te
 	// reviso"): "¿alguien te revisó?", "¿te fijaste?", "¿te mostraron?".
 	const present = text
+		.normalize("NFC")
 		.toLowerCase()
 		.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " ");
 	// "A ver" de relleno ("a ver, ¿desde cuándo te duele el oído?") no; "a ver

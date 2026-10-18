@@ -28,6 +28,12 @@ describe("pedir el oído o la presión por texto", () => {
 		["A ver el oído", true],
 		["Mostrame la oreja", true],
 		["Te reviso el oído", true],
+		["Veamos ese oído", true],
+		["Ahora vemos el oído", true],
+		["¿Me mostrás la oreja?", true],
+		["Veo que te duele mucho el oído", false],
+		["Vamos a tomar una muestra del oído", false],
+		["¿Alguien te revisó el oído?".normalize("NFD"), false],
 	])("oído: %s", (text, expected) => {
 		expect(asksForEarExam(text)).toBe(expected);
 	});
