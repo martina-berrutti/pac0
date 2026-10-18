@@ -55,7 +55,7 @@
 		"orofaringe": {
 			"variants": {
 				"parcial": "mouth-partial-01",
-				"completa": "throat-exudate-01"
+				"completa": "throat-erythema-01"
 			},
 			"hotspots": [
 				"amigdala-izq",

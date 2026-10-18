@@ -274,7 +274,7 @@ export const CLINICAL_TEMPLATES: ClinicalTemplate[] = [
 			orofaringe: {
 				variants: {
 					parcial: "mouth-partial-01",
-					completa: "throat-exudate-01",
+					completa: "throat-erythema-01",
 				},
 				hotspots: OROFARINGE_HOTSPOTS,
 				expected: "Amígdalas rojas con exudado blanquecino, úvula central",
