@@ -14,9 +14,10 @@ export function createHearing(onPause: (said: string) => void, pauseMs = 700) {
 		timer = setTimeout(() => {
 			timer = null;
 			onPause(all().slice(from).trim());
-			// Ya se juzgó lo del turno anterior: queda solo el actual.
-			from = Math.max(0, from - before.length);
+			// Lo juzgado no se vuelve a juzgar: queda solo lo que se diga después
+			// en este turno.
 			before = "";
+			from = current.length;
 		}, pauseMs);
 	}
 	return {

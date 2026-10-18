@@ -81,3 +81,15 @@ test("después de la pausa, el turno siguiente se juzga solo", () => {
 	vi.advanceTimersByTime(700);
 	expect(closes).toEqual(["Ya está"]);
 });
+
+test("lo ya juzgado no vuelve a cerrar: el siguiente 'ya está' cierra el otro examen", () => {
+	const { hearing, closes } = setup();
+	hearing.heard("Listo, cerrá la boca");
+	vi.advanceTimersByTime(700);
+	hearing.heard("Listo, cerrá la boca. Ahora quedate quieta");
+	vi.advanceTimersByTime(700);
+	expect(closes).toHaveLength(1);
+	hearing.heard("Listo, cerrá la boca. Ahora quedate quieta. Ya está");
+	vi.advanceTimersByTime(700);
+	expect(closes).toEqual(["Listo, cerrá la boca", ". Ya está"]);
+});

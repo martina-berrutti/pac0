@@ -133,24 +133,18 @@ export default function ConsultationPage() {
 	const lastStudent = useRef("");
 	// Por voz, el modelo abre los exámenes con herramientas; por texto (plan
 	// B), se piden con las mismas palabras.
-	// Ya se pidió cerrar este examen mientras se escuchaba: el turno guardado
-	// no lo vuelve a pedir.
-	const heardEnd = useRef(false);
-	// Por voz se juzga solo lo dicho desde que se abrió el examen, y después
-	// de una pausa (lib/consulta/hearing.ts).
+	// Por voz se juzga solo lo dicho desde que se abrió el examen, después de
+	// una pausa y una sola vez (lib/consulta/hearing.ts).
 	const examOpenNow = useRef(examOpen);
 	examOpenNow.current = examOpen;
 	const [hearing] = useState(() =>
 		createHearing((said) => {
-			if (examOpenNow.current && !heardEnd.current && asksToEndExam(said)) {
-				heardEnd.current = true;
+			if (examOpenNow.current && asksToEndExam(said))
 				setEndRequest((n) => n + 1);
-			}
 		}),
 	);
 	useEffect(() => {
-		if (!examOpen) heardEnd.current = false;
-		else hearing.examOpened();
+		if (examOpen) hearing.examOpened();
 	}, [examOpen, hearing]);
 	useEffect(() => () => hearing.stop(), [hearing]);
 	function checkStudent(turn: Turn, byText: boolean) {
@@ -161,8 +155,7 @@ export default function ConsultationPage() {
 		if (examOpen) {
 			// Por voz ya lo juzgó lo que se iba escuchando (el turno guardado
 			// trae también lo dicho antes de abrir el examen).
-			if (!byText) heardEnd.current = false;
-			else if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
+			if (byText && asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
 		} else if (!tool && asksForTemperature(turn.text)) {
 			// No hay herramienta de voz para la temperatura: también por voz se
 			// abre con las palabras.
