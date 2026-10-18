@@ -18,7 +18,6 @@ import { cutText } from "@/lib/cut-text";
 import { buildPatientPrompt, type PatientBrief } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
 import { asciiKey } from "@/lib/patient/keys";
-import { applyDelta } from "@/lib/patient/state";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
 import { pickVoice } from "@/lib/patient/voices";
 
@@ -32,6 +31,7 @@ import {
 	noteConsent,
 	nudgeState,
 	recordExam,
+	rememberTrust,
 } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
@@ -437,7 +437,8 @@ export async function runTool(
 					ui: { kind: "none" },
 				};
 			}
-			const next = updated?.state ?? applyDelta(session.state, bounded);
+			await rememberTrust(updated);
+			const next = updated.state;
 			await store.addEvent({
 				id: newId("evt"),
 				sessionId,

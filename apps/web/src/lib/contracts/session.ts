@@ -44,6 +44,9 @@ export type Session = {
 	// Si los errores del informe ya se sumaron al perfil (una vez por consulta).
 	// Opcional: las sesiones guardadas antes no lo tienen.
 	mistakesRecorded?: boolean;
+	// Si la confianza ya llegó a 0,5 alguna vez (por texto, lo sensible queda
+	// en el prompt aunque después baje).
+	trustReached?: boolean;
 };
 
 export type VoiceUsage = {
