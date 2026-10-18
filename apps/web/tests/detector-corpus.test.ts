@@ -735,8 +735,9 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["garganta", "¿Cómo fue que empezó?", "inicio"],
 		["garganta", "¿Te duele al tragar?", "dolor"],
 		["garganta", "¿Cuánto te duele del 1 al 10?", "dolor"],
-		["garganta", "¿Te cuesta tragar?", "dolor"],
-		["garganta", "¿Podés tragar bien?", "dolor"],
+		// garganta-02 tiene un dato propio para tragar (Persona 3).
+		["garganta", "¿Te cuesta tragar?", "tragar"],
+		["garganta", "¿Podés tragar bien?", "tragar"],
 		["garganta", "¿Tuviste fiebre?", "fiebre"],
 		["garganta", "¿Llegaste a tener temperatura?", "fiebre"],
 		["garganta", "¿Tuviste chuchos?", "fiebre"],
@@ -870,13 +871,21 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["garganta", "Hacé reposo unos días"],
 		["presion", "vamos a aumentar la dosis del enalapril"],
 		["rodilla", "te voy a recetar un antiinflamatorio"],
-		["oido", "por lo que vi tenes una otitis externa"],
-		["oido", "te saco el otoscopio, tenés una otitis"],
 		["oido", "te voy a limpiar un poco el oido"],
 		["presion", "seguí tomando el enalapril igual"],
 	])("una indicación no es una pregunta (%s): %s", (name, t) =>
 		expect(reply(name, t).text).toMatch(/^Bueno/),
 	);
+	// Decirle qué tiene: el paciente pregunta qué es (Persona 3), no recita
+	// sus antecedentes.
+	test.each([
+		["oido", "por lo que vi tenes una otitis externa"],
+		["oido", "te saco el otoscopio, tenés una otitis"],
+	])("un diagnóstico dicho no es antecedentes (%s): %s", (name, t) => {
+		const { text: r, brief } = reply(name, t);
+		expect(r).toContain("¿y eso qué es?");
+		expect(r).not.toContain(brief.history.antecedentes);
+	});
 	test.each([
 		["garganta", "¿Roncás de noche?"],
 		["garganta", "y como dormis"],
