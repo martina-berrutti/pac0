@@ -68,17 +68,43 @@ function ArmDrawing({
 }) {
 	return (
 		<>
+			{/* Brazo de costado: grueso arriba, más fino al codo, antebrazo y mano */}
 			<path
-				d="M0 150 C 120 146, 260 150, 400 156 L 400 204 C 260 200, 120 202, 0 206 Z"
+				d="M0 146 C 90 143, 180 148, 246 156 C 290 162, 330 165, 366 167 C 378 164, 392 165, 398 171 L 399 186 C 392 192, 380 190, 366 188 C 330 192, 290 194, 246 196 C 180 202, 90 206, 0 208 Z"
 				fill={SKIN}
 			/>
+			{/* Dedos insinuados y pulgar */}
+			<path
+				d="M384 168 L 386 188 M391 169 L 393 187 M372 189 C 376 197, 384 199, 390 195"
+				strokeWidth="1.4"
+				opacity="0.6"
+			/>
 			{/* Pliegue del codo */}
-			<path d="M246 168 C 252 176, 252 184, 246 192" strokeWidth="1.8" />
-			{sleeve && (
-				<path
-					d="M0 142 C 70 140, 150 141, 214 144 C 222 160, 222 196, 214 212 C 150 210, 70 211, 0 214 Z"
-					fill={SLEEVE}
-				/>
+			<path d="M246 166 C 251 174, 251 182, 246 190" strokeWidth="1.8" />
+			{sleeve ? (
+				<>
+					{/* Manga de remera holgada, con dobladillo */}
+					<path
+						d="M0 132 C 80 130, 160 134, 214 140 C 228 160, 228 196, 214 216 C 150 214, 70 216, 0 220 Z"
+						fill={SLEEVE}
+					/>
+					<path d="M214 140 C 228 160, 228 196, 214 216" strokeWidth="3" />
+					<path
+						d="M205 142 C 218 162, 218 196, 205 214"
+						strokeWidth="1"
+						opacity="0.5"
+					/>
+				</>
+			) : (
+				// Rollito de tela arriba, cerca del hombro
+				<>
+					<rect x="4" y="134" width="40" height="80" rx="18" fill={SLEEVE} />
+					<path
+						d="M24 138 C 30 160, 30 190, 24 210"
+						strokeWidth="1.2"
+						opacity="0.5"
+					/>
+				</>
 			)}
 			{children}
 		</>

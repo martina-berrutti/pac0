@@ -70,6 +70,9 @@ export default function ConsultationPage() {
 	// Oído que se está mirando (foto del otoscopio).
 	const [ear, setEar] = useState<Ear | null>(null);
 	const tool = exam !== null || bp !== null || ear !== null || thermo;
+	// onTool es un callback viejo: el ref siempre tiene el valor del último render.
+	const toolOpen = useRef(false);
+	toolOpen.current = tool;
 	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
 	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
@@ -124,6 +127,16 @@ export default function ConsultationPage() {
 		onState: showState,
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
+			// Con un examen abierto, no se reemplaza por otro.
+			if (
+				toolOpen.current &&
+				(ui.kind === "exam" || ui.kind === "otoscope" || ui.kind === "vitals")
+			) {
+				voice.sendNote(
+					"El estudiante está en medio de otro examen: esperá a que termine, no abras la boca ni muestres nada.",
+				);
+				return;
+			}
 			if (ui.kind === "exam") setExam(ui.exam);
 			if (ui.kind === "otoscope") setEar(earIn(lastStudent.current));
 			if (ui.kind === "vitals")

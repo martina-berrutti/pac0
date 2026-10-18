@@ -4,8 +4,7 @@
 // paciente del clip, con el mouse o el dedo y directo sobre el avatar 3D.
 // Usa valores de ejemplo y no llama al servidor (no se guarda nada).
 //
-// Temperatura: se arrastra el termómetro a la axila y se lo sostiene hasta
-// que suena. Presión: se arrastra el manguito al brazo, se infla con la
+// Temperatura: se arrastra el termómetro a la axila y los grados suben solos. Presión: se arrastra el manguito al brazo, se infla con la
 // rueda del mouse o dos dedos en el touchpad, se gira la válvula para
 // desinflar despacio y se marca cuándo empiezan y terminan los ruidos.
 import type { RefObject } from "react";
@@ -29,7 +28,7 @@ const TEMP_C = 38.4;
 const PAS = 118;
 const PAD = 76;
 const PULSE = 72;
-// Lo que hay que sostener el termómetro (acortado).
+// Lo que tardan en subir los grados (acortado).
 const HOLD_MS = 3000;
 // Qué tan cerca hay que soltar (px).
 const DROP_RADIUS = 70;
@@ -97,7 +96,7 @@ function near(a: { x: number; y: number } | null, b: Drag, box: DOMRect) {
 function Hint({ children }: { children: React.ReactNode }) {
 	return (
 		<p
-			className="absolute top-3 left-1/2 w-[min(92%,26rem)] -translate-x-1/2 rounded-xl bg-card/95 px-3 py-2 text-center text-sm shadow"
+			className="absolute top-3 left-1/2 w-[min(92%,26rem)] -translate-x-1/2 rounded-full border border-foreground/10 bg-card px-4 py-2 text-center font-sans font-semibold text-foreground text-sm shadow-md"
 			aria-live="polite"
 		>
 			{children}
@@ -126,7 +125,7 @@ function Tray({
 			onPointerDown={onStart}
 			onPointerMove={onMove}
 			onPointerUp={onEnd}
-			className="absolute bottom-3 left-3 grid touch-none select-none justify-items-center gap-1 rounded-2xl border-2 border-foreground/50 border-dashed bg-card/95 px-4 py-2 shadow"
+			className="absolute bottom-3 left-3 grid touch-none select-none justify-items-center gap-1 rounded-2xl border border-foreground/10 bg-card px-4 py-2.5 shadow-md"
 		>
 			{children}
 			<span className="font-hand text-lg leading-none">{label}</span>
@@ -134,24 +133,85 @@ function Tray({
 	);
 }
 
+// Termómetro digital: cuerpo blanco, pantallita oscura y punta metálica.
 function Thermometer({ className = "" }: { className?: string }) {
 	return (
-		<span
-			className={`relative block h-3.5 w-16 rounded-full border-2 border-foreground/70 bg-card ${className}`}
+		<svg
+			viewBox="0 0 96 24"
+			className={`h-6 w-24 ${className}`}
+			role="img"
+			aria-label="Termómetro digital"
 		>
-			<span className="absolute top-[2px] left-1.5 h-1.5 w-6 rounded-sm bg-[color-mix(in_oklch,var(--foreground)_75%,var(--card))]" />
-		</span>
+			<rect
+				x="14"
+				y="4"
+				width="78"
+				height="16"
+				rx="8"
+				fill="#fff"
+				stroke="var(--foreground)"
+				strokeOpacity="0.45"
+				strokeWidth="1.2"
+			/>
+			<rect x="26" y="8" width="26" height="8" rx="2" fill="#2f3438" />
+			<circle cx="82" cy="12" r="2.6" fill="var(--sage)" />
+			<path
+				d="M2 12 L14 8.5 L14 15.5 Z"
+				fill="#aeb4b9"
+				stroke="var(--foreground)"
+				strokeOpacity="0.45"
+				strokeWidth="1"
+				strokeLinejoin="round"
+			/>
+		</svg>
 	);
 }
 
+// Manguito: tela azul grisácea con abrojo.
 function Cuff({ className = "" }: { className?: string }) {
 	return (
-		<span
-			className={`block h-7 w-16 rounded-md border-2 border-foreground/60 ${className}`}
-			style={{
-				background: "color-mix(in oklch, var(--sky) 45%, var(--primary) 25%)",
-			}}
-		/>
+		<svg
+			viewBox="0 0 80 40"
+			className={`h-10 w-20 ${className}`}
+			role="img"
+			aria-label="Manguito"
+		>
+			<rect
+				x="3"
+				y="5"
+				width="74"
+				height="30"
+				rx="6"
+				fill="color-mix(in oklch, var(--sky) 55%, var(--foreground) 22%)"
+				stroke="var(--foreground)"
+				strokeOpacity="0.4"
+				strokeWidth="1.2"
+			/>
+			<rect
+				x="46"
+				y="10"
+				width="26"
+				height="20"
+				rx="3"
+				fill="color-mix(in oklch, var(--sky) 30%, #fff 55%)"
+			/>
+			{[0, 1, 2, 3].map((i) => (
+				<path
+					key={i}
+					d={`M${51 + i * 5} 13 V27`}
+					stroke="var(--foreground)"
+					strokeOpacity="0.25"
+					strokeWidth="1"
+				/>
+			))}
+			<circle
+				cx="14"
+				cy="20"
+				r="3"
+				fill="var(--foreground)"
+				fillOpacity="0.55"
+			/>
+		</svg>
 	);
 }
 
@@ -159,35 +219,22 @@ function Result({
 	title,
 	children,
 	onAgain,
-	onOther,
-	otherLabel,
 }: {
 	title: string;
 	children: React.ReactNode;
 	onAgain: () => void;
-	onOther: () => void;
-	otherLabel: string;
 }) {
 	return (
-		<div className="absolute inset-x-3 bottom-3 grid gap-2 rounded-2xl border bg-card/95 p-4 shadow-lg sm:inset-x-auto sm:right-3 sm:w-80">
+		<div className="absolute inset-x-3 bottom-3 grid gap-2 rounded-2xl border border-foreground/10 bg-card p-4 shadow-lg sm:inset-x-auto sm:right-3 sm:w-80">
 			<p className="font-display text-xl">{title}</p>
 			<div className="text-sm">{children}</div>
-			<div className="flex flex-wrap gap-2 pt-1">
-				<button
-					type="button"
-					onClick={onAgain}
-					className="rounded-[0.7rem] border px-3 py-1.5 font-semibold text-sm hover:bg-muted"
-				>
-					Otra vez
-				</button>
-				<button
-					type="button"
-					onClick={onOther}
-					className="rounded-[0.7rem] bg-primary px-3 py-1.5 font-semibold text-primary-foreground text-sm"
-				>
-					{otherLabel}
-				</button>
-			</div>
+			<button
+				type="button"
+				onClick={onAgain}
+				className="justify-self-start text-muted-foreground text-sm underline underline-offset-4 hover:text-foreground"
+			>
+				Otra vez
+			</button>
 		</div>
 	);
 }
@@ -196,23 +243,18 @@ function Result({
 
 function TryTemperature({
 	avatar,
-	onOther,
 }: {
 	avatar: RefObject<PatientAvatarHandle | null>;
-	onOther: () => void;
 }) {
 	const box = useRef<HTMLDivElement>(null);
 	const armpit = useAnchor(avatar, "axila");
-	const [stage, setStage] = useState<"poner" | "sostener" | "listo">("poner");
+	const [stage, setStage] = useState<"poner" | "midiendo" | "listo">("poner");
 	const [drag, setDrag] = useState<Drag>(null);
-	const [held, setHeld] = useState(0);
-	const [holding, setHolding] = useState(false);
-	const [slipped, setSlipped] = useState(false);
+	const [elapsed, setElapsed] = useState(0);
 
 	const reset = useCallback(() => {
 		setStage("poner");
-		setHeld(0);
-		setHolding(false);
+		setElapsed(0);
 		avatar.current?.exam({ kind: "temperatura", step: "levantar" });
 	}, [avatar]);
 
@@ -221,50 +263,35 @@ function TryTemperature({
 		return () => avatar.current?.exam(null);
 	}, [reset, avatar]);
 
-	// Mientras se sostiene, avanza; si se suelta antes, se cae.
+	// Los grados suben solos y al final suena.
 	useEffect(() => {
-		if (stage !== "sostener" || !holding) return;
+		if (stage !== "midiendo") return;
 		let frame = 0;
-		let last = performance.now();
+		const start = performance.now();
 		const loop = (now: number) => {
-			// El intervalo se calcula antes: el actualizador corre más tarde.
-			const dt = now - last;
-			last = now;
-			setHeld((h) => Math.min(HOLD_MS, h + dt));
+			const t = Math.min(HOLD_MS, now - start);
+			setElapsed(t);
+			if (t >= HOLD_MS) {
+				beep();
+				setStage("listo");
+				return;
+			}
 			frame = requestAnimationFrame(loop);
 		};
 		frame = requestAnimationFrame(loop);
 		return () => cancelAnimationFrame(frame);
-	}, [stage, holding]);
+	}, [stage]);
 
-	useEffect(() => {
-		if (stage === "sostener" && held >= HOLD_MS) {
-			beep();
-			setHolding(false);
-			setStage("listo");
-		}
-	}, [stage, held]);
-
-	function release() {
-		if (stage === "sostener" && holding && held < HOLD_MS) {
-			setSlipped(true);
-			reset();
-		}
-		setHolding(false);
-	}
-
-	const progress = held / HOLD_MS;
+	const progress = elapsed / HOLD_MS;
 	const shown = 35.2 + (TEMP_C - 35.2) * (1 - (1 - progress) ** 3);
 
 	return (
 		<div ref={box} className="absolute inset-0">
 			<Hint>
 				{stage === "poner"
-					? slipped
-						? "Se te movió y hubo que sacarlo. Ponelo de nuevo en la axila."
-						: "Arrastrá el termómetro hasta la axila de Lucía."
-					: stage === "sostener"
-						? "Mantené apretado sobre el termómetro hasta que suene."
+					? "Agarrá el termómetro y ponelo en la axila."
+					: stage === "midiendo"
+						? "Midiendo…"
 						: "¡Sonó!"}
 			</Hint>
 
@@ -283,31 +310,14 @@ function TryTemperature({
 				/>
 			)}
 
-			{/* Sostener: un anillo que se llena */}
-			{armpit && stage === "sostener" && (
-				<button
-					type="button"
-					aria-label="Sostener el termómetro"
-					onPointerDown={(e) => {
-						(e.target as HTMLElement).setPointerCapture(e.pointerId);
-						setSlipped(false);
-						setHolding(true);
-					}}
-					onPointerUp={release}
-					onPointerCancel={release}
-					className="absolute grid size-24 -translate-x-1/2 -translate-y-1/2 touch-none select-none place-items-center rounded-full"
-					style={{
-						left: armpit.x,
-						top: armpit.y,
-						background: `conic-gradient(var(--pen) ${progress * 360}deg, color-mix(in oklch, var(--card) 70%, transparent) 0)`,
-					}}
+			{/* Los grados, al lado de la axila */}
+			{armpit && stage !== "poner" && (
+				<span
+					className="absolute rounded-lg border border-foreground/10 bg-card px-2 py-0.5 font-mono text-sm tabular-nums shadow-md"
+					style={{ left: armpit.x + 26, top: armpit.y - 14 }}
 				>
-					<span className="grid size-[4.6rem] place-items-center rounded-full bg-card font-mono text-sm tabular-nums">
-						{holding || held > 0
-							? `${shown.toFixed(1).replace(".", ",")}°`
-							: "apretá"}
-					</span>
-				</button>
+					{shown.toFixed(1).replace(".", ",")}°
+				</span>
 			)}
 
 			{stage === "poner" && (
@@ -323,7 +333,7 @@ function TryTemperature({
 						const r = box.current?.getBoundingClientRect();
 						if (r && near(armpit, drag, r)) {
 							avatar.current?.exam({ kind: "temperatura", step: "midiendo" });
-							setStage("sostener");
+							setStage("midiendo");
 						}
 						setDrag(null);
 					}}
@@ -335,9 +345,9 @@ function TryTemperature({
 			{drag && (
 				<div
 					className="pointer-events-none fixed z-50"
-					style={{ left: drag.x - 32, top: drag.y - 7 }}
+					style={{ left: drag.x - 48, top: drag.y - 12 }}
 				>
-					<Thermometer className="rotate-[-25deg] shadow-lg" />
+					<Thermometer className="rotate-[-25deg] drop-shadow-lg" />
 				</div>
 			)}
 
@@ -345,8 +355,6 @@ function TryTemperature({
 				<Result
 					title={`${TEMP_C.toFixed(1).replace(".", ",")} °C: tiene fiebre`}
 					onAgain={reset}
-					onOther={onOther}
-					otherLabel="Tomale la presión"
 				>
 					En un dolor de garganta, la fiebre es un dato clave. En la consulta,
 					la temperatura es la del caso y queda en tu informe.
@@ -362,10 +370,8 @@ type BpStage = "manguito" | "inflar" | "listo";
 
 function TryPressure({
 	avatar,
-	onOther,
 }: {
 	avatar: RefObject<PatientAvatarHandle | null>;
-	onOther: () => void;
 }) {
 	const box = useRef<HTMLDivElement>(null);
 	const arm = useAnchor(avatar, "brazo");
@@ -511,18 +517,16 @@ function TryPressure({
 				{stage === "listo"
 					? "¡Listo! Mirá cómo te fue."
 					: stage === "manguito"
-						? "Arrastrá el manguito hasta el brazo de Lucía."
+						? "1. Poné el manguito en el brazo."
 						: tooFast
-							? "Desinflaste muy rápido: los ruidos pasan sin que los escuches. Volvé a inflar y abrí apenas la válvula."
+							? "Desinflaste muy rápido: inflá de nuevo y abrí apenas la válvula."
 							: shown < 150 && valveDeg === 0
 								? touch
-									? "Apretá la pera varias veces, hasta pasar 150."
-									: "Inflá con la rueda del mouse o deslizando dos dedos en el touchpad, hasta pasar 150."
+									? "2. Apretá la pera hasta pasar 150."
+									: "2. Inflá con la rueda o dos dedos hasta pasar 150."
 								: valveDeg === 0
-									? "Ahora girá la válvula de a poco, arrastrando en círculo."
-									: marks.length === 0
-										? "Escuchá: tocá «¡Lo escuché!» con el primer latido."
-										: "Ahora tocá cuando dejes de escucharlo."}
+									? "3. Girá la válvula despacio, en círculo."
+									: "4. Tocá «¡Lo escuché!» con el primer latido… y cuando deje de sonar."}
 			</Hint>
 
 			{/* Destino: el brazo */}
@@ -576,9 +580,9 @@ function TryPressure({
 			{drag && (
 				<div
 					className="pointer-events-none fixed z-50"
-					style={{ left: drag.x - 32, top: drag.y - 14 }}
+					style={{ left: drag.x - 40, top: drag.y - 20 }}
 				>
-					<Cuff className="shadow-lg" />
+					<Cuff className="drop-shadow-lg" />
 				</div>
 			)}
 
@@ -587,7 +591,7 @@ function TryPressure({
 					{/* Manómetro */}
 					<svg
 						viewBox="0 0 100 100"
-						className="absolute top-20 left-2 size-16 text-foreground sm:top-16 sm:left-3 sm:size-28"
+						className="absolute top-20 left-2 size-16 text-foreground drop-shadow-md sm:top-16 sm:left-3 sm:size-28"
 						aria-label={`Manómetro: ${shown} mmHg`}
 						role="img"
 					>
@@ -597,7 +601,8 @@ function TryPressure({
 							r="46"
 							fill="var(--card)"
 							stroke="currentColor"
-							strokeWidth="3"
+							strokeOpacity="0.5"
+							strokeWidth="1.5"
 						/>
 						{Array.from({ length: 16 }, (_, i) => i * 20).map((v) => {
 							const a = ((needleAngle(v) - 90) * Math.PI) / 180;
@@ -657,7 +662,7 @@ function TryPressure({
 											valve.current = Math.max(0, valve.current - 10);
 										setValveDeg(valve.current);
 									}}
-									className="relative size-14 touch-none select-none rounded-full border-2 border-foreground/70 bg-card shadow sm:size-20"
+									className="relative size-14 touch-none select-none rounded-full border border-foreground/30 bg-card shadow-md sm:size-20"
 								>
 									<span
 										className="absolute inset-0"
@@ -666,24 +671,29 @@ function TryPressure({
 										<span className="absolute top-1.5 left-1/2 h-6 w-1.5 -translate-x-1/2 rounded-full bg-pen" />
 									</span>
 								</button>
-								<span className="rounded bg-card/90 px-1.5 font-hand text-lg leading-none">
+								<span className="rounded-full bg-card px-2 py-0.5 font-hand text-lg leading-none shadow-sm">
 									válvula
 								</span>
 							</div>
 
 							{/* Pera, para quien no tiene rueda (pantallas táctiles) */}
-							<button
-								type="button"
-								onClick={() => {
-									audio();
-									pressure.current = Math.min(MAX_MMHG, pressure.current + 18);
-									lastPump.current = performance.now();
-									setTooFast(false);
-								}}
-								className="absolute bottom-3 left-3 rounded-full border-2 border-foreground/50 bg-card/95 px-3 py-2 font-hand text-lg shadow"
-							>
-								apretar la pera
-							</button>
+							{touch && (
+								<button
+									type="button"
+									onClick={() => {
+										audio();
+										pressure.current = Math.min(
+											MAX_MMHG,
+											pressure.current + 18,
+										);
+										lastPump.current = performance.now();
+										setTooFast(false);
+									}}
+									className="absolute bottom-3 left-3 rounded-full border border-foreground/10 bg-card px-3 py-2 font-hand text-lg shadow-md"
+								>
+									apretar la pera
+								</button>
+							)}
 
 							{valveDeg > 0 && (
 								<button
@@ -706,8 +716,6 @@ function TryPressure({
 				<Result
 					title={good ? `${pas}/${pad}: ¡muy bien!` : `${pas}/${pad}: casi`}
 					onAgain={reset}
-					onOther={onOther}
-					otherLabel="Tomale la temperatura"
 				>
 					{good
 						? `Coincide con la presión de Lucía (${PAS}/${PAD}). En la consulta, además, cuenta cómo preparás a la paciente.`
@@ -721,15 +729,13 @@ function TryPressure({
 export function TryIt({
 	mode,
 	avatar,
-	onMode,
 }: {
 	mode: TryMode;
 	avatar: RefObject<PatientAvatarHandle | null>;
-	onMode: (mode: TryMode) => void;
 }) {
 	return mode === "temperatura" ? (
-		<TryTemperature avatar={avatar} onOther={() => onMode("presion")} />
+		<TryTemperature avatar={avatar} />
 	) : (
-		<TryPressure avatar={avatar} onOther={() => onMode("temperatura")} />
+		<TryPressure avatar={avatar} />
 	);
 }

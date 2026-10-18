@@ -162,7 +162,7 @@ function thermometer(three: Three, h: TalkingHead) {
 		g.add(
 			new three.Mesh(
 				new three.CylinderGeometry(0.008, 0.009, 0.12, 12),
-				new three.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.4 }),
+				new three.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 }),
 			),
 		);
 		const tip = new three.Mesh(
@@ -175,11 +175,18 @@ function thermometer(three: Three, h: TalkingHead) {
 		);
 		tip.position.set(0, -0.07, 0);
 		g.add(tip);
+		// Pantallita gris oscura cerca del extremo visible.
+		const screen = new three.Mesh(
+			new three.CylinderGeometry(0.0095, 0.0095, 0.03, 12),
+			new three.MeshStandardMaterial({ color: 0x2b2f33, roughness: 0.4 }),
+		);
+		screen.position.set(0, 0.02, 0);
+		g.add(screen);
 		// Entre el brazo y el pecho, asomando hacia adelante (el eje Y del
 		// hueso va a lo largo del brazo y el Z hacia el cuerpo).
-		g.position.set(-0.07, 0.12, 0.03);
+		g.position.set(-0.09, 0.12, 0.02);
 		g.rotation.set(0, 0, -1.1);
-		g.scale.set(2, 2, 2);
+		g.scale.set(3, 3, 3);
 		arm.add(g);
 		t = g;
 	}

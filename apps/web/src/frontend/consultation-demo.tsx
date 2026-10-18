@@ -226,9 +226,7 @@ export function ConsultationDemo() {
 							)}
 						</div>
 					)}
-					{ready && mode !== "clip" && (
-						<TryIt mode={mode} avatar={avatar} onMode={tryIt} />
-					)}
+					{ready && mode !== "clip" && <TryIt mode={mode} avatar={avatar} />}
 				</div>
 
 				{/* Controles del clip */}

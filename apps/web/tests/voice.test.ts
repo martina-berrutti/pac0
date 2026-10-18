@@ -427,25 +427,15 @@ describe("bugs de la Persona 1", () => {
 		);
 	});
 
-	test("el generador entiende 'él' y 'varón'", async () => {
+	test("el generador siempre crea mujeres, aunque pidan 'él' o 'varón'", async () => {
 		const { generateCase } = await import("@/lib/patient/generator");
 		for (const text of [
 			"un paciente con dolor de garganta, que sea él",
 			"un varón con dolor de garganta",
 		]) {
 			const { clinicalCase } = await generateCase({ text }, () => 0);
-			expect([
-				"Mateo",
-				"Santiago",
-				"Joaquín",
-				"Nicolás",
-				"Diego",
-				"Juan",
-				"Carlos",
-				"Raúl",
-				"Jorge",
-				"Pablo",
-			]).toContain(clinicalCase.patient.name);
+			expect(clinicalCase.patient.sex).toBe("f");
+			expect(clinicalCase.patient.name).toBe("Valentina");
 		}
 	});
 });

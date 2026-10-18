@@ -17,7 +17,6 @@ Fotos reales (no generadas con IA), sin cara reconocible. Recortadas a 4:3 y ach
 
 | Archivo | Muestra | Fuente | Licencia | Atribución | Validó |
 |---|---|---|---|---|---|
-| `apps/web/public/exam/throat-exudate-01.jpg` | Amígdalas aumentadas con exudado blanquecino, úvula central (caso `garganta-01`) | [Wikimedia Commons: Tonsillitis.jpg](https://commons.wikimedia.org/wiki/File:Tonsillitis.jpg) | Dominio público | Michaelbladon (en.wikipedia) | Estudiante avanzada de Medicina (Udelar), 17/10/2026 |
 | `apps/web/public/exam/throat-erythema-01.jpg` | Pared posterior eritematosa con folículos, sin exudado (caso `garganta-02`) | [Wikimedia Commons: Pharyngitis, COVID-19.jpg](https://commons.wikimedia.org/wiki/File:Pharyngitis,_COVID-19.jpg) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | FreeMediaKid! | Estudiante avanzada de Medicina (Udelar), 17/10/2026 |
 | `apps/web/public/exam/throat-normal-01.jpg` | Orofaringe normal: paladar blando, úvula y pilares sin eritema (para casos futuros) | [Wikimedia Commons: Detailed view of the palatine tonsil of an adult.jpg](https://commons.wikimedia.org/wiki/File:Detailed_view_of_the_palatine_tonsil_of_an_adult.jpg) | [CC0](https://creativecommons.org/publicdomain/zero/1.0/) | JonaLane | Estudiante avanzada de Medicina (Udelar), 17/10/2026 |
 
