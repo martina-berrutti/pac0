@@ -591,4 +591,27 @@ describe("cliente de voz", () => {
 		live.callbacks?.onmessage(msg({ turnComplete: true }));
 		expect(live.sent).toContain("clientContent");
 	});
+
+	test("una nota que llega después de responder la herramienta, antes del audio, espera", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.callbacks?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		await voice.drain();
+		await vi.waitFor(() => expect(live.sent).toContain("toolResponse"));
+		// Todavía no llegó audio del paciente: la nota no lo tiene que cortar.
+		voice.sendNote("terminó de revisarte");
+		expect(live.sent).not.toContain("clientContent");
+		live.callbacks?.onmessage(msg({ turnComplete: true }));
+		expect(live.sent).toContain("clientContent");
+	});
 });
