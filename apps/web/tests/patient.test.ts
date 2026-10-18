@@ -39,6 +39,23 @@ describe("el paciente no conoce el diagnóstico", () => {
 		expect(reply).toContain("para eso vine");
 	});
 
+	test.each([
+		"No entiendo, ¿me lo explicás de nuevo?",
+		"¿Dormís tranquilo?",
+		"Debe ser viral",
+	])("sin IA, no cuenta como empatía: %s", (q) => {
+		const low = { ...state, confianza: 0.3 };
+		expect(ruleRespond(brief, low, q, 2).delta).toBeNull();
+	});
+
+	test("sin IA, la empatía sube la confianza", () => {
+		const low = { ...state, confianza: 0.3 };
+		expect(
+			ruleRespond(brief, low, "Entiendo, debe ser muy molesto", 2).delta
+				?.confianza,
+		).toBeCloseTo(0.45);
+	});
+
 	test("responde desde su historia", () => {
 		expect(ruleRespond(brief, state, "¿Tuviste fiebre?", 2).text).toContain(
 			"37 y medio",

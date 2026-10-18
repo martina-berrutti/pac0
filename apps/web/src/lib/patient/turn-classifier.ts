@@ -162,6 +162,11 @@ function isEmpathy(t: string, question: boolean) {
 	return EMPATHY.some((w) => t.includes(w));
 }
 
+// Lo mismo desde el texto crudo. La usa también el paciente sin IA.
+export function showsEmpathy(text: string) {
+	return isEmpathy(normalize(text), text.includes("?"));
+}
+
 export type Classification = {
 	tags: TurnTag[];
 	delta: Partial<PatientState>;
