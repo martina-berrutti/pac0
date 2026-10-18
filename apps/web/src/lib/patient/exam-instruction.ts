@@ -2,6 +2,7 @@
 // Con voz, la misma decisión la toma la herramienta examinar del modelo.
 import type { Personality } from "@/cases/schema";
 import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
+import { asksForTemperature } from "@/lib/exam/end-intent";
 
 // Pedidos de examen: hace falta una acción, no alcanza con nombrar la zona.
 // "¿Desde cuándo te duele la garganta?" es anamnesis, no examen. Se comparan
@@ -93,7 +94,7 @@ const FIRST_PERSON =
 // La otra zona tiene que ser lo que se examina ("te reviso el cuello"), no
 // un síntoma en la misma frase ("te reviso, ¿tenés los ojos llorosos?").
 const OTHER_ZONE =
-	/\b(revis|mir|examin|ver|chequ|palp|escuch)\w*\s+(el|la|los|las|tu|tus|su|sus)\s+(cuello|ganglios?|pecho|presion|tension|brazos?|panza|abdomen|corazon|pulmon\w*|espalda|nariz|ojos?|piernas?|oidos?|orejas?)\b/;
+	/\b(revis|mir|examin|ver|chequ|palp|escuch)\w*\s+(el|la|los|las|tu|tus|su|sus)\s+(cuello|ganglios?|pecho|presion|tension|brazos?|panza|abdomen|corazon|pulmon\w*|espalda|nariz|ojos?|piernas?|rodillas?|oidos?|orejas?)\b/;
 const MOUTH =
 	/\b(boca|garganta|faringe|lengua|amigdalas?|a{2,}|abr(i|a|ime|ame|ila|is|ir))\b/;
 
@@ -126,7 +127,7 @@ const ASKS_PERMISSION = [
 ];
 // "Permiso para revisarte" sí; "¿pediste permiso para faltar?" no.
 const PERMISSION_FOR_EXAM =
-	/permiso\s+para\s+(revisar|examinar|mirar|ver|tomar|escuchar|tocar)/;
+	/permiso\s+para\s+(revisar|examinar|mirar|ver|tomar|escuchar|tocar|poner|medir)/;
 
 // Permiso para examinar: pedirlo explícitamente, o pedirlo junto con el
 // examen. "¿Puedo preguntarte la edad?" no autoriza a abrirle la boca.
@@ -137,7 +138,11 @@ export function asksConsent(text: string) {
 		.normalize("NFD")
 		.replace(/\p{Diacritic}/gu, "");
 	if (PERMISSION_FOR_EXAM.test(plain)) return true;
-	return includesAny(text, CONSENT_WORDS) && isExamRequest(text);
+	// "¿Te puedo tomar la temperatura?" también pide permiso para examinar.
+	return (
+		includesAny(text, CONSENT_WORDS) &&
+		(isExamRequest(text) || asksForTemperature(text))
+	);
 }
 
 export function interpretExamInstruction(

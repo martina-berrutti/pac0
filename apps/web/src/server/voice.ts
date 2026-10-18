@@ -314,6 +314,22 @@ export async function runTool(
 					},
 				};
 			}
+			// La rodilla de un caso con zona de dolor: el panel "¿te duele acá?",
+			// igual que con mostrar_region (no "no se puede examinar").
+			if (
+				clinicalCase.painZone !== undefined &&
+				/rodill|pierna/i.test(args.zona)
+			) {
+				if (args.consentimiento) await giveConsent(session, elapsed);
+				return {
+					output: {
+						disponible: true,
+						indicacion:
+							"Mostrale con la mano la rodilla que te duele; el estudiante va a tocar dónde. No digas el diagnóstico.",
+					},
+					ui: { kind: "region", region: args.zona, available: true },
+				};
+			}
 			// Sin zona clara, se examina la zona principal del caso.
 			const zone = args.zona.trim()
 				? zoneFor(args.zona, Object.keys(clinicalCase.exam))

@@ -80,17 +80,22 @@ export function asksForBloodPressure(text: string): boolean {
 
 // Tomar la temperatura ahora ("te tomo la temperatura", "te pongo el
 // termómetro"). Preguntar por la historia ("¿te tomaste la temperatura?",
-// "¿tuviste fiebre?") no abre el termómetro.
+// "¿tuviste fiebre?") no abre el termómetro, ni un consejo ("podés tomar
+// paracetamol si tenés fiebre"): el verbo apunta al paciente o lo pide.
+const TAKE_TEMPERATURE =
+	/\b((te|le|se la|te la|le la)\s+(voy a\s+|vamos a\s+)?(tomo|tomar|tome|mido|medir|mida|controlo|controlar)|(puedo|podemos|podria|dejame|dejeme|dejas|deja|permitime|permitame|me permitis|me permite|me gustaria|quisiera|voy a|vamos a|quiero|necesito|tengo que)\s+(tomar|medir)(te|le|tela|tele)?|(controlarte|controlarle)|tomemos|midamos)\b.{0,25}\b(temperatura|fiebre)\b/;
+const PUT_THERMOMETER =
+	/\b(te|le|vamos a|voy a|dejame|dejeme|dejas|deja|puedo|podemos|podria)\s+(pongo|poner|ponerte|ponerle|coloco|colocar|colocarte|colocarle)\b.{0,20}\btermometro\b/;
+
 export function asksForTemperature(text: string): boolean {
-	const t = normalize(text);
-	return (
-		/\b(tomo|tomar|tomarte|tomemos|tomamos|tomarla|mido|medir|medirte|chequeo|controlo)\b.{0,25}\b(temperatura|fiebre)\b/.test(
-			t,
-		) ||
-		/\b(pongo|poner|ponerte|coloco|colocar|colocarte)\b.{0,20}\btermometro\b/.test(
-			t,
-		)
+	// Los pasados se sacan antes de quitar las tildes, como en la presión.
+	const t = normalize(
+		text
+			.normalize("NFC")
+			.toLowerCase()
+			.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " "),
 	);
+	return TAKE_TEMPERATURE.test(t) || PUT_THERMOMETER.test(t);
 }
 
 // Qué oído nombró; si no dijo, el derecho.
@@ -102,8 +107,13 @@ export function earIn(text: string): "derecho" | "izquierdo" {
 // "señalame dónde"). "¿Te duele?" o "¿desde cuándo te duele?" no abren nada.
 export function asksWherePain(text: string): boolean {
 	const t = normalize(text);
+	// Sin cruzar una pregunta: "¿dónde vivís? ¿te duele mucho?" no.
+	const plain = text
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
 	return (
-		/\bdonde\b.{0,15}\bduele/.test(t) ||
+		/\bdonde\b[^?.!]{0,15}\bduele/.test(plain) ||
 		// "¿Te duele donde voy a tocar?", "¿te duele acá?"
 		/\bduele\b.{0,12}\b(donde (voy a )?toc\w*|aca|aqui)\b/.test(t) ||
 		/\b(mostr|muestr|senal|indic|marc)\w*\b.{0,25}\bdonde\b/.test(t)
