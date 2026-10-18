@@ -31,6 +31,16 @@ export type Ear = "derecho" | "izquierdo";
 export const THERMOMETRY = "termometria";
 export type TemperatureReading = { actionId: string; celsius: number };
 
+// Palpación de los ganglios del cuello. Se guarda como una acción de examen
+// con maneuver "palpacion-cuello" y zona "cuello" (cuenta para el
+// consentimiento); el hallazgo sale del caso (neck).
+export const NECK_PALPATION = "palpacion-cuello";
+export type NeckFinding = {
+	actionId: string;
+	tender: boolean;
+	finding: string;
+};
+
 export type OtoscopyPrep = "higiene" | "inspeccion-externa" | "verificar-luz";
 
 export type OtoscopyError =

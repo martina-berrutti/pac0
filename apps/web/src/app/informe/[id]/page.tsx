@@ -1,7 +1,8 @@
 "use client";
 
 // Informe contra el tipo Report, con el estilo del cuaderno (frontend/).
-// Orden: veredicto, tu diagnóstico, puntajes, lo que hiciste bien, lo que
+// Orden: veredicto, tu diagnóstico, la lista de odinofagia y el
+// orden de la consulta si los hay, puntajes, lo que hiciste bien, lo que
 // hiciste mal, puntos a mejorar, datos clave, lista de cotejo y el caso.
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -19,7 +20,9 @@ import {
 } from "@/frontend/ui";
 import { ApiError, api } from "@/lib/api-client";
 import type {
+	ConsultationOrder,
 	DiagnosisFeedback,
+	Odinofagia,
 	Rapport,
 	RapportEntry,
 	Report,
@@ -245,6 +248,99 @@ function RapportSection({ r }: { r: Rapport }) {
 	);
 }
 
+const MARK = {
+	si: { sign: "✓", className: "text-success" },
+	parcial: { sign: "½", className: "text-accent-foreground" },
+	no: { sign: "✗", className: "text-pen" },
+} as const;
+
+// Odinofagia: los bloques de la lista.
+function OdinofagiaSection({ o }: { o: Odinofagia }) {
+	return (
+		<section className="grid gap-4">
+			<SectionTitle>Lista de odinofagia</SectionTitle>
+			<ul className="grid gap-4">
+				{o.blocks.map((b) => (
+					<li key={b.key} className="grid gap-1.5">
+						<p className="flex items-baseline gap-2 font-medium">
+							<span
+								className={`font-hand text-2xl leading-6 ${MARK[b.status].className}`}
+							>
+								{MARK[b.status].sign}
+							</span>
+							{b.title}
+						</p>
+						<ul className="grid gap-1 pl-8 text-sm">
+							{b.checks.map((c) => (
+								<li key={c.label} className="grid grid-cols-[1.25rem_1fr]">
+									<span className={MARK[c.status].className}>
+										{MARK[c.status].sign}
+									</span>
+									<span>
+										{c.label}
+										{c.detail && (
+											<span className="text-muted-foreground">
+												{" "}
+												· {c.detail}
+											</span>
+										)}
+									</span>
+								</li>
+							))}
+						</ul>
+					</li>
+				))}
+			</ul>
+		</section>
+	);
+}
+
+const mmss = (ms: number) => {
+	const s = Math.round(ms / 1000);
+	return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+// En qué orden hizo la consulta: se destaca, no resta puntos.
+function OrderSection({ o }: { o: ConsultationOrder }) {
+	return (
+		<section className="grid gap-3">
+			<SectionTitle>Orden de la consulta</SectionTitle>
+			<ol className="flex flex-wrap items-center gap-2 text-sm">
+				{o.steps.map((s, i) => (
+					<li key={s.key} className="flex items-center gap-2">
+						{i > 0 && <span className="text-muted-foreground">→</span>}
+						<span
+							className={`rounded-full border px-3 py-1 ${s.atMs === null ? "border-dashed text-muted-foreground" : "bg-secondary"}`}
+						>
+							{s.title}{" "}
+							<span className="text-muted-foreground">
+								{s.atMs === null ? "(no lo hiciste)" : mmss(s.atMs)}
+							</span>
+						</span>
+					</li>
+				))}
+			</ol>
+			{o.ok ? (
+				<p className="font-hand text-success text-xl">
+					✓ Buen orden: primero preguntaste y después examinaste.
+				</p>
+			) : (
+				<ul className="grid gap-1">
+					{o.notes.map((n) => (
+						<li key={n} className="grid grid-cols-[1.5rem_1fr] gap-x-2">
+							<span className="font-hand text-pen text-xl leading-6">!</span>
+							<span>{n}</span>
+						</li>
+					))}
+				</ul>
+			)}
+			<p className="text-muted-foreground text-xs">
+				La consulta se puede hacer en cualquier orden; esto no resta puntos.
+			</p>
+		</section>
+	);
+}
+
 function CluesSection({ d }: { d: DiagnosisFeedback }) {
 	if (d.cluesFound.length + d.cluesMissed.length === 0) return null;
 	return (
@@ -328,6 +424,10 @@ export default function ReportPage() {
 			</section>
 
 			{report.diagnosis && <DiagnosisSection d={report.diagnosis} />}
+
+			{report.odinofagia && <OdinofagiaSection o={report.odinofagia} />}
+
+			{report.order && <OrderSection o={report.order} />}
 
 			<section className="grid gap-4" aria-label="Puntaje por dimensión">
 				{(Object.keys(LABELS) as (keyof typeof LABELS)[]).map((d) => (

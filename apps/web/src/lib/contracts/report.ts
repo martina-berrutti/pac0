@@ -110,6 +110,42 @@ export const rapportSchema = z.object({
 	minus: z.array(rapportEntrySchema),
 });
 
+const statusSchema = z.enum(["si", "parcial", "no"]);
+
+// Odinofagia (Persona 3): la lista en bloques ✓/✗
+// (lib/scoring/odinofagia.ts).
+export const odinofagiaSchema = z.object({
+	blocks: z.array(
+		z.object({
+			key: z.enum(["anamnesis", "examen", "indicaciones"]),
+			title: z.string(),
+			status: statusSchema,
+			checks: z.array(
+				z.object({
+					label: z.string(),
+					status: statusSchema,
+					detail: z.string().optional(),
+				}),
+			),
+		}),
+	),
+});
+
+// En qué orden hizo la consulta (lib/scoring/order.ts). No resta puntos: se
+// destaca en el informe.
+export const orderSchema = z.object({
+	ok: z.boolean(),
+	// Los bloques en el orden en que los empezó; atMs null: no lo hizo.
+	steps: z.array(
+		z.object({
+			key: z.enum(["anamnesis", "examen", "indicaciones"]),
+			title: z.string(),
+			atMs: z.number().nullable(),
+		}),
+	),
+	notes: z.array(z.string()),
+});
+
 export const verdictSchema = z.enum([
 	"lo_hiciste_bien",
 	"error_critico",
@@ -146,6 +182,10 @@ export const reportSchema = z.object({
 	improvements: z.array(z.string()).optional(),
 	// Trato al paciente. Opcional para los informes guardados antes.
 	rapport: rapportSchema.optional(),
+	// Odinofagia y orden de la consulta (Persona 3). Opcionales: solo los
+	// casos que los piden y los informes nuevos.
+	odinofagia: odinofagiaSchema.optional(),
+	order: orderSchema.optional(),
 	judge: z.enum(["reglas", "ia"]),
 	createdAt: z.number(),
 });
@@ -158,3 +198,5 @@ export type Report = z.infer<typeof reportSchema>;
 export type DiagnosisFeedback = z.infer<typeof diagnosisFeedbackSchema>;
 export type Rapport = z.infer<typeof rapportSchema>;
 export type RapportEntry = z.infer<typeof rapportEntrySchema>;
+export type Odinofagia = z.infer<typeof odinofagiaSchema>;
+export type ConsultationOrder = z.infer<typeof orderSchema>;

@@ -54,6 +54,9 @@ type Options = {
 	onTool: (ui: ToolUi) => void;
 	// Ánimo del paciente después de cada turno guardado (para el avatar).
 	onState?: (state: PatientState) => void;
+	// Lo que va diciendo el estudiante, mientras lo dice (antes de guardar el
+	// turno): para reaccionar rápido, como cerrar la boca (Persona 3).
+	onHearing?: (text: string) => void;
 	onEnd: () => void;
 	onError: (message: string) => void;
 };
@@ -146,6 +149,7 @@ export function useVoice({
 	onTurn,
 	onTool,
 	onState,
+	onHearing,
 	onEnd,
 	onError,
 }: Options) {
@@ -179,8 +183,15 @@ export function useVoice({
 		silenceReported: false,
 		deadline: 0,
 	});
-	const callbacks = useRef({ onTurn, onTool, onState, onEnd, onError });
-	callbacks.current = { onTurn, onTool, onState, onEnd, onError };
+	const callbacks = useRef({
+		onTurn,
+		onTool,
+		onState,
+		onHearing,
+		onEnd,
+		onError,
+	});
+	callbacks.current = { onTurn, onTool, onState, onHearing, onEnd, onError };
 	// Guarda lo que quedó a medio transcribir al cortar (se define más abajo).
 	const flushPending = useRef<() => void>(() => {});
 	// Con un examen abierto el silencio es normal: no se cuenta ni se interrumpe.
@@ -475,6 +486,7 @@ export function useVoice({
 			}
 			if (content?.inputTranscription?.text) {
 				s.studentText += content.inputTranscription.text;
+				callbacks.current.onHearing?.(s.studentText);
 				s.lastStudentChunk = now;
 				s.lastActivity = now;
 				s.silenceReported = false;
@@ -918,6 +930,19 @@ export function useVoice({
 		[deliverNote],
 	);
 
+	// Algo que el paciente tiene que decir ya (turnComplete true): por
+	// ejemplo, "sí" o "no" cuando el estudiante le toca la rodilla (Persona 3).
+	const say = useCallback((text: string) => {
+		const target = openSession(live.current);
+		if (!target) return;
+		safeSend(() =>
+			target.sendClientContent({
+				turns: [{ role: "user", parts: [{ text }] }],
+				turnComplete: true,
+			}),
+		);
+	}, []);
+
 	const setExamining = useCallback((value: boolean) => {
 		examining.current = value;
 		st.current.lastActivity = Date.now();
@@ -935,5 +960,6 @@ export function useVoice({
 		readPatientLevel,
 		patientStream,
 		sendNote,
+		say,
 	};
 }

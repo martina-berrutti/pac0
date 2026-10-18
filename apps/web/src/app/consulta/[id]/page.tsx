@@ -18,6 +18,7 @@ import {
 	PatientAvatar,
 	type PatientAvatarHandle,
 } from "@/components/avatar/patient-avatar";
+import { CuelloView } from "@/components/exam/cuello-view";
 import { DolorView } from "@/components/exam/dolor-view";
 import { OidoFotoView } from "@/components/exam/oido-foto-view";
 import { OrofaringeView } from "@/components/exam/orofaringe-view";
@@ -41,6 +42,7 @@ import type { PatientState, Turn } from "@/lib/contracts/session";
 import {
 	asksForBloodPressure,
 	asksForEarExam,
+	asksForNeckExam,
 	asksForTemperature,
 	asksToEndExam,
 	asksWherePain,
@@ -87,12 +89,15 @@ export default function ConsultationPage() {
 		setPain(false);
 		avatar.current?.run({ kind: "view", view: "head" });
 	}, []);
-	const tool = exam !== null || bp !== null || ear !== null || thermo || pain;
+	// Ganglios del cuello (se piden con palabras o con la herramienta examinar).
+	const [neck, setNeck] = useState(false);
+	const tool =
+		exam !== null || bp !== null || ear !== null || thermo || pain || neck;
 	// onTool es un callback viejo: el ref siempre tiene el valor del último render.
 	const toolOpen = useRef(false);
 	toolOpen.current = tool;
 	const measuring = useRef(false);
-	measuring.current = bp !== null || thermo || pain;
+	measuring.current = bp !== null || thermo || pain || neck;
 	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
 	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
@@ -127,17 +132,26 @@ export default function ConsultationPage() {
 	const lastStudent = useRef("");
 	// Por voz, el modelo abre los exámenes con herramientas; por texto (plan
 	// B), se piden con las mismas palabras.
+	// Ya se pidió cerrar este examen mientras se escuchaba: el turno guardado
+	// no lo vuelve a pedir.
+	const heardEnd = useRef(false);
+	useEffect(() => {
+		if (!examOpen) heardEnd.current = false;
+	}, [examOpen]);
 	function checkStudent(turn: Turn, byText: boolean) {
 		if (turn.speaker !== "estudiante") return;
 		lastStudent.current = turn.text;
 		// Una respuesta que llega con la consulta ya cerrándose no abre nada.
 		if (closingNow.current) return;
 		if (examOpen) {
-			if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
+			if (heardEnd.current) heardEnd.current = false;
+			else if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
 		} else if (!tool && asksForTemperature(turn.text)) {
 			// No hay herramienta de voz para la temperatura: también por voz se
 			// abre con las palabras.
 			setThermo(true);
+		} else if (!tool && asksForNeckExam(turn.text)) {
+			setNeck(true);
 		} else if (!tool && view?.case.hasPainZone && asksWherePain(turn.text)) {
 			setPain(true);
 		} else if (byText && !tool) {
@@ -153,6 +167,14 @@ export default function ConsultationPage() {
 			checkStudent(turn, false);
 		},
 		onState: showState,
+		// "Cerrá la boca" cierra apenas se escucha, sin esperar a que se guarde
+		// el turno (eso pasa recién cuando el paciente contesta).
+		onHearing: (text) => {
+			if (examOpen && !heardEnd.current && asksToEndExam(text)) {
+				heardEnd.current = true;
+				setEndRequest((n) => n + 1);
+			}
+		},
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
 			// Midiendo presión, temperatura o buscando el dolor, otro examen no
@@ -179,6 +201,7 @@ export default function ConsultationPage() {
 					open ? (ui.side ?? open) : (ui.side ?? earIn(lastStudent.current)),
 				);
 			}
+			if (ui.kind === "neck" && !closingNow.current) setNeck(true);
 			// Con el tensiómetro abierto se sigue con el que está (el servidor
 			// actualiza esa medición si todavía no tiene manguito).
 			if (ui.kind === "vitals" && !closingNow.current)
@@ -393,6 +416,7 @@ export default function ConsultationPage() {
 		if (!closing) return;
 		setBp(null);
 		setThermo(false);
+		setNeck(false);
 		closePain();
 	}, [closing, closePain]);
 
@@ -403,6 +427,7 @@ export default function ConsultationPage() {
 		setBp(null);
 		setThermo(false);
 		setPain(false);
+		setNeck(false);
 		avatar.current?.exam(null);
 		setClosing(true);
 	}
@@ -577,6 +602,7 @@ export default function ConsultationPage() {
 												if (exam || ear) requestClose();
 												setBp(null);
 												setThermo(false);
+												setNeck(false);
 												closePain();
 											}}
 										>
@@ -600,10 +626,18 @@ export default function ConsultationPage() {
 								avatar={avatar}
 								sessionId={id}
 								onClose={closePain}
-								onFound={() => {
+								speaks={voice.status === "live"}
+								onAnswer={(found) => {
+									// Sí o no con la cabeza, y en voz alta si hay voz.
+									avatar.current?.run({
+										kind: "face",
+										face: found ? "si" : "no",
+									});
 									if (voice.status === "live")
-										voice.sendNote(
-											"El estudiante encontró dónde te duele: confirmáselo con tus palabras.",
+										voice.say(
+											found
+												? "(El estudiante te toca la rodilla y te pregunta si te duele ahí. Sí, te duele justo ahí: decí solo algo muy corto, como «¡Sííí, ahí!», con dolor. Nada más.)"
+												: "(El estudiante te toca la rodilla y te pregunta si te duele ahí. No te duele ahí: decí solo algo muy corto, como «Nooo, ahí no». Nada más.)",
 										);
 								}}
 							/>
@@ -641,6 +675,10 @@ export default function ConsultationPage() {
 								onClose={closeBp}
 							/>
 						</div>
+					) : neck ? (
+						<div className="fade-in zoom-in-50 w-full max-w-md animate-in rounded-lg bg-background p-3 shadow-2xl duration-500 md:justify-self-start">
+							<CuelloView sessionId={id} onClose={() => setNeck(false)} />
+						</div>
 					) : thermo ? (
 						<div className="fade-in zoom-in-50 w-full max-w-md animate-in rounded-lg bg-background p-3 shadow-2xl duration-500 md:justify-self-start">
 							<TermometroView
@@ -658,7 +696,7 @@ export default function ConsultationPage() {
 				<div className="absolute inset-0 grid place-items-center bg-black/40 p-4">
 					<form
 						onSubmit={finish}
-						className="fade-in zoom-in-95 grid w-full max-w-md animate-in gap-2 rounded-lg bg-background p-4 shadow-2xl"
+						className="fade-in zoom-in-95 grid max-h-[calc(100svh-2rem)] w-full max-w-md animate-in gap-2 overflow-y-auto rounded-lg bg-background p-4 shadow-2xl"
 					>
 						<h2 className="font-semibold text-lg">Terminaste la consulta</h2>
 						<label htmlFor="hipotesis" className="font-medium">

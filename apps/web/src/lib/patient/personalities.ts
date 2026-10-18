@@ -18,6 +18,8 @@ export type Archetype = {
 	mood: Mood;
 	// Voz de Gemini Live acorde, por sexo del paciente (lib/patient/voices.ts).
 	voice: { f: string; m: string };
+	// Fuera del menú de Casos: solo la usa el generador (un paciente mayor).
+	hidden?: boolean;
 };
 
 export const ARCHETYPES: Archetype[] = [
@@ -121,6 +123,8 @@ export const ARCHETYPES: Archetype[] = [
 	{
 		key: "mayor",
 		label: "Adulto mayor con audición reducida",
+		// El equipo la sacó del menú (Persona 3); el generador la sigue usando.
+		hidden: true,
 		description: "Divaga, hay que repetir.",
 		mood: "neutral",
 		voice: { f: "Aoede", m: "Charon" },

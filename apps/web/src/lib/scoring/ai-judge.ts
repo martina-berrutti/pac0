@@ -13,12 +13,12 @@ import { judgeHypothesis, spokenReasoning } from "./diagnosis";
 import { NO_HYPOTHESIS, type Reasoning, reasoningFromParts } from "./evaluate";
 import type { Extracted } from "./extractor";
 import {
-	ACTION_ITEMS,
 	DESCRIBE_ITEM,
 	expectedFinding,
 	findTurn,
 	judgeItem,
 	normalize,
+	RULE_ONLY_ITEMS,
 	turnsForItem,
 } from "./rule-judge";
 import type { EvaluationInput } from "./types";
@@ -110,7 +110,7 @@ export async function aiJudgeItems(
 	llm: JsonLlm,
 ): Promise<ItemResult[]> {
 	const checklist = input.clinicalCase.expectedChecklist;
-	const textItems = checklist.filter((i) => !ACTION_ITEMS.has(i.id));
+	const textItems = checklist.filter((i) => !RULE_ONLY_ITEMS.has(i.id));
 	const prompt = `Sos un docente de semiología que corrige una entrevista clínica de práctica. Para cada ítem de la lista de cotejo decidí si el estudiante lo cumplió: "si", "parcial" o "no".
 Reglas:
 - Solo cuentan los turnos del estudiante. Citá en turnIds los ids de 1 a 3 turnos que lo prueban.
@@ -132,8 +132,9 @@ Respondé solo JSON: {"items":[{"itemId":"...","status":"si|parcial|no","turnIds
 	const byId = new Map(out.items.map((r) => [r.itemId, r]));
 	return checklist.map((item) => {
 		const r = byId.get(item.id);
-		// Ítems de examen, o los que el modelo salteó: juez por reglas.
-		if (ACTION_ITEMS.has(item.id) || !r)
+		// Ítems de examen o con reglas propias, o los que el modelo salteó:
+		// juez por reglas.
+		if (RULE_ONLY_ITEMS.has(item.id) || !r)
 			return judgeItem(item, input, extracted);
 		return withEvidence(
 			item,
@@ -158,7 +159,8 @@ export async function verifyOmissions(
 	);
 	const suspects = items.flatMap((result) => {
 		const item = checklist.get(result.itemId);
-		if (!item || result.status !== "no" || ACTION_ITEMS.has(item.id)) return [];
+		if (!item || result.status !== "no" || RULE_ONLY_ITEMS.has(item.id))
+			return [];
 		const candidate = findTurn(turnsForItem(item, extracted), item.keywords);
 		return candidate ? [{ item, candidate }] : [];
 	});

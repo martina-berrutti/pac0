@@ -3,6 +3,7 @@
 // de presión, las otoscopias y si hubo examen antes del consentimiento.
 import {
 	type ExamAction,
+	NECK_PALPATION,
 	OTOSCOPY,
 	THERMOMETRY,
 	type VitalsMeasurement,
@@ -195,6 +196,8 @@ export type Extracted = {
 	bp: VitalsMeasurement | null;
 	// Otoscopias terminadas (con pasos y errores calculados), en orden.
 	otoscopies: ExamAction[];
+	// Primera palpación del cuello, si la hubo.
+	neckPalpation: ExamAction | null;
 	studentInterruptions: SessionEvent[];
 	// Si hubo algún examen o medición que el paciente no negó.
 	examined: boolean;
@@ -218,9 +221,13 @@ export type Extracted = {
 
 export function extract(input: EvaluationInput): Extracted {
 	const { clinicalCase, session, examActions, events, turns, vitals } = input;
-	// Las acciones de boca; las otoscopias van aparte.
+	// Las acciones de boca; las otoscopias, la temperatura y el cuello van
+	// aparte.
 	const mouth = examActions.filter(
-		(a) => a.maneuver !== OTOSCOPY && a.maneuver !== THERMOMETRY,
+		(a) =>
+			a.maneuver !== OTOSCOPY &&
+			a.maneuver !== THERMOMETRY &&
+			a.maneuver !== NECK_PALPATION,
 	);
 	const full = mouth.filter((a) => a.variant === "completa");
 
@@ -298,6 +305,10 @@ export function extract(input: EvaluationInput): Extracted {
 			examined.find((a) => consentAt === null || a.atMs < consentAt) ?? null,
 		bp: measured.at(-1) ?? vitals.at(-1) ?? null,
 		otoscopies,
+		neckPalpation:
+			examActions
+				.filter((a) => a.maneuver === NECK_PALPATION)
+				.sort((a, b) => a.startMs - b.startMs)[0] ?? null,
 		studentInterruptions: events.filter(
 			(e) => e.type === "interrupcion_estudiante",
 		),
