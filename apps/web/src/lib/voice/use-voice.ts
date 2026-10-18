@@ -57,6 +57,9 @@ type Options = {
 	// Lo que va diciendo el estudiante, mientras lo dice (antes de guardar el
 	// turno): para reaccionar rápido, como cerrar la boca (Persona 3).
 	onHearing?: (text: string) => void;
+	// Terminó el turno del estudiante (se guarda lo dicho y la transcripción
+	// vuelve a empezar).
+	onHeardTurnEnd?: () => void;
 	onEnd: () => void;
 	onError: (message: string) => void;
 };
@@ -150,6 +153,7 @@ export function useVoice({
 	onTool,
 	onState,
 	onHearing,
+	onHeardTurnEnd,
 	onEnd,
 	onError,
 }: Options) {
@@ -188,10 +192,19 @@ export function useVoice({
 		onTool,
 		onState,
 		onHearing,
+		onHeardTurnEnd,
 		onEnd,
 		onError,
 	});
-	callbacks.current = { onTurn, onTool, onState, onHearing, onEnd, onError };
+	callbacks.current = {
+		onTurn,
+		onTool,
+		onState,
+		onHearing,
+		onHeardTurnEnd,
+		onEnd,
+		onError,
+	};
 	// Guarda lo que quedó a medio transcribir al cortar (se define más abajo).
 	const flushPending = useRef<() => void>(() => {});
 	// Con un examen abierto el silencio es normal: no se cuenta ni se interrumpe.
@@ -346,6 +359,7 @@ export function useVoice({
 		const s = st.current;
 		const saved = saveTurn("estudiante", s.studentText, false);
 		s.studentText = "";
+		callbacks.current.onHeardTurnEnd?.();
 		return saved;
 	}, [saveTurn]);
 
