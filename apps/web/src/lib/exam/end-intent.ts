@@ -5,7 +5,9 @@ import { normalize } from "@/lib/avatar/commands";
 
 const END = [
 	/\bcerr(a|ar|as|ala|ame)\b.*\bboca\b/,
-	/\bpod(es|e|eis|ria|rias)\b.*\b(cerrar|tapar|bajar|volver|relajar|descansar)/,
+	// "¿Podés bajar la cabeza?" sí; "¿podés volver a abrir?" o "¿podés bajar
+	// la lengua?" son otra instrucción del examen.
+	/\bpod(es|e|eis|ria|rias)\b.*\b(cerrar|tapar|descansar|(bajar|relajar) (la )?(boca|cabeza|mandibula)|volver a (sentarte|como estabas|la normalidad))/,
 	/\bya (esta|estamos|termine|terminamos|vi|revise|te revise|lo vi|alcanza)\b/,
 	/\blisto\b/,
 	/\b(eso es todo|nada mas|es suficiente|alcanza)\b/,
@@ -18,7 +20,7 @@ const END = [
 	/\b(saca|sacar|saco|retira) (el |la )?(otoscopio|linterna|abatelenguas)/,
 	/\b(basta|suficiente|ya fue|ya vi|perfecto,? gracias|gracias,? ya)\b/,
 	/\bvolve(r|mos)? (a la normalidad|a como estabas|de frente|a sentarte)/,
-	/\b(podes|puedes) (bajar|volver|relajarte|descansar)/,
+	/\b(podes|puedes) (relajarte|descansar|bajar (la )?(boca|cabeza))/,
 ];
 
 // "No cierres la boca", "todavía no terminé": siguen examinando.
@@ -28,6 +30,10 @@ const KEEP = [
 	/\baun no\b/,
 	/\bno (esta|estamos) listo/,
 	/\bno termine\b/,
+	/\bcuando termine\b/,
+	// Con otra instrucción del examen ("listo, ahora sacá la lengua", "ya
+	// está casi, abrí un poco más") sigue examinando.
+	/\b(abr(i|a|ime|ame|ila|is|ir)|deci a+|diga a+|a{3,}|lengua)\b/,
 ];
 
 export function asksToEndExam(text: string): boolean {
@@ -66,16 +72,23 @@ export function asksForEarExam(text: string): boolean {
 const MEASURE =
 	/\b((te|le|se la|te la|le la)\s+(voy a\s+|vamos a\s+)?(tomo|tomar|tome|mido|medir|mida|controlo|controlar|controle|tomamos|medimos)|(puedo|podemos|podria|podrias|dejame|dejeme|deja|dejas|permitime|permitame|me permitis|me permite|me gustaria|quisiera|necesitaria|voy a|vamos a|quiero|necesito|tengo que)\s+(tomar|medir|controlar)(te|le|tela|tele)?|tomemos|midamos|controlemos|(pongo|poner|ponerte|ponerle|coloco|colocar|colocarte|colocarle)\b.*\bpara\s+(tomar|medir)(te|le)?)\b/;
 
+// Frase por frase, sin pasados: "te tomo el pulso. ¿Cómo andás de presión?"
+// no es un pedido de presión, y "¿quién te tomó la presión?" no es "te tomo
+// la presión" (los pasados se sacan antes de quitar las tildes).
+function presentSentences(text: string) {
+	return text
+		.normalize("NFC")
+		.toLowerCase()
+		.split(/[.?!¿¡\n]+/)
+		.map((s) =>
+			normalize(s.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " ")),
+		);
+}
+
 export function asksForBloodPressure(text: string): boolean {
-	// Los pasados se sacan antes de quitar las tildes: "¿quién te tomó la
-	// presión?" no es "te tomo la presión".
-	const t = normalize(
-		text
-			.normalize("NFC")
-			.toLowerCase()
-			.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " "),
+	return presentSentences(text).some(
+		(t) => /\b(presion|tension|tensiometro)\b/.test(t) && MEASURE.test(t),
 	);
-	return /\b(presion|tension|tensiometro)\b/.test(t) && MEASURE.test(t);
 }
 
 // Tomar la temperatura ahora ("te tomo la temperatura", "te pongo el
@@ -88,14 +101,11 @@ const PUT_THERMOMETER =
 	/\b(te|le|vamos a|voy a|dejame|dejeme|dejas|deja|puedo|podemos|podria)\s+(pongo|poner|ponerte|ponerle|coloco|colocar|colocarte|colocarle)\b.{0,20}\btermometro\b/;
 
 export function asksForTemperature(text: string): boolean {
-	// Los pasados se sacan antes de quitar las tildes, como en la presión.
-	const t = normalize(
-		text
-			.normalize("NFC")
-			.toLowerCase()
-			.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " "),
+	// Frase por frase, como la presión: "te voy a medir la presión, ¿tenés
+	// fiebre?" no pide el termómetro.
+	return presentSentences(text).some(
+		(t) => TAKE_TEMPERATURE.test(t) || PUT_THERMOMETER.test(t),
 	);
-	return TAKE_TEMPERATURE.test(t) || PUT_THERMOMETER.test(t);
 }
 
 // Qué oído nombró; si no dijo, el derecho.

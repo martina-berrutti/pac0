@@ -2,7 +2,10 @@
 // Con voz, la misma decisión la toma la herramienta examinar del modelo.
 import type { Personality } from "@/cases/schema";
 import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
-import { asksForTemperature } from "@/lib/exam/end-intent";
+import {
+	asksForBloodPressure,
+	asksForTemperature,
+} from "@/lib/exam/end-intent";
 
 // Pedidos de examen: hace falta una acción, no alcanza con nombrar la zona.
 // "¿Desde cuándo te duele la garganta?" es anamnesis, no examen. Se comparan
@@ -138,10 +141,13 @@ export function asksConsent(text: string) {
 		.normalize("NFD")
 		.replace(/\p{Diacritic}/gu, "");
 	if (PERMISSION_FOR_EXAM.test(plain)) return true;
-	// "¿Te puedo tomar la temperatura?" también pide permiso para examinar.
+	// "¿Te puedo tomar la temperatura / la presión?" también pide permiso para
+	// examinar.
 	return (
 		includesAny(text, CONSENT_WORDS) &&
-		(isExamRequest(text) || asksForTemperature(text))
+		(isExamRequest(text) ||
+			asksForTemperature(text) ||
+			asksForBloodPressure(text))
 	);
 }
 
