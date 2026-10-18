@@ -39,6 +39,50 @@ describe("el paciente no conoce el diagnóstico", () => {
 		expect(reply).toContain("para eso vine");
 	});
 
+	test.each([
+		"No entiendo, ¿me lo explicás de nuevo?",
+		"¿Dormís tranquilo?",
+		"Debe ser viral",
+		"Leí el reglamento",
+		"¿Es normal que tengas fiebre?",
+		"No debe ser tan complicado",
+		"¿La nena está tranquila?",
+		"Dormís tranquilo, o no?",
+		"Es normal que te duela tanto, o es la primera vez?",
+		"Imagino que ya tomaste algo, no?",
+		"Imagino que ya tomaste algo, ¿no?",
+	])("sin IA, no cuenta como empatía: %s", (q) => {
+		const low = { ...state, confianza: 0.3 };
+		expect(ruleRespond(brief, low, q, 2).delta).toBeNull();
+	});
+
+	test.each([
+		"Entiendo, debe ser muy molesto",
+		"Entiendo, debe ser muy molesto. ¿Desde cuándo te duele?",
+		"Debe ser difícil, ¿no?",
+		"Entiendo, es normal que estés preocupada. ¿Tenés fiebre?",
+		"Tranquila, no parece nada grave.",
+		"Debe ser realmente difícil",
+		"Tranquila, ¿desde cuándo te duele?",
+		"Entiendo, imagino que te duele mucho, ¿tomaste algo?",
+		"Tranquila, desde cuándo te duele?",
+		"Debe ser difícil, no?",
+		"Entiendo, imagino que te duele, tomaste algo?",
+		"No debe ser fácil",
+		"No, debe ser horrible",
+		"Debe ser horrible, no debería pasarte esto",
+		"Bueno, tranquila, vamos a ver qué pasa.",
+		"Ay, tranquilo.",
+		"Ok tranqui",
+		"Debe ser difícil, ¿no?",
+		"No debe ser fácil, no?",
+		"Entiendo, imagino que es incómodo, ¿no?",
+		"Tranquila, es normal que duela un poco, ¿no?",
+	])("sin IA, la empatía sube la confianza: %s", (q) => {
+		const low = { ...state, confianza: 0.3 };
+		expect(ruleRespond(brief, low, q, 2).delta?.confianza).toBeCloseTo(0.45);
+	});
+
 	test("responde desde su historia", () => {
 		expect(ruleRespond(brief, state, "¿Tuviste fiebre?", 2).text).toContain(
 			"37 y medio",

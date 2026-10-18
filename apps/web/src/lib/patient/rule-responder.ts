@@ -5,6 +5,7 @@ import { SENSITIVE_KEYS } from "@/cases/schema";
 import type { PatientState } from "@/lib/contracts/session";
 
 import type { PatientBrief } from "./brief";
+import { showsEmpathy } from "./turn-classifier";
 
 // Tema -> palabras de la pregunta -> clave del perfil o de la historia.
 const TOPICS: { key: string; words: string[] }[] = [
@@ -90,17 +91,6 @@ const TOPICS: { key: string; words: string[] }[] = [
 	{ key: "estadoCivil", words: ["casad", "solter", "pareja"] },
 ];
 
-const EMPATHY = [
-	"entiendo",
-	"tranqui",
-	"no te preocupes",
-	"debe ser",
-	"lamento",
-	"qué feo",
-	"que feo",
-	"te acompaño",
-	"gracias por contarme",
-];
 const GREETING = ["hola", "buen día", "buen dia", "buenas"];
 const OPEN_QUESTION = [
 	"qué te trae",
@@ -180,7 +170,8 @@ export function ruleRespond(
 
 	let delta: Partial<PatientState> | null = null;
 	let motivo: string | undefined;
-	if (has(text, EMPATHY)) {
+	// Las mismas reglas que el clasificador: "no entiendo" no es empatía.
+	if (showsEmpathy(studentText)) {
 		delta = { confianza: Math.min(1, state.confianza + 0.15) };
 		motivo = "el estudiante mostró empatía";
 	}
