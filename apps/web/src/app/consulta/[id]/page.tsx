@@ -265,6 +265,8 @@ export default function ConsultationPage() {
 				.catch(() => toast.error("No se guardó el tiempo del examen."));
 		}
 		setExam(null);
+		// Si queda el oído abierto, no hereda el pedido de cierre de la garganta.
+		setEndRequest(0);
 		closes.closed();
 	}
 
@@ -289,11 +291,12 @@ export default function ConsultationPage() {
 
 	// Al terminar la consulta (la cruz, el reloj o el modelo) con un examen
 	// abierto, se cierra guardando. También si uno se abre tarde.
-	const examShown = examOpen && revealed;
+	// Corre de nuevo si cambia el examen abierto (la garganta se cerró y queda
+	// el oído) o si recién se muestra.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: requestClose lee el estado del render.
 	useEffect(() => {
-		if (closing && examOpen) requestClose();
-	}, [closing, examOpen, examShown]);
+		if (closing && (exam || ear)) requestClose();
+	}, [closing, exam, ear, revealed]);
 
 	// La cruz: corta la voz y pasa a la hipótesis (el examen abierto se cierra
 	// guardando).
