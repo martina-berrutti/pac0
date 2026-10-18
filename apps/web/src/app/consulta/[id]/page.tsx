@@ -153,6 +153,14 @@ export default function ConsultationPage() {
 				setBp({
 					start: { measurementId: ui.measurementId, armCm: ui.armCm },
 				});
+			// Pidió ver la rodilla en un caso con zona de dolor: a localizarlo.
+			if (
+				ui.kind === "region" &&
+				ui.available &&
+				!toolOpen.current &&
+				/rodill|pierna/i.test(ui.region)
+			)
+				setPain(true);
 			if (ui.kind === "region" && !ui.available)
 				toast.info(`"${ui.region}" todavía no está disponible.`);
 			if (ui.kind === "end") {

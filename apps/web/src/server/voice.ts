@@ -371,16 +371,33 @@ export async function runTool(
 		}
 		case "mostrar_region": {
 			const args = toolArgs.mostrar_region.parse(rawArgs);
+			// La rodilla (o la pierna) de un caso con zona de dolor: el
+			// estudiante toca en el avatar dónde le duele (dolor-view).
+			const knee =
+				clinicalCase.painZone !== undefined &&
+				/rodill|pierna/.test(
+					args.region
+						.toLowerCase()
+						.normalize("NFD")
+						.replace(/\p{Diacritic}/gu, ""),
+				);
 			const available =
+				knee ||
 				zoneFor(args.region, Object.keys(clinicalCase.exam)) !== undefined;
 			return {
-				output: available
-					? { disponible: true }
-					: {
-							disponible: false,
-							mensaje:
-								"Esa parte del cuerpo no está disponible en esta versión.",
-						},
+				output: knee
+					? {
+							disponible: true,
+							indicacion:
+								"Mostrale con la mano la rodilla que te duele; el estudiante va a tocar dónde. No digas el diagnóstico.",
+						}
+					: available
+						? { disponible: true }
+						: {
+								disponible: false,
+								mensaje:
+									"Esa parte del cuerpo no está disponible en esta versión.",
+							},
 				ui: { kind: "region", region: args.region, available },
 			};
 		}
