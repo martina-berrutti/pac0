@@ -231,3 +231,33 @@ describe("consulta completa por caso", () => {
 		).toBe(false);
 	});
 });
+
+describe("pedidos por texto que no son de garganta", () => {
+	test("pedir ver el oído no registra un examen de garganta", async () => {
+		const ana = student();
+		const { clinicalCase } = await generateCase({
+			text: "dame un paciente con dolor de oído",
+		});
+		await store.addGeneratedCase(ana.uid, clinicalCase);
+		const id = await startSession(ana, clinicalCase.id, "caso");
+		const { exam, patientTurn } = await sendTurn(
+			ana,
+			id,
+			"¿Puedo revisarte el oído?",
+		);
+		expect(exam).toBeNull();
+		expect(patientTurn.text).not.toContain("Aaa");
+		expect(await store.listExamActions(id)).toHaveLength(0);
+	});
+
+	test.each([
+		"¿Te duele cuando abrís la boca?",
+		"Quiero verte de nuevo en 48 horas",
+		"¿Trajiste la receta? Quiero verla",
+	])("no es un pedido de examen: %s", async (line) => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const { exam } = await sendTurn(ana, id, line);
+		expect(exam).toBeNull();
+	});
+});

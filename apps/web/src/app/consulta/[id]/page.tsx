@@ -287,9 +287,8 @@ export default function ConsultationPage() {
 				v ? { ...v, turns: [...v.turns, r.studentTurn, r.patientTurn] } : v,
 			);
 			checkStudent(r.studentTurn, true);
-			// El servidor por texto toma "revisar" como pedido de garganta: si
-			// nombró el oído, se muestra el oído.
-			if (r.exam && !asksForEarExam(text)) setExam(r.exam);
+			// Si nombró el oído, el servidor no devuelve examen: se abre el oído.
+			if (r.exam) setExam(r.exam);
 		} catch (e) {
 			toast.error(
 				e instanceof ApiError

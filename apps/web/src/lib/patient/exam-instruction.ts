@@ -7,7 +7,9 @@ import type { ExamVariant, InstructionClarity } from "@/lib/contracts/exam";
 // "¿Desde cuándo te duele la garganta?" es anamnesis, no examen. Se comparan
 // sin tildes.
 const EXAM_PATTERNS = [
-	/\babr(i|a|ime|ame|ila|is)\b/,
+	// "Abrí", "¿me abrís?"; no "¿te duele cuando abrís la boca?".
+	// "Necesito que abra la boca" sí.
+	/(?<!\b(cuando|si)\s+((me|la|le|lo)\s+)?)\babr(i|a|ime|ame|ila|is)\b/,
 	// "¿Podés abrir?", "¿podés abrir bien?", "¿podés abrir la boca?"; no
 	// "¿podés abrir la ventana?".
 	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir(\s+(bien|grande|mas|un\s+poco))*(\s+la\s+boca)?[\s?!.,]*$/,
@@ -20,7 +22,9 @@ const EXAM_PATTERNS = [
 	// garganta". "¿Algún médico llegó a revisarte?" es anamnesis, no examen.
 	// El verbo tiene que apuntar al paciente o a una parte del cuerpo: "vamos a
 	// ver qué te pasa" o "¿puedo ver tus análisis?" no son examen.
-	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)(te|le|lo|la)\b/,
+	// "Verte"/"verle" solo: "¿la receta? quiero verla" no es examen. Y no un
+	// control más adelante: "quiero verte de nuevo en 48 horas".
+	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+((revisar|examinar|mirar)(te|le|lo|la)|ver(te|le))\b(?!\s+(de nuevo|otra vez|en \d|en (un|una|unos|unas|dos|tres|cuatro|cinco|siete|diez|quince)\b|dentro|la (semana|proxima)|el (lunes|martes|miercoles|jueves|viernes|sabado|domingo|mes)|manana|despues|pasado|cuando|al control|a control|para control|con los))/,
 	/\b(puedo|podemos|voy a|vamos a|dejas|deja|dejame|quiero|necesito|tengo que|permitis|permite|podria)\s+(revisar|examinar|mirar|ver)\s+(adentro\s+(de\s+)?)?((la|el|los|las|tu|su)\s+)?(garganta|boca|oido|oidos|oreja|amigdalas|lengua)\b/,
 	// El verbo solo, como frase entera: "¿me dejás ver?", "¿puedo mirar
 	// adentro?", "voy a revisar". "Vamos a ver" / "voy a ver" sueltos no:
@@ -29,9 +33,16 @@ const EXAM_PATTERNS = [
 	/\b(voy a|vamos a)\s+(revisar|examinar|mirar)(\s+(adentro|un poco|un segundo|bien))*[\s?!.,]*$/,
 	/\blinterna\b/,
 ];
+// "Abrí más", no cualquier "más": "¿me dejás ver? así sé más" no es claro.
 const FULL_OPEN_WORDS = [
-	"más",
-	"mas ",
+	"abrí más",
+	"abri mas",
+	"abra más",
+	"abra mas",
+	"un poco más",
+	"un poco mas",
+	"más grande",
+	"mas grande",
 	"aaa",
 	"decí a",
 	"deci a",
