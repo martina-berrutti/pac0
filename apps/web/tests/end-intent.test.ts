@@ -112,3 +112,35 @@ describe("pedir que señale dónde le duele", () => {
 		expect(asksWherePain(text)).toBe(false);
 	});
 });
+
+describe("presión por texto: un pedido, no una pregunta de la historia", () => {
+	test.each([
+		["¿Tomás alguna medicación para la presión?", false],
+		["¿Qué medicación tomás para la presión?", false],
+		["¿Te controlás la presión?", false],
+		["¿Cuándo te midieron la presión por última vez?", false],
+		["¿Alguna vez te tomaron la presión?", false],
+		["¿Te mediste la presión en tu casa?", false],
+		["¿Puedo tomarte la presión?", true],
+		["Dejame tomarte la presión", true],
+		["Vamos a medir la presión", true],
+		["Te tomo la presión", true],
+		["¿Querés que te tome la presión?", true],
+		["¿Quiere que le tome la presión?", true],
+		["¿Podría tomarle la presión?", true],
+		["Me gustaría tomarte la presión", true],
+		["¿Me permitís tomarte la presión?", true],
+		["Permitime tomarte la presión", true],
+		["Te pongo el manguito para tomarte la presión", true],
+		["Permítame tomarle la presión", true],
+		["Voy a ponerte el tensiómetro para medir la presión", true],
+		["¿Tomás algo para controlar la presión?", false],
+		["¿Qué remedio te dieron para controlar la presión?", false],
+		["¿Tenés un aparato para medir la presión en tu casa?", false],
+		["¿Usás algo para medirte la presión?", false],
+		["¿Quién te tomó la presión la última vez?", false],
+		["¿El médico te controló la presión?", false],
+	])("%s", (text, expected) => {
+		expect(asksForBloodPressure(text)).toBe(expected);
+	});
+});

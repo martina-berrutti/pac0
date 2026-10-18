@@ -29,8 +29,10 @@ import { ApiError, api } from "@/lib/api-client";
 import type { Mood } from "@/lib/avatar/commands";
 import type { ExamPose } from "@/lib/avatar/exam-poses";
 import { moodFor } from "@/lib/avatar/mood";
+import { createPendingCloses } from "@/lib/consulta/pending-closes";
 import type { Ear, ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
+import { cutText } from "@/lib/cut-text";
 import {
 	asksForBloodPressure,
 	asksForEarExam,
@@ -81,6 +83,8 @@ export default function ConsultationPage() {
 	// onTool es un callback viejo: el ref siempre tiene el valor del último render.
 	const toolOpen = useRef(false);
 	toolOpen.current = tool;
+	const measuring = useRef(false);
+	measuring.current = bp !== null || thermo || pain;
 	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
 	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
@@ -107,6 +111,8 @@ export default function ConsultationPage() {
 	// solos (el tensiómetro no, tiene sus pasos).
 	const [endRequest, setEndRequest] = useState(0);
 	const examOpen = exam !== null || ear !== null;
+	const openExam = useRef(exam);
+	openExam.current = exam;
 	// Lo último que dijo el estudiante: de ahí sale qué oído pidió.
 	const lastStudent = useRef("");
 	// Por voz, el modelo abre los exámenes con herramientas; por texto (plan
@@ -137,9 +143,10 @@ export default function ConsultationPage() {
 		onState: showState,
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
-			// Con un examen abierto, no se reemplaza por otro.
+			// Midiendo presión, temperatura o buscando el dolor, otro examen no
+			// pisa el abierto (garganta y oído sí pueden convivir).
 			if (
-				toolOpen.current &&
+				measuring.current &&
 				(ui.kind === "exam" || ui.kind === "otoscope" || ui.kind === "vitals")
 			) {
 				voice.sendNote(
@@ -147,8 +154,11 @@ export default function ConsultationPage() {
 				);
 				return;
 			}
-			if (ui.kind === "exam") setExam(ui.exam);
-			if (ui.kind === "otoscope") setEar(earIn(lastStudent.current));
+			// Con la garganta bien abierta en pantalla, un pedido nuevo no la
+			// reemplaza: se perdería lo que ya miró.
+			if (ui.kind === "exam" && exam?.action.variant !== "completa")
+				setExam(ui.exam);
+			if (ui.kind === "otoscope") setEar(ui.side ?? earIn(lastStudent.current));
 			if (ui.kind === "vitals")
 				setBp({
 					start: { measurementId: ui.measurementId, armCm: ui.armCm },
@@ -316,14 +326,44 @@ export default function ConsultationPage() {
 				.catch(() => toast.error("No se guardó el tiempo del examen."));
 		}
 		setExam(null);
+		// Si queda el oído abierto, no hereda el pedido de cierre de la garganta.
+		setEndRequest(0);
+		closes.closed();
 	}
 
-	// La cruz: corta la voz, cierra lo que esté abierto y pasa a la hipótesis.
+	function closeEar() {
+		setEar(null);
+		closes.closed();
+	}
+
+	// Cierra la garganta o el oído por su propio camino, que guarda lo que se
+	// miró (tiempos, otoscopia). El informe espera a que termine: si no, sale
+	// sin ese examen y el servidor lo rechaza por consulta cerrada.
+	const [closes] = useState(createPendingCloses);
+	function requestClose() {
+		// Todavía no se ve (o no abrió la boca): no hay nada que guardar.
+		if (!revealed) {
+			setExam(null);
+			setEar(null);
+			return;
+		}
+		if (closes.request()) setEndRequest((n) => n + 1);
+	}
+
+	// Al terminar la consulta (la cruz, el reloj o el modelo) con un examen
+	// abierto, se cierra guardando. También si uno se abre tarde.
+	// Corre de nuevo si cambia el examen abierto (la garganta se cerró y queda
+	// el oído) o si recién se muestra.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: requestClose lee el estado del render.
+	useEffect(() => {
+		if (closing && (exam || ear)) requestClose();
+	}, [closing, exam, ear, revealed]);
+
+	// La cruz: corta la voz y pasa a la hipótesis (el examen abierto se cierra
+	// guardando).
 	function endConsultation() {
 		voice.stop();
-		setExam(null);
 		setBp(null);
-		setEar(null);
 		setThermo(false);
 		setPain(false);
 		avatar.current?.exam(null);
@@ -343,7 +383,9 @@ export default function ConsultationPage() {
 			);
 			checkStudent(r.studentTurn, true);
 			// Si nombró el oído, el servidor no devuelve examen: se abre el oído.
-			if (r.exam) setExam(r.exam);
+			// Con el examen de este momento, no el de cuando se mandó el texto.
+			if (r.exam && openExam.current?.action.variant !== "completa")
+				setExam(r.exam);
 		} catch (e) {
 			toast.error(
 				e instanceof ApiError
@@ -363,13 +405,14 @@ export default function ConsultationPage() {
 		try {
 			const list = differentials
 				.split(",")
-				.map((d) => d.trim().slice(0, 100))
+				.map((d) => cutText(d.trim(), 100))
 				.filter(Boolean)
 				// El servidor acepta hasta 10; más darían "Datos inválidos".
 				.slice(0, 10);
 			// Primero se terminan de guardar los últimos turnos de la voz: si no,
 			// el informe sale sin ellos y el servidor los rechaza por consulta cerrada.
 			await voice.drain();
+			await closes.settled();
 			await api.finish(id, hypothesis, list);
 			router.push(`/informe/${id}`);
 		} catch (e) {
@@ -488,8 +531,7 @@ export default function ConsultationPage() {
 										<Button
 											variant="outline"
 											onClick={() => {
-												setExam(null);
-												setEar(null);
+												requestClose();
 												setBp(null);
 												closePain();
 											}}
@@ -537,7 +579,7 @@ export default function ConsultationPage() {
 							<OidoFotoView
 								sessionId={id}
 								ear={ear}
-								onClose={() => setEar(null)}
+								onClose={closeEar}
 								endRequest={endRequest}
 							/>
 						</div>
@@ -576,18 +618,34 @@ export default function ConsultationPage() {
 						<label htmlFor="hipotesis" className="font-medium">
 							Tu hipótesis (y por qué)
 						</label>
+						<p id="hipotesis-ayuda" className="text-muted-foreground text-xs">
+							Lo que creés que tiene y en qué te basás: lo que te contó y lo que
+							viste.
+						</p>
 						<Textarea
 							id="hipotesis"
+							aria-describedby="hipotesis-ayuda"
 							value={hypothesis}
 							onChange={(e) => setHypothesis(e.target.value)}
 							maxLength={500}
 							required
 						/>
 						<label htmlFor="diferenciales" className="font-medium">
-							Diferenciales, separados por coma
+							Diagnósticos diferenciales
 						</label>
+						{/* El ejemplo es de otro tema a propósito: no da pistas del caso. */}
+						<p
+							id="diferenciales-ayuda"
+							className="text-muted-foreground text-xs"
+						>
+							Otros diagnósticos que también podrían explicar lo que tiene y que
+							pensaste antes de quedarte con tu hipótesis. Por ejemplo, para un
+							dolor de pecho: infarto, reflujo, contractura.
+						</p>
 						<Input
 							id="diferenciales"
+							aria-describedby="diferenciales-ayuda"
+							placeholder="Separados por coma"
 							value={differentials}
 							onChange={(e) => setDifferentials(e.target.value)}
 						/>

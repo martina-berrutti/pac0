@@ -258,10 +258,113 @@ describe("pedidos por texto que no son de garganta", () => {
 		"¿Te duele cuando abrís la boca?",
 		"Quiero verte de nuevo en 48 horas",
 		"¿Trajiste la receta? Quiero verla",
+		"Te voy a revisar el cuello",
 	])("no es un pedido de examen: %s", async (line) => {
 		const ana = student();
 		const id = await startSession(ana, "garganta-02", "caso");
 		const { exam } = await sendTurn(ana, id, line);
 		expect(exam).toBeNull();
+	});
+});
+
+describe("reintentar un turno que falló", () => {
+	test("no cuenta como pregunta repetida ni guarda el turno dos veces", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const line = "¿Desde cuándo te duele la garganta?";
+		const addTurn = store.addTurn.bind(store);
+		// Se guarda el turno del estudiante y falla el de la respuesta.
+		const spy = vi
+			.spyOn(store, "addTurn")
+			.mockImplementationOnce(addTurn)
+			.mockRejectedValueOnce(new Error("Convex no respondió"));
+		await expect(sendTurn(ana, id, line)).rejects.toThrow();
+		spy.mockRestore();
+		const before = (await store.getSession(id))?.state.paciencia;
+
+		await sendTurn(ana, id, line);
+		const turns = await store.listTurns(id);
+		const asked = turns.filter((t) => t.speaker === "estudiante");
+		expect(asked).toHaveLength(1);
+		expect(asked[0].tags ?? []).not.toContain("repetida");
+		expect(turns.at(-1)?.speaker).toBe("paciente");
+		expect((await store.getSession(id))?.state.paciencia).toBe(before);
+	});
+	test("el reintento de un pedido de examen no guarda otro examen", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const line =
+			"Te voy a revisar la garganta, ¿puedo? Abrí bien grande y decí aaa.";
+		const addTurn = store.addTurn.bind(store);
+		const spy = vi
+			.spyOn(store, "addTurn")
+			.mockImplementationOnce(addTurn)
+			.mockRejectedValueOnce(new Error("Convex no respondió"));
+		await expect(sendTurn(ana, id, line)).rejects.toThrow();
+		spy.mockRestore();
+		const { exam } = await sendTurn(ana, id, line);
+		expect(exam).not.toBeNull();
+		expect(await store.listExamActions(id)).toHaveLength(1);
+	});
+});
+
+describe("confianza alcanzada (texto)", () => {
+	test("queda marcada aunque la confianza baje después", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		await store.changeSession(id, {
+			set: {
+				state: { confianza: 0.6, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
+			},
+		});
+		await sendTurn(ana, id, "¿Desde cuándo te duele?");
+		expect((await store.getSession(id))?.trustReached).toBe(true);
+		await store.changeSession(id, { stateDelta: { confianza: -0.5 } });
+		await sendTurn(ana, id, "¿Tenés fiebre?");
+		expect((await store.getSession(id))?.trustReached).toBe(true);
+	});
+
+	test("sin IA, lo sensible que ya podía contar no lo esconde si baja la confianza", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		await store.changeSession(id, {
+			set: {
+				trustReached: true,
+				state: { confianza: 0.2, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
+			},
+		});
+		const { patientTurn } = await sendTurn(ana, id, "¿Tomás alcohol?");
+		expect(patientTurn.text).not.toContain("nada raro");
+	});
+
+	test("si arranca con confianza, ya está marcada", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		// Lucía (garganta-02) arranca con confianza alta.
+		const session = await store.getSession(id);
+		expect(session?.state.confianza).toBeGreaterThanOrEqual(0.5);
+		expect(session?.trustReached).toBe(true);
+	});
+
+	test("con poca confianza no se marca", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		await store.changeSession(id, {
+			set: {
+				trustReached: false,
+				state: { confianza: 0.2, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
+			},
+		});
+		await sendTurn(ana, id, "¿Tenés fiebre?");
+		expect((await store.getSession(id))?.trustReached).toBeFalsy();
+	});
+});
+
+describe("empezar con la sesión por vencer", () => {
+	test("no arranca una consulta que no llegaría a cerrarse", async () => {
+		const ana = { ...student(), exp: Date.now() + 5 * 60_000 };
+		await expect(startSession(ana, "garganta-02", "caso")).rejects.toThrow(
+			"vence",
+		);
 	});
 });

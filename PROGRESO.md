@@ -2,6 +2,13 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 18/10 · Persona 1 · Lo que dice en la consulta cuenta para el diagnóstico
+
+- **Se registra** cada frase en la que el estudiante le dice al paciente qué tiene ("creo que es una faringitis viral", "podría ser una gripe", "lo que tenés es una angina"), con su veredicto: correcto, diferencial u otro. Las preguntas, los descartes ("no es un resfrío") y "creo que tenés un poco de fiebre" no cuentan.
+- **Suma al razonamiento**, con el juez por reglas y con el de IA: los diferenciales y la justificación dichos en voz alta valen como los escritos. La hipótesis escrita manda; si en la consulta dijo el diagnóstico correcto y escribió otro, vale la mitad (20 de 40) en vez de cero.
+- **Aviso si no coinciden:** el informe muestra «En la consulta le dijiste al paciente «X», pero por escrito pusiste «Y»» y aclara cuál era el correcto, además de un punto a mejorar. Muestra también la lista de lo que dijo, con ✓ (correcto), ~ (un diferencial para pensar) o ✗ (otro).
+- Validación: 5 tests nuevos en `tests/spoken-diagnosis.test.ts` (441 en web); lint y tipos. En Chrome a 390 y 1280 px, en el localhost de la demo: sin desborde ni errores en la consola.
+
 ## 17/10 · Persona 1 · Revisión de bugs después del rediseño
 
 Pull de main (frontend nuevo, voz y Convex) y revisión en tres partes: pantallas y voz, servidor, y evaluador. En producción, antes de arreglar: API de punta a punta, consulta completa (Puerta 2) y personaje (12 de 12) en verde.

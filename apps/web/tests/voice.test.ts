@@ -206,6 +206,20 @@ describe("herramientas del paciente", () => {
 		expect(bad.techniqueErrors).toContain("piernas-cruzadas");
 	});
 
+	test("la confianza alcanzada por voz queda marcada para seguir por texto", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		await store.changeSession(id, {
+			set: {
+				state: { confianza: 0.3, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
+			},
+		});
+		await runTool(ana, id, "actualizar_estado", {
+			delta: { confianza: 0.3 },
+			motivo: "empatía",
+		});
+		expect((await store.getSession(id))?.trustReached).toBe(true);
+	});
+
 	test("actualizar_estado: queda entre 0 y 1 y se registra el evento", async () => {
 		const id = await startSession(ana, lucia.id, "caso");
 		const run = await runTool(ana, id, "actualizar_estado", {
@@ -230,6 +244,27 @@ describe("herramientas del paciente", () => {
 			"end",
 		);
 	});
+
+	test("examinar el oído izquierdo abre ese lado", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		const r = await runTool(ana, id, "examinar", {
+			zona: "oído izquierdo",
+			claridad: "media",
+			consentimiento: true,
+		});
+		expect(r.ui).toEqual({ kind: "otoscope", side: "izquierdo" });
+	});
+
+	test.each(["garganta", "oído"])(
+		"mostrar_region con %s manda a examinar, sin decir que no está",
+		async (region) => {
+			const id = await startSession(ana, lucia.id, "caso");
+			const r = await runTool(ana, id, "mostrar_region", { region });
+			expect(r.ui.kind).toBe("none");
+			expect(r.output.disponible).toBe(true);
+			expect(String(r.output.mensaje)).toContain("examinar");
+		},
+	);
 
 	test("una herramienta desconocida o de otra persona se rechaza", async () => {
 		const id = await startSession(ana, lucia.id, "caso");

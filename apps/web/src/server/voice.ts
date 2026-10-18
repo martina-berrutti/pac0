@@ -14,10 +14,10 @@ import {
 	type Turn,
 	type VoiceUsage,
 } from "@/lib/contracts/session";
+import { cutText } from "@/lib/cut-text";
 import { buildPatientPrompt, type PatientBrief } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
 import { asciiKey } from "@/lib/patient/keys";
-import { applyDelta } from "@/lib/patient/state";
 import { isToolName, PATIENT_TOOLS, toolArgs } from "@/lib/patient/tools";
 import { pickVoice } from "@/lib/patient/voices";
 
@@ -31,6 +31,7 @@ import {
 	noteConsent,
 	nudgeState,
 	recordExam,
+	rememberTrust,
 } from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
@@ -246,7 +247,7 @@ export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
 	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
-	| { kind: "otoscope" }
+	| { kind: "otoscope"; side: "derecho" | "izquierdo" | null }
 	| { kind: "end" }
 	// Ánimo nuevo del paciente, para la cara del avatar (Persona 3).
 	| { kind: "state"; state: PatientState }
@@ -301,7 +302,16 @@ export async function runTool(
 						que_pasa:
 							"Te van a revisar el oído con el otoscopio. Decí algo breve para que se note que entendiste (por ejemplo: dale, revisame) y quedate quieto. Si te tiran de la oreja y según tu historia eso te duele, quejate; si no, no. Seguí respondiendo si te hablan.",
 					},
-					ui: { kind: "otoscope" },
+					// El lado sale de la zona que mandó el modelo: la transcripción del
+					// estudiante puede llegar tarde.
+					ui: {
+						kind: "otoscope",
+						side: /izquierd/i.test(args.zona)
+							? "izquierdo"
+							: /derech/i.test(args.zona)
+								? "derecho"
+								: null,
+					},
 				};
 			}
 			// Sin zona clara, se examina la zona principal del caso.
@@ -372,7 +382,7 @@ export async function runTool(
 		case "mostrar_region": {
 			const args = toolArgs.mostrar_region.parse(rawArgs);
 			// La rodilla (o la pierna) de un caso con zona de dolor: el
-			// estudiante toca en el avatar dónde le duele (dolor-view).
+			// estudiante toca en el panel dónde le duele (dolor-view).
 			const knee =
 				clinicalCase.painZone !== undefined &&
 				/rodill|pierna/.test(
@@ -381,24 +391,38 @@ export async function runTool(
 						.normalize("NFD")
 						.replace(/\p{Diacritic}/gu, ""),
 				);
-			const available =
-				knee ||
-				zoneFor(args.region, Object.keys(clinicalCase.exam)) !== undefined;
+			if (knee) {
+				return {
+					output: {
+						disponible: true,
+						indicacion:
+							"Mostrale con la mano la rodilla que te duele; el estudiante va a tocar dónde. No digas el diagnóstico.",
+					},
+					ui: { kind: "region", region: args.region, available: true },
+				};
+			}
+			// La garganta, la boca o el oído se examinan con examinar (que abre el
+			// examen y lo registra): se le indica al modelo en vez de no hacer nada
+			// o decir que el oído no está.
+			if (
+				/o[ií]do|oreja/i.test(args.region) ||
+				zoneFor(args.region, Object.keys(clinicalCase.exam)) !== undefined
+			) {
+				return {
+					output: {
+						disponible: true,
+						mensaje:
+							"Eso se examina: llamá ahora a la herramienta examinar con esa zona (y si te pidieron permiso, consentimiento true).",
+					},
+					ui: { kind: "none" },
+				};
+			}
 			return {
-				output: knee
-					? {
-							disponible: true,
-							indicacion:
-								"Mostrale con la mano la rodilla que te duele; el estudiante va a tocar dónde. No digas el diagnóstico.",
-						}
-					: available
-						? { disponible: true }
-						: {
-								disponible: false,
-								mensaje:
-									"Esa parte del cuerpo no está disponible en esta versión.",
-							},
-				ui: { kind: "region", region: args.region, available },
+				output: {
+					disponible: false,
+					mensaje: "Esa parte del cuerpo no está disponible en esta versión.",
+				},
+				ui: { kind: "region", region: args.region, available: false },
 			};
 		}
 		case "actualizar_estado": {
@@ -433,7 +457,8 @@ export async function runTool(
 					ui: { kind: "none" },
 				};
 			}
-			const next = updated?.state ?? applyDelta(session.state, bounded);
+			await rememberTrust(updated);
+			const next = updated.state;
 			await store.addEvent({
 				id: newId("evt"),
 				sessionId,
@@ -492,7 +517,7 @@ export async function recordVoiceTurn(
 		sessionId,
 		VOICE_GRACE_MS,
 	);
-	const clean = text.trim().slice(0, 4000);
+	const clean = cutText(text.trim(), 4000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
 	// Más de lo que entra en 8 minutos: corta scripts que inflen la consulta.
 	if ((await store.listTurns(sessionId)).length >= MAX_VOICE_RECORDS)

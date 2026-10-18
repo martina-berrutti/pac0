@@ -15,8 +15,7 @@ const EXAM_PATTERNS = [
 	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir(\s+(bien|grande|mas|un\s+poco))*(\s+la\s+boca)?[\s?!.,]*$/,
 	// "Podés abrir la boca, por favor" (sí); "¿te molesta al abrir la boca?" (no).
 	/\b(podes|puede|podrias|podria|queres|quiere)\s+abrir\s+((bien|grande|mas)\s+)*la\s+boca\b/,
-	/\b(deci|diga|decime|digame)\s+a{2,}/,
-	/\ba{3,}\b/,
+	/\b(deci|diga|decime|digame|hace|haga)\s+a{2,}/,
 	/\bsac(a|ate|que)\s+(la\s+)?lengua\b/,
 	// Con un verbo que lo pide: "¿puedo revisarte?", "me dejás ver la
 	// garganta". "¿Algún médico llegó a revisarte?" es anamnesis, no examen.
@@ -88,6 +87,23 @@ function includesAny(text: string, words: string[]) {
 const FIRST_PERSON =
 	// También el subjuntivo: "¿querés que te revise?".
 	/(^|[^\p{L}])(te|le|lo|la)\s+(voy\s+a\s+)?(reviso|revisar|revise|examino|examinar|examine|miro|mirar|mire)(?!\p{L})/u;
+
+// Nombra otra parte del cuerpo y no la boca: "te reviso el cuello" o "te
+// tomo la presión" no son un examen de garganta.
+// La otra zona tiene que ser lo que se examina ("te reviso el cuello"), no
+// un síntoma en la misma frase ("te reviso, ¿tenés los ojos llorosos?").
+const OTHER_ZONE =
+	/\b(revis|mir|examin|ver|chequ|palp|escuch)\w*\s+(el|la|los|las|tu|tus|su|sus)\s+(cuello|ganglios?|pecho|presion|tension|brazos?|panza|abdomen|corazon|pulmon\w*|espalda|nariz|ojos?|piernas?|oidos?|orejas?)\b/;
+const MOUTH =
+	/\b(boca|garganta|faringe|lengua|amigdalas?|a{2,}|abr(i|a|ime|ame|ila|is|ir))\b/;
+
+export function namesOtherZone(text: string) {
+	const plain = text
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
+	return OTHER_ZONE.test(plain) && !MOUTH.test(plain);
+}
 
 export function isExamRequest(text: string) {
 	const lower = text.toLowerCase();

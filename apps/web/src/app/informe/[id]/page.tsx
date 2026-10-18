@@ -88,14 +88,57 @@ function DiagnosisSection({ d }: { d: DiagnosisFeedback }) {
 					</ul>
 				</div>
 			)}
-			{d.toldPatient && (
+			{d.mismatch && (
+				<div className="grid gap-1 border-pen border-l-[3px] py-1 pl-4">
+					<Note className="text-pen">lo que dijiste y lo que escribiste</Note>
+					<p className="text-sm">{d.mismatch.message}</p>
+				</div>
+			)}
+			{d.spoken && d.spoken.length > 0 ? (
+				<div className="grid gap-1 text-sm">
+					<p>Lo que le dijiste al paciente en la consulta:</p>
+					<ul className="grid gap-1">
+						{d.spoken.map((s) => (
+							<li
+								key={`${s.turnId}-${s.quote}`}
+								className="grid grid-cols-[1.5rem_1fr] gap-x-2"
+							>
+								<span
+									className={`font-hand text-xl leading-5 ${
+										s.verdict === "correcto"
+											? "text-success"
+											: s.verdict === "diferencial"
+												? "text-muted-foreground"
+												: "text-pen"
+									}`}
+								>
+									{s.verdict === "correcto"
+										? "✓"
+										: s.verdict === "diferencial"
+											? "~"
+											: "✗"}
+								</span>
+								<span>
+									<q className="text-muted-foreground">{s.quote}</q>
+									{s.verdict === "diferencial" && s.differential && (
+										<span className="text-muted-foreground">
+											{" "}
+											(un diferencial para pensar: {s.differential})
+										</span>
+									)}
+								</span>
+							</li>
+						))}
+					</ul>
+				</div>
+			) : d.toldPatient ? (
 				<p className="text-sm">
 					{d.toldPatient.correct
 						? "Le explicaste bien al paciente qué tiene: "
 						: "Lo que le dijiste al paciente no era correcto: "}
 					<q className="text-muted-foreground">{d.toldPatient.quote}</q>
 				</p>
-			)}
+			) : null}
 		</Paper>
 	);
 }

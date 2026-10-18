@@ -58,6 +58,29 @@ export const diagnosisFeedbackSchema = z.object({
 	),
 	cluesMissed: z.array(z.object({ clue: z.string(), why: z.string() })),
 	// Lo que le dijo al paciente sobre qué tiene, si se lo dijo.
+	// Todo lo que dijo en la consulta sobre qué tiene el paciente, en orden.
+	// Opcional para los informes guardados antes.
+	spoken: z
+		.array(
+			z.object({
+				quote: z.string(),
+				turnId: z.string(),
+				// correcto: el diagnóstico; diferencial: uno de los diferenciales
+				// del caso; otro: algo que no es ninguno de los dos.
+				verdict: z.enum(["correcto", "diferencial", "otro"]),
+				differential: z.string().optional(),
+			}),
+		)
+		.optional(),
+	// Lo último que dijo en la consulta no coincide con lo que escribió.
+	mismatch: z
+		.object({
+			spoken: z.string(),
+			turnId: z.string(),
+			written: z.string(),
+			message: z.string(),
+		})
+		.optional(),
 	toldPatient: z
 		.object({ quote: z.string(), turnId: z.string(), correct: z.boolean() })
 		.optional(),

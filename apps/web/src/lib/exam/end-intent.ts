@@ -59,12 +59,23 @@ export function asksForEarExam(text: string): boolean {
 	return /\b(oido|oidos|oreja|orejas|otoscop\w*)\b/.test(t) && EXAMINE.test(t);
 }
 
+// Un pedido de medir ("para tomarte la presión" solo al poner el manguito),
+// no una pregunta de la historia: "¿tomás medicación
+// para la presión?", "¿te la tomaron alguna vez?" o "¿te controlás la
+// presión?" no abren el tensiómetro.
+const MEASURE =
+	/\b((te|le|se la|te la|le la)\s+(voy a\s+|vamos a\s+)?(tomo|tomar|tome|mido|medir|mida|controlo|controlar|controle|tomamos|medimos)|(puedo|podemos|podria|podrias|dejame|dejeme|deja|dejas|permitime|permitame|me permitis|me permite|me gustaria|quisiera|necesitaria|voy a|vamos a|quiero|necesito|tengo que)\s+(tomar|medir|controlar)(te|le|tela|tele)?|tomemos|midamos|controlemos|(pongo|poner|ponerte|ponerle|coloco|colocar|colocarte|colocarle)\b.*\bpara\s+(tomar|medir)(te|le)?)\b/;
+
 export function asksForBloodPressure(text: string): boolean {
-	const t = normalize(text);
-	return (
-		/\b(presion|tension|tensiometro)\b/.test(t) &&
-		/\b(tom|med|mid|control)\w*/.test(t)
+	// Los pasados se sacan antes de quitar las tildes: "¿quién te tomó la
+	// presión?" no es "te tomo la presión".
+	const t = normalize(
+		text
+			.normalize("NFC")
+			.toLowerCase()
+			.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " "),
 	);
+	return /\b(presion|tension|tensiometro)\b/.test(t) && MEASURE.test(t);
 }
 
 // Tomar la temperatura ahora ("te tomo la temperatura", "te pongo el

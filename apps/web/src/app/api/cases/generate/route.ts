@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import { toSummary } from "@/cases/schema";
-import { GenerationError, generateCase } from "@/lib/patient/generator";
+import {
+	chooseTemplate,
+	GenerationError,
+	generateCase,
+} from "@/lib/patient/generator";
 import { HttpError, requireViewer } from "@/server/auth";
 import { handle, readBody } from "@/server/http";
 import { limitByIp } from "@/server/rate-limit";
@@ -20,6 +24,15 @@ export async function POST(req: Request) {
 	return handle(async () => {
 		const viewer = await requireViewer();
 		const body = await readBody(req, bodySchema);
+		// Primero si se entiende el pedido: uno que no corresponde a ninguna
+		// plantilla no gasta el cupo del día ni el del salón.
+		try {
+			chooseTemplate(body.text, Math.random);
+		} catch (error) {
+			if (error instanceof GenerationError)
+				throw new HttpError(422, error.message);
+			throw error;
+		}
 		// Cada paciente usa la IA: tope por usuario y por día. Con "por día"
 		// explícito: los de una cuenta de Google no se borran, y contándolos a
 		// todos, la cuenta quedaba sin poder generar nunca más.
