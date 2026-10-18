@@ -321,6 +321,19 @@ function asksDiagnosis(text: string) {
 	);
 }
 
+// El estudiante le dice qué tiene ("creo que tenés faringitis", "lo que
+// tenés es un resfrío"): el paciente pregunta, no explica (Persona 3).
+function tellsDiagnosis(text: string) {
+	const t = text
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
+	if (t.includes("?")) return false;
+	return /\b(tenes|tiene|es) (una |un )?\w*(itis|gripe|resfri\w*|angina|esguince|lesion|virus|infeccion)\b/.test(
+		t,
+	);
+}
+
 export type RuleReply = {
 	text: string;
 	delta: Partial<PatientState> | null;
@@ -348,6 +361,13 @@ export function ruleRespond(
 	if (asksDiagnosis(text)) {
 		return {
 			text: "Y no sé, para eso vine. ¿Vos qué pensás que puede ser?",
+			delta: null,
+		};
+	}
+
+	if (tellsDiagnosis(text)) {
+		return {
+			text: "Ah... ¿y eso qué es? ¿Es grave? ¿Qué tengo que hacer?",
 			delta: null,
 		};
 	}
