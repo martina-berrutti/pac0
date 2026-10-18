@@ -148,30 +148,56 @@ export function askedToRepeat(patientText: string) {
 // no lo es, pero "Entiendo. ¿Tenés fiebre?" sí. "No entiendo" no lo es, y
 // "tranquila" cuenta suelto, no en "¿dormís tranquilo?".
 const FEELING =
-	/(^| )deb(e|e de) ser ((muy|re|bastante|tan|realmente|super|sumamente|una situacion) )*(dificil|feo|feisimo|molesto|horrible|terrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso|complicado|bravo|pesado|jodido|una pesadilla|un garron|un embole)( |$)/;
+	/deb(e|e\s+de)\s+ser\s+((muy|re|bastante|tan|realmente|super|sumamente|una\s+situacion)\s+)*(dificil|feo|feisimo|molesto|horrible|terrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso|complicado|bravo|pesado|jodido|una\s+pesadilla|un\s+garron|un\s+embole)(?!\p{L})/u
+		.source;
+const SAYS_FEELING = new RegExp(String.raw`(?<!\p{L})${FEELING}`, "u");
+const DENIES_FEELING = new RegExp(String.raw`(?<!\p{L})no\s+${FEELING}`, "u");
+// "No debe ser fácil" sí es empatía.
+const NOT_EASY =
+	/(^| )no deb(e|e de) ser ((nada|muy|tan) )?(facil|lindo|agradable|grato|divertido)( |$)/;
 
-function sentenceShowsEmpathy(t: string, question: boolean) {
+function sentenceShowsEmpathy(sentence: string, question: boolean) {
+	const t = normalize(sentence);
+	// Con las comas: "no, debe ser horrible" no niega nada.
+	const plain = sentence
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
 	if (/(^| )no (te |le |lo |la )?entiendo( |$)/.test(t)) return false;
 	if (question) {
 		// "¿Es normal que tengas fiebre?", "¿dormís tranquilo?", "¿está
 		// tranquila?" o "¿debe ser doloroso?" no son empatía.
 		if (/(es normal que|imagino que|debe ser|tranquil)/.test(t)) return false;
 	} else {
+		if (NOT_EASY.test(t)) return true;
 		// "Debe ser difícil" sí; "debe ser viral" o "no debe ser tan grave" no.
-		if (FEELING.test(t) && !/(^| )no deb/.test(t)) return true;
-		if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
+		if (SAYS_FEELING.test(plain) && !DENIES_FEELING.test(plain)) return true;
+		// Al comienzo: "Tranquila, ...". "Dormís tranquilo, ¿o no?" no.
+		if (/^(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
+		if (/(quedate|estate|esta|mantenete) tranquil[ao]/.test(t)) return true;
 	}
 	// Desde el comienzo de una palabra: "reglamento" no es "lamento".
 	return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(t));
 }
 
-// La usa también el paciente sin IA. Lo de antes del "¿" se juzga aparte:
-// "Tranquila, ¿desde cuándo te duele?" o "debe ser difícil, ¿no?".
+// Parte el texto en frases. Lo de antes de la pregunta se juzga aparte:
+// "Tranquila, ¿desde cuándo te duele?", y también sin el "¿" ("debe ser
+// difícil, no?"): ahí la pregunta empieza después de la última coma.
+function sentences(text: string) {
+	const out: { text: string; question: boolean }[] = [];
+	for (const s of text.replace(/¿/g, ".¿").match(/[^.?!]+[.?!]*/g) ?? []) {
+		const comma = s.lastIndexOf(",");
+		if (s.includes("?") && !s.includes("¿") && comma > 0) {
+			out.push({ text: s.slice(0, comma), question: false });
+			out.push({ text: s.slice(comma + 1), question: true });
+		} else out.push({ text: s, question: s.includes("?") || s.includes("¿") });
+	}
+	return out;
+}
+
+// La usa también el paciente sin IA.
 export function showsEmpathy(text: string) {
-	const sentences = text.replace(/¿/g, ".¿").match(/[^.?!]+[.?!]*/g) ?? [];
-	return sentences.some((s) =>
-		sentenceShowsEmpathy(normalize(s), s.includes("?") || s.includes("¿")),
-	);
+	return sentences(text).some((s) => sentenceShowsEmpathy(s.text, s.question));
 }
 
 export type Classification = {

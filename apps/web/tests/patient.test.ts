@@ -47,6 +47,7 @@ describe("el paciente no conoce el diagnóstico", () => {
 		"¿Es normal que tengas fiebre?",
 		"No debe ser tan complicado",
 		"¿La nena está tranquila?",
+		"Dormís tranquilo, o no?",
 	])("sin IA, no cuenta como empatía: %s", (q) => {
 		const low = { ...state, confianza: 0.3 };
 		expect(ruleRespond(brief, low, q, 2).delta).toBeNull();
@@ -61,6 +62,12 @@ describe("el paciente no conoce el diagnóstico", () => {
 		"Debe ser realmente difícil",
 		"Tranquila, ¿desde cuándo te duele?",
 		"Entiendo, imagino que te duele mucho, ¿tomaste algo?",
+		"Tranquila, desde cuándo te duele?",
+		"Debe ser difícil, no?",
+		"Entiendo, imagino que te duele, tomaste algo?",
+		"No debe ser fácil",
+		"No, debe ser horrible",
+		"Debe ser horrible, no debería pasarte esto",
 	])("sin IA, la empatía sube la confianza: %s", (q) => {
 		const low = { ...state, confianza: 0.3 };
 		expect(ruleRespond(brief, low, q, 2).delta?.confianza).toBeCloseTo(0.45);
