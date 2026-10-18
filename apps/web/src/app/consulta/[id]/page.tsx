@@ -67,6 +67,9 @@ export default function ConsultationPage() {
 	}, []);
 	// Termómetro en la axila (se pide con palabras, por voz o por texto).
 	const [thermo, setThermo] = useState(false);
+	const [finishStep, setFinishStep] = useState<"guardando" | "informe" | null>(
+		null,
+	);
 	// El avatar acompaña la presión y la temperatura (lib/avatar/exam-poses).
 	const avatarExam = useCallback(
 		(pose: ExamPose | null) => avatar.current?.exam(pose),
@@ -93,6 +96,8 @@ export default function ConsultationPage() {
 	// El examen se muestra recién cuando la cámara llegó a la boca o al oído.
 	const [revealed, setRevealed] = useState(false);
 	const [closing, setClosing] = useState(false);
+	const closingNow = useRef(closing);
+	closingNow.current = closing;
 	const [hypothesis, setHypothesis] = useState("");
 	const [differentials, setDifferentials] = useState("");
 	// Plan B si falla la voz o el wifi (plan.md, sección 14): la consulta sigue
@@ -125,6 +130,8 @@ export default function ConsultationPage() {
 	function checkStudent(turn: Turn, byText: boolean) {
 		if (turn.speaker !== "estudiante") return;
 		lastStudent.current = turn.text;
+		// Una respuesta que llega con la consulta ya cerrándose no abre nada.
+		if (closingNow.current) return;
 		if (examOpen) {
 			if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
 		} else if (!tool && asksForTemperature(turn.text)) {
@@ -174,7 +181,7 @@ export default function ConsultationPage() {
 			}
 			// Con el tensiómetro abierto se sigue con el que está (el servidor
 			// actualiza esa medición si todavía no tiene manguito).
-			if (ui.kind === "vitals")
+			if (ui.kind === "vitals" && !closingNow.current)
 				setBp(
 					(open) =>
 						open ?? {
@@ -186,6 +193,7 @@ export default function ConsultationPage() {
 				ui.kind === "region" &&
 				ui.available &&
 				!toolOpen.current &&
+				!closingNow.current &&
 				/rodill|pierna/i.test(ui.region)
 			)
 				setPain(true);
@@ -378,6 +386,16 @@ export default function ConsultationPage() {
 		if (closing && (exam || ear)) requestClose();
 	}, [closing, exam, ear, revealed]);
 
+	// Al terminar por el reloj o por el modelo, los paneles de medir (sin nada
+	// por guardar) se cierran como con la cruz: no quedan debajo del
+	// formulario mandando pedidos a una consulta cerrada.
+	useEffect(() => {
+		if (!closing) return;
+		setBp(null);
+		setThermo(false);
+		closePain();
+	}, [closing, closePain]);
+
 	// La cruz: corta la voz y pasa a la hipótesis (el examen abierto se cierra
 	// guardando).
 	function endConsultation() {
@@ -425,24 +443,26 @@ export default function ConsultationPage() {
 			// Hasta 10, de hasta 100 caracteres: el servidor no acepta más. La
 			// pantalla ya avisó lo que se recorta.
 			const { list } = prepareDifferentials(differentials);
-			// Primero se terminan de guardar los últimos turnos de la voz: si no,
-			// el informe sale sin ellos y el servidor los rechaza por consulta cerrada.
-			// Con tope: si la voz quedó colgada, no se traba la ida al informe.
-			const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-			await Promise.race([voice.drain(), wait(4000)]);
-			await Promise.race([closes.settled(), wait(4000)]);
+			// Primero se terminan de guardar los últimos turnos de la voz y el
+			// examen abierto: si no, el informe sale sin ellos y el servidor los
+			// rechaza por consulta cerrada. No hace falta otro tope: cada guardado
+			// ya tiene el suyo (15 s por pedido, 10 s por examen), y uno más corto
+			// los cortaría. El botón dice qué está pasando.
+			setFinishStep("guardando");
+			await voice.drain();
+			await closes.settled();
+			setFinishStep("informe");
 			await api.finish(id, hypothesis, list);
 			router.push(`/informe/${id}`);
 		} catch (e) {
-			// Ya estaba cerrada (por ejemplo, un primer clic que llegó): al informe.
-			if (e instanceof ApiError && e.status === 409) {
-				router.push(`/informe/${id}`);
-				return;
-			}
+			// Un 409 es "se está cerrando" (sin informe todavía): si ya hubiera
+			// informe, el servidor lo devuelve con 200. Se queda en el formulario,
+			// con lo escrito, para probar de nuevo.
 			toast.error(
 				e instanceof ApiError ? e.message : "No se pudo cerrar la consulta.",
 			);
 			setSending(false);
+			setFinishStep(null);
 		}
 	}
 
@@ -554,8 +574,9 @@ export default function ConsultationPage() {
 										<Button
 											variant="outline"
 											onClick={() => {
-												requestClose();
+												if (exam || ear) requestClose();
 												setBp(null);
+												setThermo(false);
 												closePain();
 											}}
 										>
@@ -693,7 +714,11 @@ export default function ConsultationPage() {
 							{differentialsNotice(differentials)}
 						</p>
 						<Button type="submit" disabled={sending || !hypothesis.trim()}>
-							Ver mi informe
+							{finishStep === "guardando"
+								? "Guardando lo último…"
+								: finishStep === "informe"
+									? "Armando tu informe…"
+									: "Ver mi informe"}
 						</Button>
 					</form>
 				</div>
