@@ -624,6 +624,10 @@ export function useVoice({
 		const old = live.current;
 		live.current = null;
 		conn.current += 1;
+		// Desde acá no hay sesión: las notas esperan a la nueva (incluida la de
+		// ánimo que sale de guardar lo pendiente, justo abajo). Si se corta, stop
+		// y start lo limpian.
+		reconnecting.current = true;
 		// La conexión nueva no recibió la respuesta de herramienta pendiente: el
 		// paciente no va a contestarla, así que las notas no la esperan.
 		awaitingReply.current = false;
@@ -633,7 +637,6 @@ export function useVoice({
 		// Lo que quedó a medias se guarda antes, así el paciente lo recibe.
 		await Promise.all([flushStudent(), flushPatient(true)]);
 		if (attempt.current !== mine) return;
-		reconnecting.current = true;
 		try {
 			await connect();
 			if (attempt.current !== mine) return;
@@ -652,8 +655,10 @@ export function useVoice({
 				e instanceof Error ? e.message : "No se pudo reconectar la voz",
 			);
 		} finally {
-			// Falló o se cortó: ya no se espera una sesión nueva.
-			reconnecting.current = false;
+			// Falló o se cortó: ya no se espera una sesión nueva. Solo si esta
+			// reconexión sigue siendo la vigente (una vieja que termina tarde no
+			// le baja el indicador a una nueva).
+			if (attempt.current === mine) reconnecting.current = false;
 		}
 	}, [connect, deliverNote, flushPatient, flushStudent, stop, stopPlayback]);
 	reconnectRef.current = () => {

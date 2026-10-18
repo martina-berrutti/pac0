@@ -652,4 +652,38 @@ describe("cliente de voz", () => {
 		live.release();
 		await vi.waitFor(() => expect(live.sent).toContain("clientContent"));
 	});
+
+	test("la nota de ánimo de lo que se guarda al reconectar no se pierde", async () => {
+		const { voice } = mount();
+		await voice.start();
+		live.hang = true;
+		// El turno a medias se guarda al reconectar y el servidor devuelve una nota.
+		const base = fakeFetch;
+		vi.stubGlobal("fetch", (url: string, init: { body?: string }) => {
+			if (url.endsWith("/voice-turns"))
+				return new Promise((resolve) =>
+					setTimeout(() => {
+						const body = init.body ? JSON.parse(init.body) : {};
+						resolve(
+							new Response(
+								JSON.stringify({
+									turn: { id: "t", ...body },
+									stateNote: "confianza alta",
+								}),
+								{ status: 200 },
+							),
+						);
+					}, 1),
+				);
+			return base(url, init);
+		});
+		live.callbacks?.onmessage(
+			msg({ inputTranscription: { text: "Gracias por contarme" } }),
+		);
+		live.callbacks?.onclose();
+		await vi.waitFor(() => expect(live.connects).toBe(2));
+		live.sent = [];
+		live.release();
+		await vi.waitFor(() => expect(live.sent).toContain("clientContent"));
+	});
 });
