@@ -74,8 +74,8 @@ const keyOf = (side: Side, spot: Spot) => `${side}:${spot}`;
 
 // Respuesta de la paciente según lo tocado y lo correcto.
 export function painHint(zone: PainZone, side: Side, spot: Spot): string {
-	if (side !== zone.side) return "No, en la otra rodilla.";
-	if (spot === zone.spot) return "¡Ahí! Justo ahí me duele.";
+	if (side !== zone.side) return "No, ahí no. Es en la otra rodilla.";
+	if (spot === zone.spot) return "¡Sí! Ahí me duele.";
 	if (zone.spot === "centro")
 		return "No es en un punto de afuera… me duele adentro, en el medio de la rodilla.";
 	const from = ZONES[spot];
@@ -253,7 +253,8 @@ export function DolorView({
 			onFound?.();
 			return;
 		}
-		setWrong((w) => new Set(w).add(keyOf(side, spot)));
+		// Solo queda marcada la última zona tocada.
+		setWrong(new Set([keyOf(side, spot)]));
 	}
 
 	return (

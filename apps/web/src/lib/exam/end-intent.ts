@@ -104,6 +104,8 @@ export function asksWherePain(text: string): boolean {
 	const t = normalize(text);
 	return (
 		/\bdonde\b.{0,15}\bduele/.test(t) ||
+		// "¿Te duele donde voy a tocar?", "¿te duele acá?"
+		/\bduele\b.{0,12}\b(donde (voy a )?toc\w*|aca|aqui)\b/.test(t) ||
 		/\b(mostr|muestr|senal|indic|marc)\w*\b.{0,25}\bdonde\b/.test(t)
 	);
 }
