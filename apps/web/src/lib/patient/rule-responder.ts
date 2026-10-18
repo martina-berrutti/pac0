@@ -225,7 +225,9 @@ const TOPICS: {
 			"qué día",
 			"que dia",
 			"arranc",
-			"diagnosticaron",
+			// "¿Te diagnosticaron alguna enfermedad?" es un antecedente.
+			"cuándo te diagnosticaron",
+			"cuando te diagnosticaron",
 			"hace cuánto",
 			"hace cuanto",
 			"cuántos días",
@@ -409,6 +411,7 @@ const TOPICS: {
 		key: "antecedentes",
 		words: [
 			"antecedente",
+			"diagnosticaron",
 			"enfermedad",
 			"operad",
 			"operaron",
@@ -471,7 +474,13 @@ const FAREWELL = [
 // ("te voy a recetar ibuprofeno"): el paciente no pide que se la expliquen.
 // Con un relleno adelante: "y cómo dormís", "bueno, ¿tenés fiebre".
 const QUESTION_START =
-	/^[\s¡¿]*((y|e|bueno|a ver|ta|ok|che|y bueno),?\s+)*(qu[eé]|c[oó]mo|cu[aá]nd|d[oó]nde|cu[aá]nt|por qu|ten[eé]s|tuviste|sab[eé]s|hay|alguna|algún|algun)/u;
+	/^[\s¡¿]*((y|e|bueno|a ver|ta|ok|che|y bueno),?\s+)*(qu[eé]|c[oó]mo|cu[aá]nd|d[oó]nde|cu[aá]nt|por qu|ten[eé]s(?! que)|tuviste|sab[eé]s|hay(?! que)|alguna|algún|algun)/u;
+
+// Una indicación sin signos de pregunta ("si tenés fiebre tomá paracetamol",
+// "volvé si te cuesta tragar", "tenés que hacer reposo"): no se responde con
+// un dato de la historia aunque nombre un síntoma.
+const INSTRUCTION_START =
+	/^[\s¡]*((y|bueno|ok|bien|listo),?\s+)*(si |ten[eé]s que|hay que|te voy a (dar|recetar|indicar|mandar)|tom[aá] |volv[eé]|consult[aá]|hac[eé] |and[aá] )/u;
 
 const DIAGNOSIS_FISHING = [
 	"ignorá",
@@ -505,7 +514,11 @@ function asksDiagnosis(text: string) {
 	if (/(^|[\s¿])qu[eé]\s+ten[eé]s(\s+vos)?\s*\?*\s*$/u.test(text)) return true;
 	return (
 		/diagn[oó]stico/u.test(text) &&
-		!/(previo|antes|anterior|te dieron|te hicieron|otro m[eé]dico)/u.test(text)
+		!/(previo|antes|anterior|te dieron|te hicieron|otro m[eé]dico)/u.test(
+			text,
+		) &&
+		// "Mi diagnóstico es que tenés…" se lo dice, no se lo pregunta.
+		!/\b(mi|el) diagn[oó]stico (es|ser[ií]a)\b/u.test(text)
 	);
 }
 
@@ -550,7 +563,7 @@ function tellsDiagnosis(text: string) {
 		// "creo que tenés…", "por lo que veo en la rodilla tenés…", "debe ser
 		// un virus", "la rodilla tiene una lesión".
 		new RegExp(
-			`\\b(lo que (tenes|tiene|te pasa)\\b[^.?!]{0,25}\\b(es|que tenes|que tiene)|(creo|parece|me parece|seguro|pienso) que (tenes|tiene|es)|por lo que (vi|veo)[^.?!]{0,30}\\b(tenes|tiene|es)|(debe|puede|podria) ser|(seguramente|probablemente) (sea|es)|(es probable|lo mas probable es) que (sea|tengas|tenga)|(la|el|tu|su) (rodilla|oido|garganta|menisco|ligamento) (tiene|tenes))\\b[^.?!]{0,20}${DIAGNOSIS_WORD}`,
+			`\\b(lo que (tenes|tiene|te pasa)\\b[^.?!]{0,25}\\b(es|que tenes|que tiene|se llama)|diagnostico (es|seria)( que (tenes|tiene))?|(creo|parece|me parece|seguro|pienso) que (tenes|tiene|es)|por lo que (vi|veo)[^.?!]{0,30}\\b(tenes|tiene|es)|(debe|puede|podria) ser|(seguramente|probablemente) (sea|es)|(es probable|lo mas probable es) que (sea|tengas|tenga)|(la|el|tu|su) (rodilla|oido|garganta|menisco|ligamento) (tiene|tenes))\\b[^.?!]{0,20}${DIAGNOSIS_WORD}`,
 		).test(s) ||
 		// Dicho de frente: "tenés una otitis externa", "te revisé y tenés una
 		// otitis", "te explico: tenés una otitis", "esto es un virus".
@@ -560,6 +573,8 @@ function tellsDiagnosis(text: string) {
 		// Al principio de todo es ambiguo sin signos: "tenés una otitis
 		// externa" explica, pero "tenés una infección urinaria" o "tiene una
 		// lesión vieja" preguntan (solo se mira esa primera parte de la frase).
+		// "Tenés faringitis." sin artículo, con punto final: también lo dice.
+		new RegExp(`^(tenes|tiene) ${DIAGNOSIS_WORD}[^?]*\\.\\s*$`).test(s) ||
 		(new RegExp(`^(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`).test(s) &&
 			!/\b(vieja|urinaria|otra|tambien)\b/.test(s.split(/[,.;]| y /)[0]))
 	);
@@ -618,6 +633,14 @@ export function ruleRespond(
 		return {
 			text:
 				p.locuacidad < 0.4 ? "Chau, gracias." : "Bueno, muchas gracias. Chau.",
+			delta,
+			motivo,
+		};
+	}
+
+	if (!text.includes("?") && INSTRUCTION_START.test(text)) {
+		return {
+			text: p.locuacidad < 0.4 ? "Bueno." : "Bueno, dale.",
 			delta,
 			motivo,
 		};

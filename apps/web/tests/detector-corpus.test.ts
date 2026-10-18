@@ -11,6 +11,7 @@ import { type ClinicalCase, caseSchema } from "@/cases/schema";
 import {
 	asksForBloodPressure,
 	asksForEarExam,
+	asksForNeckExam,
 	asksForTemperature,
 	asksToEndExam,
 	asksWherePain,
@@ -899,6 +900,10 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["rodilla", "Es probable que tengas una lesión del menisco"],
 		["garganta", "lo más probable es que sea un virus"],
 		["oido", "tenés una otitis, ¿se entiende?"],
+		["garganta", "Mi diagnóstico es que tenés una faringitis."],
+		["oido", "Por lo que vi, mi diagnóstico es una otitis externa."],
+		["garganta", "Tenés faringitis."],
+		["oido", "Lo que tenés se llama otitis externa."],
 		["oido", "Es una otitis crónica reagudizada"],
 		["oido", "Tenés una otitis y también un tapón de cera"],
 		["garganta", "tenés una faringitis, también podés hacer gárgaras"],
@@ -923,6 +928,7 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["garganta", "a ver, tenes un virus o algo asi"],
 		["garganta", "tu compañera de apartamento, tiene una angina"],
 		["garganta", "tenes una infeccion urinaria"],
+		["garganta", "tenes faringitis o no"],
 		["rodilla", "tiene una lesion vieja en esa rodilla"],
 		["rodilla", "tenes una lesion en la otra rodilla tambien"],
 		["oido", "tuviste otitis antes"],
@@ -933,6 +939,23 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		const line = "tranquila, tenés una angina, se cura";
 		const { brief } = reply("garganta", line);
 		expect(ruleRespond(brief, state, line, 3).delta?.confianza).toBeDefined();
+	});
+	// Indicaciones sin signos: no reciben un dato de la historia.
+	test.each([
+		["garganta", "Si tenés fiebre tomá paracetamol."],
+		["garganta", "Te voy a dar algo para el dolor."],
+		["garganta", "Volvé si tenés fiebre alta o te cuesta tragar."],
+		["garganta", "Tenés que hacer reposo y tomar mucho líquido."],
+		["garganta", "Tenés que tomar mucha agua y descansar."],
+	])("una indicación recibe 'bueno' (%s): %s", (name, t) =>
+		expect(reply(name, t).text).toMatch(/^Bueno/),
+	);
+	test("'¿te diagnosticaron alguna enfermedad?' es un antecedente", () => {
+		const { text: r, brief } = reply(
+			"garganta",
+			"¿Alguna vez te diagnosticaron alguna enfermedad?",
+		);
+		expect(r).not.toContain(brief.history.inicio);
 	});
 	test("un consejo con líquidos no es la pregunta de tragar", () => {
 		const { text: r, brief } = reply(
@@ -970,4 +993,33 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 	])("con pregunta sí (%s): %s", (name, t, exp) => {
 		expect(topicOf(name, t)).toBe(exp);
 	});
+});
+
+describe("barrido después de #36", () => {
+	test.each([
+		"¿Puedo palparte el cuello?",
+		"Con tu permiso te voy a palpar el cuello",
+		"¿Te puedo revisar los ganglios del cuello?",
+		"¿Me permitís palparte el cuello?",
+		"Te voy a palpar los ganglios, ¿te parece?",
+	])("pedir permiso para el cuello es consentimiento: %s", (t) =>
+		expect(asksConsent(t)).toBe(true),
+	);
+
+	test.each([
+		"aguantá un segundito más y terminamos",
+		"dos segundos más y terminamos",
+		"ya terminamos enseguida",
+	])("todavía no termina el examen: %s", (t) =>
+		expect(asksToEndExam(t)).toBe(false),
+	);
+
+	test.each([
+		"¿Te duele cuando te tocás el cuello?",
+		"¿Notaste algo al tocarte el cuello?",
+	])("una pregunta sobre el cuello no abre el panel: %s", (t) =>
+		expect(asksForNeckExam(t)).toBe(false),
+	);
+	test("'te toco el cuello' sí abre el panel", () =>
+		expect(asksForNeckExam("Ahora te toco el cuello")).toBe(true));
 });

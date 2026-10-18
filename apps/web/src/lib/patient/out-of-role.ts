@@ -12,7 +12,7 @@ const OUT_OF_ROLE = [
 	/\bprofesional de (la )?salud\b/,
 	/\b(te|le|les) (recomiendo|aconsejo|sugiero)\b/,
 	// En segunda persona: "mi jefe me dijo que tiene que ver a alguien" no.
-	/\b(deberias|deberia|tendrias que|tenes que) (consultar|ver a|ir al medico|acudir)/,
+	/\b(deberias|tendrias que|tenes que) (consultar|ver a|ir al medico|acudir)/,
 	/\bconsult(a|e|es|ar)? (con|a) (un|una|tu|su) (medico|doctor|profesional)/,
 	/\bbusca(r)? atencion medica\b/,
 	// Explicar una enfermedad.
