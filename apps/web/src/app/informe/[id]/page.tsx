@@ -349,7 +349,9 @@ export default function ReportPage() {
 					<ul className="grid gap-4">
 						{mistakes.map((m) => (
 							<li
-								key={`${m.tag}-${m.what}`}
+								// Un error por turno ("Pregunta sugestiva." puede repetirse):
+								// el turno o el examen lo distinguen.
+								key={`${m.tag}-${m.evidence[0]?.turnId ?? m.evidence[0]?.examActionId ?? ""}-${m.what}`}
 								className={`grid gap-2 border-l-[3px] py-1 pl-4 ${m.critical ? "border-pen" : "border-border"}`}
 							>
 								{m.critical && <Note className="text-pen">error crítico</Note>}

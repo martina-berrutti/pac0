@@ -21,6 +21,8 @@ import {
 import {
 	diagnosisFeedback,
 	improvementsFor,
+	judgeHypothesis,
+	namesDifferential,
 	toldPatientMistake,
 } from "./diagnosis";
 import {
@@ -36,6 +38,7 @@ import { buildRapport, rapportBonus, trustPenalty } from "./rapport";
 import {
 	DESCRIBE_ITEM,
 	expectedFinding,
+	hasKeyword,
 	judgeItem,
 	normalize,
 } from "./rule-judge";
@@ -121,15 +124,15 @@ export function reasoningFromParts(p: ReasoningParts): Reasoning {
 export function reasoningScore(input: EvaluationInput): Reasoning {
 	const closing = input.session.closing;
 	if (!closing) return NO_HYPOTHESIS;
-	const { truth } = input.clinicalCase;
-	const hyp = normalize(closing.hypothesis);
-	const diffs = closing.differentials.map(normalize);
+	const c = input.clinicalCase;
+	const { truth } = c;
+	const hyp = closing.hypothesis;
 	return reasoningFromParts({
-		hypothesisMatches: [truth.diagnosis, ...truth.acceptable].some((d) =>
-			hyp.includes(normalize(d)),
-		),
+		// "faringitis estreptocócica" no es "faringitis viral" (diagnosis.ts).
+		hypothesisMatches: judgeHypothesis(c, hyp).matches,
+		// Un diferencial vacío o "otitis" sola no cubren nada.
 		differentialsCovered: truth.differentials.filter((d) =>
-			diffs.some((x) => x.includes(normalize(d)) || normalize(d).includes(x)),
+			closing.differentials.some((x) => namesDifferential(c, d, x)),
 		).length,
 		differentialsExpected: truth.differentials.length,
 		// Justifica si cita un dato de la consulta: las palabras generales o
@@ -137,10 +140,10 @@ export function reasoningScore(input: EvaluationInput): Reasoning {
 		justified: [
 			...JUSTIFICATION_WORDS,
 			...truth.keyClues.flatMap((k) => k.keywords),
-		].some((w) => hyp.includes(normalize(w))),
+		].some((w) => hasKeyword(hyp, w)),
 		// Conducta razonable para este caso; sin lista propia, la de garganta.
 		studies: (truth.conduct.length > 0 ? truth.conduct : STUDIES).some((s) =>
-			hyp.includes(normalize(s)),
+			hasKeyword(hyp, s),
 		),
 	});
 }
@@ -202,6 +205,9 @@ function penalties(
 			points: 2,
 			tag: "interrumpe",
 			what: `Interrumpiste al paciente (${Math.round(e.atMs / 1000)} s).`,
+			why: "Cortar al paciente le quita información y lo hace sentir apurado.",
+			nextTime:
+				"Esperá a que termine de hablar antes de preguntar lo siguiente.",
 		});
 	}
 	const asked = new Set<string>();
@@ -213,6 +219,9 @@ function penalties(
 				points: 1,
 				tag: "pregunta-sugestiva",
 				what: "Pregunta sugestiva.",
+				why: 'Una pregunta que ya trae la respuesta ("¿tenés fiebre, no?") empuja al paciente a decir que sí.',
+				nextTime:
+					'Preguntá de forma neutra: "¿Tuviste fiebre?" en vez de "Tenés fiebre, ¿no?".',
 				turnId: t.id,
 			});
 		}
@@ -225,6 +234,9 @@ function penalties(
 				points: 1,
 				tag: "repite-pregunta",
 				what: "Repetiste una pregunta ya respondida.",
+				why: "Repetir hace sentir al paciente que no lo escucharon.",
+				nextTime:
+					"Anotá o resumí lo que te contestó antes de seguir con otra pregunta.",
 				turnId: t.id,
 			});
 		}
@@ -285,7 +297,10 @@ function earPenalties(
 ): Penalty[] {
 	if (otoscopies.length === 0) return [];
 	const affected = affectedEar(
-		otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
+		otoscopyScenario(
+			clinicalCase.templateId ?? clinicalCase.id,
+			clinicalCase.patient.age,
+		),
 	);
 	if (!affected) return [];
 	const ears = otoscopies.map((a) =>

@@ -9,6 +9,7 @@ import type { ChecklistItem } from "@/cases/schema";
 import type { ItemResult } from "@/lib/contracts/report";
 import type { Turn } from "@/lib/contracts/session";
 
+import { judgeHypothesis } from "./diagnosis";
 import { NO_HYPOTHESIS, type Reasoning, reasoningFromParts } from "./evaluate";
 import type { Extracted } from "./extractor";
 import {
@@ -220,7 +221,11 @@ Respondé solo JSON: {"hipotesisCoincide":true,"diferencialesCubiertos":["..."],
 	const out = await llm(prompt, reasoningSchema);
 	const hyp = normalize(closing.hypothesis);
 	return reasoningFromParts({
-		hypothesisMatches: out.hipotesisCoincide,
+		// Si nombra un diferencial ("faringitis estreptocócica"), no coincide
+		// aunque el modelo diga que sí: misma regla que el juez por reglas.
+		hypothesisMatches:
+			out.hipotesisCoincide &&
+			!judgeHypothesis(input.clinicalCase, closing.hypothesis).confused,
 		differentialsCovered: truth.differentials.filter((d) =>
 			out.diferencialesCubiertos.some((c) => normalize(c) === normalize(d)),
 		).length,

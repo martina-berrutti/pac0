@@ -507,9 +507,17 @@ export async function sendTurn(
 		sessionId,
 	);
 	const clean = text.trim().slice(0, 1000);
+	if (!clean) throw new HttpError(400, "Escribí algo");
 	if ((await store.listTurns(sessionId)).length >= MAX_TEXT_TURNS)
 		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
-	if (!clean) throw new HttpError(400, "Escribí algo");
+	// Contar la lista no alcanza con pedidos en paralelo (todos ven menos de
+	// 120): el contador atómico frena antes de llamar a la IA. Si falla el
+	// contador, sigue el tope de arriba.
+	const allowed = await store
+		.hitRate(`turns:${sessionId}`, DAY_MS, MAX_TEXT_TURNS / 2)
+		.catch(() => true);
+	if (!allowed)
+		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 
 	const classified = await classifyStudent(session, clean, elapsed);
 	const studentTurn: Turn = {

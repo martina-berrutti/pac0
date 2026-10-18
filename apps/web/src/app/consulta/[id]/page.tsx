@@ -363,75 +363,90 @@ export default function ConsultationPage() {
 			)}
 
 			{/* Abajo: empezar la voz, cómo va, o el plan B por texto (que sigue
-			    a la vista durante el examen, para poder decir "cerrá la boca"). */}
-			{!closing && (!tool || (textMode && !voiceLive)) && (
-				<div className="absolute inset-x-0 bottom-5 z-20 flex justify-center px-4">
-					{voiceLive ? (
-						<p
-							className="rounded-full bg-background/80 px-4 py-2 text-sm shadow backdrop-blur"
-							aria-live="polite"
-						>
-							{voice.status === "connecting"
-								? "Conectando con el paciente…"
-								: voice.status === "reconnecting"
-									? "Se cortó la voz. Reconectando…"
-									: voice.patientSpeaking
-										? `${name} está hablando…`
-										: voice.studentSpeaking
-											? "Te escucha…"
-											: "Hablá cuando quieras."}
-						</p>
-					) : textMode ? (
-						<div className="grid w-full max-w-xl gap-2">
-							{lastPatient && !tool && (
-								<p className="rounded-lg bg-background/85 px-4 py-2 text-sm shadow backdrop-blur">
-									<span className="font-medium">{name}:</span>{" "}
-									{lastPatient.text}
-								</p>
-							)}
-							<form onSubmit={sendText} className="flex gap-2">
-								<Input
-									aria-label={`Escribile a ${name}`}
-									placeholder="Escribí lo que le dirías…"
-									value={draft}
-									onChange={(e) => setDraft(e.target.value)}
-									maxLength={1000}
-									disabled={typing}
-									autoFocus
-									className="bg-background"
-								/>
-								<Button type="submit" disabled={typing || !draft.trim()}>
-									{typing ? "…" : "Enviar"}
-								</Button>
-							</form>
-						</div>
-					) : (
-						<div className="grid max-w-sm justify-items-center gap-2 rounded-lg bg-background/85 p-3 text-center shadow backdrop-blur">
-							<p className="text-muted-foreground text-xs">
-								Se guarda la transcripción, no el audio. No digas datos
-								personales reales. Herramienta educativa, caso ficticio.
+			    a la vista durante el examen, para poder decir "cerrá la boca").
+			    Si la voz se cae con un examen abierto, también: sin voz no hay
+			    cómo pedir que se cierre. */}
+			{!closing &&
+				(!tool || (textMode && !voiceLive) || voice.status === "error") && (
+					<div className="absolute inset-x-0 bottom-5 z-20 flex justify-center px-4">
+						{voiceLive ? (
+							<p
+								className="rounded-full bg-background/80 px-4 py-2 text-sm shadow backdrop-blur"
+								aria-live="polite"
+							>
+								{voice.status === "connecting"
+									? "Conectando con el paciente…"
+									: voice.status === "reconnecting"
+										? "Se cortó la voz. Reconectando…"
+										: voice.patientSpeaking
+											? `${name} está hablando…`
+											: voice.studentSpeaking
+												? "Te escucha…"
+												: "Hablá cuando quieras."}
 							</p>
-							<div className="flex flex-wrap justify-center gap-2">
-								<Button
-									onClick={() => {
-										avatar.current?.unlockAudio();
-										voice.start();
-									}}
-								>
-									{voice.status === "error"
-										? "Probar la voz de nuevo"
-										: "Acepto: hablar por voz"}
-								</Button>
-								{voice.status === "error" && (
-									<Button variant="outline" onClick={() => setTextMode(true)}>
-										Seguir por texto
-									</Button>
+						) : textMode ? (
+							<div className="grid w-full max-w-xl gap-2">
+								{lastPatient && !tool && (
+									<p className="rounded-lg bg-background/85 px-4 py-2 text-sm shadow backdrop-blur">
+										<span className="font-medium">{name}:</span>{" "}
+										{lastPatient.text}
+									</p>
 								)}
+								<form onSubmit={sendText} className="flex gap-2">
+									<Input
+										aria-label={`Escribile a ${name}`}
+										placeholder="Escribí lo que le dirías…"
+										value={draft}
+										onChange={(e) => setDraft(e.target.value)}
+										maxLength={1000}
+										disabled={typing}
+										autoFocus
+										className="bg-background"
+									/>
+									<Button type="submit" disabled={typing || !draft.trim()}>
+										{typing ? "…" : "Enviar"}
+									</Button>
+								</form>
 							</div>
-						</div>
-					)}
-				</div>
-			)}
+						) : (
+							<div className="grid max-w-sm justify-items-center gap-2 rounded-lg bg-background/85 p-3 text-center shadow backdrop-blur">
+								<p className="text-muted-foreground text-xs">
+									Se guarda la transcripción, no el audio. No digas datos
+									personales reales. Herramienta educativa, caso ficticio.
+								</p>
+								<div className="flex flex-wrap justify-center gap-2">
+									<Button
+										onClick={() => {
+											avatar.current?.unlockAudio();
+											voice.start();
+										}}
+									>
+										{voice.status === "error"
+											? "Probar la voz de nuevo"
+											: "Acepto: hablar por voz"}
+									</Button>
+									{voice.status === "error" && (
+										<Button variant="outline" onClick={() => setTextMode(true)}>
+											Seguir por texto
+										</Button>
+									)}
+									{voice.status === "error" && tool && (
+										<Button
+											variant="outline"
+											onClick={() => {
+												setExam(null);
+												setEar(null);
+												setBp(null);
+											}}
+										>
+											Cerrar el examen
+										</Button>
+									)}
+								</div>
+							</div>
+						)}
+					</div>
+				)}
 
 			{/* El examen aparece encima del avatar, desde el primer plano. */}
 			{tool && revealed && (

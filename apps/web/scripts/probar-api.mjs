@@ -250,9 +250,16 @@ check(
 		)
 	).status === 200,
 );
+// Con clave (producción) entrega un token efímero; sin clave, 503 claro.
+const { voz } = await (await fetch(`${base}/api/health`)).json();
+const voice = await ana("POST", "/api/voice/session", { sessionId: id });
 check(
-	"voz sin clave: 503 claro",
-	(await ana("POST", "/api/voice/session", { sessionId: id })).status === 503,
+	voz ? "voz: token efímero" : "voz sin clave: 503 claro",
+	voz
+		? voice.status === 200 &&
+				String(voice.data.token).startsWith("auth_tokens/")
+		: voice.status === 503,
+	String(voice.status),
 );
 
 // Otro usuario: 404 en todo lo de una sesión ajena

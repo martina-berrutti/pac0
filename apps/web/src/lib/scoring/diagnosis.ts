@@ -10,7 +10,7 @@ import type {
 } from "@/lib/contracts/report";
 import type { Turn } from "@/lib/contracts/session";
 
-import { normalize } from "./rule-judge";
+import { hasKeyword, normalize } from "./rule-judge";
 
 const MAX_QUOTE = 300;
 const MAX_IMPROVEMENTS = 5;
@@ -26,13 +26,19 @@ const GENERIC = new Set([
 	"comun",
 	"cronica",
 ]);
-// Al paciente le dice qué descarta, no qué tiene.
-const RULES_OUT = ["descart", "no es ", "no creo", "no parece"];
+// Una frase que descarta no dice qué plantea: "no es un resfrío".
+const RULES_OUT =
+	/(^|\s)(descart\w*|no es|no creo|no parece|no seria|no tiene|no tenes)(\s|$)/;
+// Frases de la hipótesis: "X, diferencial Y", "X o Y", "X; pediría Z".
+const CLAUSES =
+	/[,;.:()\n]|\s(?:o|u|vs|versus|pero|aunque|diferencial(?:es)?)\s/;
 
 const words = (s: string) =>
 	normalize(s)
 		.split(/[^a-z]+/)
 		.filter((w) => w.length >= 5 && !GENERIC.has(w));
+// Misma raíz: "estreptococo" y "estreptocócica", "externo" y "externa".
+const stem = (w: string) => w.slice(0, 7);
 
 function matchesDiagnosis(c: ClinicalCase, text: string) {
 	const t = normalize(text);
@@ -41,55 +47,67 @@ function matchesDiagnosis(c: ClinicalCase, text: string) {
 	);
 }
 
-// Diferencial nombrado: entero, o por su palabra principal si esa palabra no
-// es también del diagnóstico ("faringoamigdalitis" sí; "otitis" no).
-function namesDifferential(c: ClinicalCase, d: string, text: string) {
-	const t = normalize(text);
-	if (t.includes(normalize(d))) return true;
-	const head = words(d)[0];
-	const own = normalize([c.truth.diagnosis, ...c.truth.acceptable].join(" "));
-	return head !== undefined && !own.includes(head) && t.includes(head);
+// Lo propio de un diferencial: sus palabras que no son del diagnóstico
+// ("estreptocócica", "externa", "efusión"; "otitis" no).
+function distinctive(c: ClinicalCase, d: string) {
+	const own = new Set(
+		words([c.truth.diagnosis, ...c.truth.acceptable].join(" ")).map(stem),
+	);
+	return words(d)
+		.map(stem)
+		.filter((w) => !own.has(w));
 }
 
-// Si nombra un diferencial más específico que contiene lo aceptable (por
-// ejemplo "otitis media con efusión" contra "otitis media"), cuenta como el
-// diferencial.
-function confusedWith(c: ClinicalCase, text: string) {
-	const t = normalize(text);
-	const named = c.truth.differentials.find((d) =>
-		namesDifferential(c, d, text),
-	);
-	if (!named) return undefined;
-	const exact = t.includes(normalize(c.truth.diagnosis));
-	const moreSpecific = c.truth.acceptable.some((a) =>
-		normalize(named).includes(normalize(a)),
-	);
-	if (exact || (matchesDiagnosis(c, text) && !moreSpecific)) return undefined;
-	return named;
+// Nombra el diferencial: entero o por lo propio de él.
+export function namesDifferential(c: ClinicalCase, d: string, text: string) {
+	const t = normalize(text).trim();
+	if (!t) return false;
+	if (t.includes(normalize(d))) return true;
+	const said = new Set(words(t).map(stem));
+	return distinctive(c, d).some((w) => said.has(w));
+}
+
+// Qué plantea la hipótesis: la primera frase que no descarta y nombra el
+// diagnóstico o un diferencial. Si en esa frase aparece algo propio de un
+// diferencial ("faringitis estreptocócica", "otitis media con efusión"), es
+// ese diferencial aunque también diga "faringitis" u "otitis media".
+export function judgeHypothesis(
+	c: ClinicalCase,
+	text: string,
+): { matches: boolean; confused?: string } {
+	for (const clause of normalize(text).split(CLAUSES)) {
+		if (!clause.trim() || RULES_OUT.test(clause)) continue;
+		const exact = clause.includes(normalize(c.truth.diagnosis));
+		const confused = c.truth.differentials.find((d) =>
+			namesDifferential(c, d, clause),
+		);
+		// Si el diagnóstico del caso es general ("faringoamigdalitis aguda") y el
+		// diferencial es una causa ("estreptocócica"), nombrar los dos juntos no
+		// es confundirse: "faringoamigdalitis estreptocócica" es más preciso.
+		const general =
+			confused &&
+			normalize(confused).split(/\s+/).length === 1 &&
+			matchesDiagnosis(c, clause);
+		if (confused && !exact && !general) return { matches: false, confused };
+		if (matchesDiagnosis(c, clause)) return { matches: true };
+	}
+	return { matches: false };
 }
 
 // Lo último que le dijo al paciente sobre qué tiene (sin preguntas ni
 // descartes).
 function toldPatient(c: ClinicalCase, turns: Turn[]) {
-	const said = turns
-		.filter((t) => t.speaker === "estudiante" && !t.text.includes("?"))
-		.filter(
-			(t) =>
-				matchesDiagnosis(c, t.text) ||
-				c.truth.differentials.some((d) =>
-					normalize(t.text).includes(normalize(d)),
-				),
-		)
-		.at(-1);
-	if (!said) return undefined;
-	const correct = matchesDiagnosis(c, said.text) && !confusedWith(c, said.text);
-	const rulesOut = RULES_OUT.some((w) => normalize(said.text).includes(w));
-	if (!correct && rulesOut) return undefined;
-	return {
-		quote: said.text.slice(0, MAX_QUOTE),
-		turnId: said.id,
-		correct,
-	};
+	for (const t of [...turns].reverse()) {
+		if (t.speaker !== "estudiante" || t.text.includes("?")) continue;
+		const judged = judgeHypothesis(c, t.text);
+		if (!judged.matches && !judged.confused) continue;
+		return {
+			quote: t.text.slice(0, MAX_QUOTE),
+			turnId: t.id,
+			correct: judged.matches,
+		};
+	}
+	return undefined;
 }
 
 export function diagnosisFeedback(
@@ -102,9 +120,7 @@ export function diagnosisFeedback(
 ): DiagnosisFeedback {
 	const { truth } = c;
 	const yours = closing?.hypothesis.trim().slice(0, MAX_QUOTE) ?? "";
-	const closingText = normalize(
-		[yours, ...(closing?.differentials ?? [])].join(" "),
-	);
+	const closingText = [yours, ...(closing?.differentials ?? [])].join(" ");
 	const byId = new Map(items.map((i) => [i.itemId, i]));
 
 	const cluesFound: DiagnosisFeedback["cluesFound"] = [];
@@ -115,9 +131,7 @@ export function diagnosisFeedback(
 			cluesFound.push({
 				clue: k.clue,
 				why: k.why,
-				usedInClosing: k.keywords.some((w) =>
-					closingText.includes(normalize(w)),
-				),
+				usedInClosing: k.keywords.some((w) => hasKeyword(closingText, w)),
 				evidence: item.evidence,
 			});
 		} else {
@@ -125,17 +139,23 @@ export function diagnosisFeedback(
 		}
 	}
 
-	const allClosing = [yours, ...(closing?.differentials ?? [])].join(" ");
+	// Cada diferencial que escribió, y las frases de la hipótesis.
+	const named = [
+		...normalize(yours).split(CLAUSES),
+		...(closing?.differentials ?? []),
+	];
 	const differentialsHit = truth.differentials.filter((d) =>
-		namesDifferential(c, d, allClosing),
+		named.some((x) => namesDifferential(c, d, x)),
 	);
 	const differentialsMissed = truth.differentials
 		.filter((d) => !differentialsHit.includes(d))
 		.map((d) => ({ differential: d, hint: truth.differentialHints[d] }));
 
-	const confused = yours ? confusedWith(c, yours) : undefined;
-	const matches =
-		hypothesisMatches ?? (matchesDiagnosis(c, yours) && !confused);
+	// Si nombra un diferencial, es ese aunque el juez con IA diga que coincide
+	// (evaluate y ai-judge aplican la misma regla al puntaje).
+	const judged = judgeHypothesis(c, yours);
+	const confused = judged.confused;
+	const matches = !confused && (hypothesisMatches ?? judged.matches);
 	const shared = words(yours).some((w) => words(truth.diagnosis).includes(w));
 	const result: DiagnosisFeedback["result"] = !yours
 		? "sin_hipotesis"
@@ -236,6 +256,10 @@ export function improvementsFor(
 			`Pensá también en: ${d.differentialsMissed.map((x) => x.differential).join(", ")}.`,
 		);
 	}
-	for (const m of mistakes.filter((x) => !x.critical)) out.push(m.nextTime);
-	return [...new Set(out)].slice(0, MAX_IMPROVEMENTS);
+	// Las notas del razonamiento ya están dichas arriba, mejor explicadas.
+	for (const m of mistakes.filter(
+		(x) => !x.critical && x.tag !== "razonamiento",
+	))
+		out.push(m.nextTime);
+	return [...new Set(out.filter((x) => x.trim()))].slice(0, MAX_IMPROVEMENTS);
 }

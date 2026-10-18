@@ -3,6 +3,7 @@ import { Button } from "@pac0/ui/components/button";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Logo } from "@/frontend/logo";
 import { api, type Me } from "@/lib/api-client";
@@ -50,7 +51,12 @@ export default function Header() {
 							<Button
 								variant="ghost"
 								onClick={async () => {
-									await api.logout();
+									try {
+										await api.logout();
+									} catch {
+										toast.error("No pudimos cerrar la sesión. Probá de nuevo.");
+										return;
+									}
 									setMe(null);
 									router.replace("/");
 								}}

@@ -30,9 +30,22 @@ export function normalize(s: string) {
 
 export const DESCRIBE_ITEM = "describe-hallazgo";
 
+// Las claves cortas tienen que ser palabra: "tos" no está en "datos", ni
+// "mate" en "tomate". Hasta 3 letras valen como comienzo de palabra ("roj"
+// para roja o rojo); 4 letras, palabra entera (con o sin s). Las largas, en
+// cualquier parte ("alérgic").
+export function hasKeyword(text: string, keyword: string) {
+	const t = normalize(text);
+	const k = normalize(keyword).trim();
+	if (!k) return false;
+	if (k.length > 4 || /\s/.test(k)) return t.includes(k);
+	const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const end = k.length === 4 ? "s?(?![a-z0-9])" : "";
+	return new RegExp(`(?<![a-z0-9])${escaped}${end}`).test(t);
+}
+
 export function findTurn(turns: Turn[], keywords: string[]) {
-	const keys = keywords.map(normalize);
-	return turns.find((t) => keys.some((k) => normalize(t.text).includes(k)));
+	return turns.find((t) => keywords.some((k) => hasKeyword(t.text, k)));
 }
 
 // Turnos del estudiante que pueden probar el ítem. Describir el hallazgo solo
@@ -122,7 +135,10 @@ export function expectedFinding(
 		return clinicalCase.exam[extracted.fullExam.zone]?.expected ?? null;
 	if (extracted.otoscopies.length > 0)
 		return describeEars(
-			otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
+			otoscopyScenario(
+				clinicalCase.templateId ?? clinicalCase.id,
+				clinicalCase.patient.age,
+			),
 		);
 	return null;
 }

@@ -208,16 +208,29 @@ export function PatientAvatar({
 			};
 			return { detector, meter };
 		})();
-		return lips.current;
+		// Si falla la carga (red lenta), el próximo intento vuelve a probar.
+		const loading = lips.current;
+		loading.catch(() => {
+			if (lips.current === loading) lips.current = null;
+		});
+		return loading;
 	}, []);
 
 	// Conecta la voz pendiente al detector de labios, si ya hay avatar.
+	// Sin labios el avatar igual anda: un error acá no rompe la consulta.
 	const attachSpeech = useCallback(async () => {
 		const h = head.current;
 		const stream = speech.current;
 		if (!h || !stream) return;
-		await h.audioCtx.resume();
-		const { detector, meter } = await loadLips(h);
+		let loaded: Awaited<ReturnType<typeof loadLips>>;
+		try {
+			await h.audioCtx.resume();
+			loaded = await loadLips(h);
+		} catch (error) {
+			console.warn("No se pudo cargar el movimiento de la boca", error);
+			return;
+		}
+		const { detector, meter } = loaded;
 		// Se cortó o cambió mientras cargaba.
 		if (speech.current !== stream || head.current !== h) return;
 		source.current?.disconnect();

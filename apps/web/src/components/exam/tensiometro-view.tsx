@@ -56,6 +56,8 @@ export function TensiometroView({
 	const [armCm, setArmCm] = useState<number | null>(start?.armCm ?? null);
 	const [cuff, setCuff] = useState<CuffSize | null>(null);
 	const [rolledUp, setRolledUp] = useState(false);
+	// Mientras se coloca el manguito: sin doble clic.
+	const [placing, setPlacing] = useState(false);
 	const [drag, setDrag] = useState<{
 		size: CuffSize;
 		x: number;
@@ -102,8 +104,10 @@ export function TensiometroView({
 	}, [sessionId, onClose, measurementId]);
 
 	async function startMeasuring() {
-		if (!measurementId || !cuff) return;
-		audio.current = new AudioContext();
+		if (!measurementId || !cuff || placing) return;
+		setPlacing(true);
+		// Uno solo por tensiómetro, aunque se reintente después de un error.
+		audio.current ??= new AudioContext();
 		try {
 			const r = await api.placeCuff(sessionId, measurementId, cuff, !rolledUp);
 			gauge.current = r.gauge;
@@ -113,6 +117,8 @@ export function TensiometroView({
 			toast.error(
 				e instanceof ApiError ? e.message : "No se pudo colocar el manguito.",
 			);
+		} finally {
+			setPlacing(false);
 		}
 	}
 
@@ -157,6 +163,9 @@ export function TensiometroView({
 	useEffect(() => {
 		if (stage !== "medir") return;
 		const down = (e: KeyboardEvent) => {
+			// Lo que se escribe en el chat no infla ni marca.
+			const target = e.target as HTMLElement | null;
+			if (target?.closest("input, textarea, [contenteditable]")) return;
 			if (e.code === "Space") {
 				e.preventDefault();
 				inflating.current = true;
@@ -165,6 +174,7 @@ export function TensiometroView({
 			else if (e.key === "d" || e.key === "D") mark("d");
 		};
 		const up = (e: KeyboardEvent) => {
+			// Soltar la barra siempre corta el inflado, aunque sea en el chat.
 			if (e.code === "Space") inflating.current = false;
 		};
 		window.addEventListener("keydown", down);
@@ -266,7 +276,7 @@ export function TensiometroView({
 					<Button variant="outline" onClick={onClose}>
 						Cancelar
 					</Button>
-					<Button onClick={startMeasuring} disabled={!cuff}>
+					<Button onClick={startMeasuring} disabled={!cuff || placing}>
 						Empezar a medir
 					</Button>
 				</div>

@@ -29,12 +29,16 @@ export default function ProfilePage() {
 	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
-		api.me().then(({ viewer }) => {
-			if (viewer) {
-				setAlias(viewer.alias ?? "");
-				setYear(viewer.careerYear ?? "");
-			}
-		});
+		// Si falla, el formulario queda vacío y guardar avisa el error.
+		api
+			.me()
+			.then(({ viewer }) => {
+				if (viewer) {
+					setAlias(viewer.alias ?? "");
+					setYear(viewer.careerYear ?? "");
+				}
+			})
+			.catch(() => {});
 	}, []);
 
 	async function save(event: React.FormEvent) {
