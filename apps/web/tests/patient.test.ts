@@ -477,3 +477,18 @@ describe("examen por texto: otra zona no es la garganta", () => {
 		},
 	);
 });
+
+describe("datos sensibles con poca confianza (texto)", () => {
+	const brief = buildPatientBrief(lucia, lucia.personality, "");
+	test("no están en el prompt si se piden ocultar", () => {
+		const facts = { ...brief.profile, ...brief.history };
+		const lines = ["alcohol", "tabaco", "drogas", "sexualidad"]
+			.filter((k) => facts[k] !== undefined)
+			.map((k) => `- ${k}: ${facts[k]}`);
+		expect(lines.length).toBeGreaterThan(0);
+		const hidden = buildPatientPrompt(brief, { hideSensitive: true });
+		for (const l of lines) expect(hidden).not.toContain(l);
+		const shown = buildPatientPrompt(brief);
+		for (const l of lines) expect(shown).toContain(l);
+	});
+});

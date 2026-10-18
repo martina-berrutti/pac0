@@ -29,6 +29,7 @@ import { moodFor } from "@/lib/avatar/mood";
 import { createPendingCloses } from "@/lib/consulta/pending-closes";
 import type { Ear, ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
+import { cutText } from "@/lib/cut-text";
 import {
 	asksForBloodPressure,
 	asksForEarExam,
@@ -104,7 +105,10 @@ export default function ConsultationPage() {
 		onState: showState,
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
-			if (ui.kind === "exam") setExam(ui.exam);
+			// Con la garganta bien abierta en pantalla, un pedido nuevo no la
+			// reemplaza: se perdería lo que ya miró.
+			if (ui.kind === "exam" && exam?.action.variant !== "completa")
+				setExam(ui.exam);
 			if (ui.kind === "otoscope") setEar(ui.side ?? earIn(lastStudent.current));
 			if (ui.kind === "vitals")
 				setBp({
@@ -319,7 +323,7 @@ export default function ConsultationPage() {
 			);
 			checkStudent(r.studentTurn, true);
 			// Si nombró el oído, el servidor no devuelve examen: se abre el oído.
-			if (r.exam) setExam(r.exam);
+			if (r.exam && exam?.action.variant !== "completa") setExam(r.exam);
 		} catch (e) {
 			toast.error(
 				e instanceof ApiError
@@ -339,7 +343,7 @@ export default function ConsultationPage() {
 		try {
 			const list = differentials
 				.split(",")
-				.map((d) => d.trim().slice(0, 100))
+				.map((d) => cutText(d.trim(), 100))
 				.filter(Boolean)
 				// El servidor acepta hasta 10; más darían "Datos inválidos".
 				.slice(0, 10);

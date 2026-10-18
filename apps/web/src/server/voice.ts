@@ -14,6 +14,7 @@ import {
 	type Turn,
 	type VoiceUsage,
 } from "@/lib/contracts/session";
+import { cutText } from "@/lib/cut-text";
 import { buildPatientPrompt, type PatientBrief } from "@/lib/patient/brief";
 import { decideExam } from "@/lib/patient/exam-instruction";
 import { asciiKey } from "@/lib/patient/keys";
@@ -495,7 +496,7 @@ export async function recordVoiceTurn(
 		sessionId,
 		VOICE_GRACE_MS,
 	);
-	const clean = text.trim().slice(0, 4000);
+	const clean = cutText(text.trim(), 4000);
 	if (!clean) throw new HttpError(400, "Transcripción vacía");
 	// Más de lo que entra en 8 minutos: corta scripts que inflen la consulta.
 	if ((await store.listTurns(sessionId)).length >= MAX_VOICE_RECORDS)
