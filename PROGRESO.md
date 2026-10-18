@@ -16,7 +16,7 @@ Arreglado:
 - **Producción:** generar un paciente de oído daba 500 en Convex, porque el caso trae claves con tilde ("tapón de cerumen" en las pistas del diagnóstico). `ConvexStore` codifica al guardar las claves que Convex no acepta y las decodifica al leer, para cualquier dato. Probado con el validador real de Convex (`convexToJson`).
 - "Vamos a ver qué te pasa" y "¿puedo ver tus análisis?" contaban como pedido de examen y permiso: el paciente hostil abría la boca y el evaluador no marcaba el error crítico (o lo inventaba por texto). Ahora el verbo tiene que apuntar al paciente o a una parte del cuerpo.
 - El paciente de hipertensión generado tenía el brazo de 26 cm en vez de 35 (nunca enseñaba el manguito grande).
-- Dos retomas del mismo cierre ganaban las dos; la devolución de la reserva de voz no era atómica; no había tope de exámenes y mediciones por consulta (80); un error pasajero al completar un cierre daba 500 con el informe ya guardado; la ruta de cierre tiene `maxDuration` 60.
+- Dos retomas del mismo cierre ganaban las dos; la devolución de la reserva de voz no era atómica; no había tope de exámenes y mediciones por consulta (80); un error pasajero al completar un cierre daba 500 con el informe ya guardado.
 - Voz: aviso de error falso si se cortaba durante la reconexión; una nota podía cortar al paciente mientras esperaba una herramienta.
 - Clasificador y paciente por reglas: "no te entiendo" y "debe ser viral" contaban como empatía; "¿qué te trajo?" no era abierta; "¿qué enfermedades tuviste?" era pedir el diagnóstico y "¿con quién vino?" una pregunta de alcohol. Generador: "tos hace 2 años" no es la edad; "jubilada" para mujeres.
 

@@ -566,4 +566,29 @@ describe("cliente de voz", () => {
 			"paciente:Hace dos días",
 		]);
 	});
+
+	test("una nota que esperaba una herramienta respondida espera al paciente", async () => {
+		const { voice } = mount();
+		await voice.start();
+		delays["/tools:examinar"] = 20;
+		live.callbacks?.onmessage({
+			toolCall: {
+				functionCalls: [
+					{
+						id: "c1",
+						name: "examinar",
+						args: { zona: "boca", claridad: "alta", consentimiento: true },
+					},
+				],
+			},
+		});
+		voice.sendNote("cambió tu ánimo");
+		await voice.drain();
+		await new Promise((r) => setTimeout(r, 40));
+		// Se respondió la herramienta: la nota no sale hasta que el paciente termine.
+		expect(live.sent).toContain("toolResponse");
+		expect(live.sent).not.toContain("clientContent");
+		live.callbacks?.onmessage(msg({ turnComplete: true }));
+		expect(live.sent).toContain("clientContent");
+	});
 });

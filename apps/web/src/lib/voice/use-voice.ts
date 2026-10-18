@@ -413,8 +413,12 @@ export function useVoice({
 				target &&
 				live.current === target &&
 				openSession(target)
-			)
+			) {
 				safeSend(() => target.sendToolResponse({ functionResponses }));
+				// Se respondió: el paciente va a hablar ahora.
+				return true;
+			}
+			return false;
 		},
 		[sessionId, enqueue],
 	);
@@ -424,13 +428,20 @@ export function useVoice({
 			calls: { id?: string; name?: string; args?: Record<string, unknown> }[],
 		) => {
 			toolsPending.current += 1;
+			let answered = false;
 			try {
-				await answerTools(calls);
+				answered = await answerTools(calls);
 			} finally {
 				toolsPending.current -= 1;
-				// Si no hubo respuesta que hablar (todas canceladas), las notas que
-				// esperaban no tienen por qué esperar al próximo turno.
-				if (toolsPending.current === 0 && !st.current.patientTurnStarted)
+				// Solo si no se mandó respuesta (todas canceladas): el paciente no
+				// va a hablar y las notas no tienen por qué esperar. Si se respondió,
+				// el paciente empieza a contestar y las notas esperan a que termine
+				// (turnComplete), o lo cortarían.
+				if (
+					!answered &&
+					toolsPending.current === 0 &&
+					!st.current.patientTurnStarted
+				)
 					for (const note of pendingNotes.current.splice(0)) deliverNote(note);
 			}
 		},
