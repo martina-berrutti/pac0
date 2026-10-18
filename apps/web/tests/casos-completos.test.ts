@@ -17,7 +17,7 @@ import { finishOtoscopy, startOtoscopy } from "@/server/otoscopy";
 import { store } from "@/server/store";
 import type { Viewer } from "@/server/token";
 import { markReading, placeCuff } from "@/server/vitals";
-import { runTool } from "@/server/voice";
+import { recordVoiceTurn, runTool } from "@/server/voice";
 
 let n = 0;
 function student(): Viewer & { alias: string } {
@@ -366,5 +366,86 @@ describe("empezar con la sesión por vencer", () => {
 		await expect(startSession(ana, "garganta-02", "caso")).rejects.toThrow(
 			"vence",
 		);
+	});
+});
+
+describe("voz: la transcripción llega después de empezar la otoscopia", () => {
+	test("lo que explicó antes cuenta aunque se guarde unos segundos tarde", async () => {
+		const ana = student();
+		const { clinicalCase } = await generateCase({
+			text: "dame un paciente con dolor de oído",
+		});
+		await store.addGeneratedCase(ana.uid, clinicalCase);
+		const id = await startSession(ana, clinicalCase.id, "caso");
+		const { actionId } = await startOtoscopy(ana, id, "derecho");
+		// La transcripción de "te voy a revisar el oído" se guarda 3 s después.
+		vi.useFakeTimers({ toFake: ["Date"], now: Date.now() + 3000 });
+		await recordVoiceTurn(
+			ana,
+			id,
+			"estudiante",
+			"Te voy a revisar el oído, ¿puedo?",
+			false,
+		);
+		await finishOtoscopy(ana, id, actionId, { mode: "foto", lookedMs: 5000 });
+		vi.useRealTimers();
+		const action = (await store.listExamActions(id)).find(
+			(a) => a.id === actionId,
+		);
+		expect(action?.technique?.errors ?? []).not.toContain("sin-explicar");
+	});
+
+	test("el consentimiento por voz también recuerda la confianza", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		await store.changeSession(id, {
+			set: {
+				trustReached: false,
+				state: { confianza: 0.45, ansiedad: 0.3, dolor: 0.5, paciencia: 0.7 },
+			},
+		});
+		await runTool(ana, id, "examinar", {
+			zona: "oído",
+			claridad: "media",
+			consentimiento: true,
+		});
+		expect((await store.getSession(id))?.trustReached).toBe(true);
+	});
+});
+
+describe("voz: medir_presion dos veces", () => {
+	test("sin manguito todavía, actualiza la misma medición", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const first = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [],
+		});
+		const again = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [...BP_STEPS],
+		});
+		if (first.ui.kind !== "vitals" || again.ui.kind !== "vitals")
+			throw new Error("no abrió el tensiómetro");
+		expect(again.ui.measurementId).toBe(first.ui.measurementId);
+		const vitals = await store.listVitals(id);
+		expect(vitals).toHaveLength(1);
+		expect(vitals[0].stepsCompleted.length).toBeGreaterThan(0);
+	});
+
+	test("con el manguito puesto, la medición en curso no se toca", async () => {
+		const ana = student();
+		const id = await startSession(ana, "garganta-02", "caso");
+		const first = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [...BP_STEPS],
+		});
+		if (first.ui.kind !== "vitals") throw new Error("no abrió el tensiómetro");
+		await placeCuff(ana, id, first.ui.measurementId, "adecuado", false);
+		const again = await runTool(ana, id, "medir_presion", {
+			pasos_cumplidos: [],
+		});
+		if (again.ui.kind !== "vitals") throw new Error("no abrió el tensiómetro");
+		expect(again.ui.measurementId).not.toBe(first.ui.measurementId);
+		const firstId = first.ui.measurementId;
+		const kept = (await store.listVitals(id)).find((v) => v.id === firstId);
+		expect(kept?.cuff).not.toBeNull();
 	});
 });

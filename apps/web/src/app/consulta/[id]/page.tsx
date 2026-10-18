@@ -158,11 +158,24 @@ export default function ConsultationPage() {
 			// reemplaza: se perdería lo que ya miró.
 			if (ui.kind === "exam" && exam?.action.variant !== "completa")
 				setExam(ui.exam);
-			if (ui.kind === "otoscope") setEar(ui.side ?? earIn(lastStudent.current));
+			// Con un oído abierto, solo se cambia si el modelo nombró el otro lado
+			// (sin lado, earIn daría "derecho" y daría vuelta el izquierdo).
+			if (ui.kind === "otoscope") {
+				// El otro oído arranca sin el pedido de cierre del anterior.
+				if (ear && ui.side && ui.side !== ear) setEndRequest(0);
+				setEar((open) =>
+					open ? (ui.side ?? open) : (ui.side ?? earIn(lastStudent.current)),
+				);
+			}
+			// Con el tensiómetro abierto se sigue con el que está (el servidor
+			// actualiza esa medición si todavía no tiene manguito).
 			if (ui.kind === "vitals")
-				setBp({
-					start: { measurementId: ui.measurementId, armCm: ui.armCm },
-				});
+				setBp(
+					(open) =>
+						open ?? {
+							start: { measurementId: ui.measurementId, armCm: ui.armCm },
+						},
+				);
 			// Pidió ver la rodilla en un caso con zona de dolor: a localizarlo.
 			if (
 				ui.kind === "region" &&
@@ -331,9 +344,10 @@ export default function ConsultationPage() {
 		closes.closed();
 	}
 
-	function closeEar() {
-		setEar(null);
-		closes.closed();
+	// Cierra solo el oído que pidió cerrarse: si ya se pasó al otro, no.
+	function closeEar(which: "derecho" | "izquierdo") {
+		setEar((open) => (open === which ? null : open));
+		if (ear === which) closes.closed();
 	}
 
 	// Cierra la garganta o el oído por su propio camino, que guarda lo que se
@@ -577,9 +591,11 @@ export default function ConsultationPage() {
 					) : ear ? (
 						<div className="fade-in zoom-in-50 animate-in duration-500">
 							<OidoFotoView
+								// Otro oído es otra otoscopia: se guarda la anterior y empieza una nueva.
+								key={ear}
 								sessionId={id}
 								ear={ear}
-								onClose={closeEar}
+								onClose={() => closeEar(ear)}
 								endRequest={endRequest}
 							/>
 						</div>
