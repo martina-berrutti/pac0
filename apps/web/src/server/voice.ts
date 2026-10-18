@@ -393,6 +393,9 @@ export async function runTool(
 		}
 		case "medir_presion": {
 			const args = toolArgs.medir_presion.parse(rawArgs);
+			// Como examinar: el permiso que pidió cuenta (la presión también es
+			// examinar).
+			if (args.consentimiento) await giveConsent(session, elapsed);
 			const bp = await createMeasurement(
 				clinicalCase,
 				sessionId,
@@ -568,11 +571,14 @@ export async function recordVoiceTurn(
 		...(classified ? { tags: classified.tags } : {}),
 	};
 	await store.addTurn(turn);
-	if (classified) await noteConsent(classified.session, clean, elapsed);
+	// El estado después del permiso (si lo hubo), para la cara del avatar.
+	const after = classified
+		? await noteConsent(classified.session, clean, elapsed)
+		: session;
 	return {
 		turn,
 		stateNote: classified?.stateNote ?? null,
-		state: (classified?.session ?? session).state,
+		state: after.state,
 	};
 }
 

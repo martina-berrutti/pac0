@@ -183,6 +183,7 @@ const PERSONALITY_TWEAKS: {
 			"poco colaborador",
 			"nada colaborador",
 			"no colabora",
+			"que no colabore",
 			"poco amable",
 			"nada amable",
 		],
