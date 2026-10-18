@@ -3,11 +3,14 @@
 // paciente nunca habla así: por texto, esa respuesta se descarta y contesta
 // el paciente por reglas (Persona 3).
 const OUT_OF_ROLE = [
-	// Consejos de salud y derivaciones.
-	/\bespecialista\b/,
+	// Consejos de salud y derivaciones. "El especialista me dijo…" es lo que
+	// le pasó al paciente, no un consejo.
+	/\b(consult\w*|anda|vaya|ir|ver) (a|al|con) (un |una |el |la )?especialista\b/,
+	/\bte derivo\b/,
 	/\bprofesional de (la )?salud\b/,
 	/\b(te|le|les) (recomiendo|aconsejo|sugiero)\b/,
-	/\b(deberias|deberia|tendrias que|tenes que|tiene que) (consultar|ver a|ir al medico|acudir)/,
+	// En segunda persona: "mi jefe me dijo que tiene que ver a alguien" no.
+	/\b(deberias|deberia|tendrias que|tenes que) (consultar|ver a|ir al medico|acudir)/,
 	/\bconsult(a|e|es|ar)? (con|a) (un|una|tu|su) (medico|doctor|profesional)/,
 	/\bbusca(r)? atencion medica\b/,
 	// Explicar una enfermedad.
@@ -18,10 +21,16 @@ const OUT_OF_ROLE = [
 	/\bno puedo (dar|brindar|ofrecer) (consejos|diagnosticos|asesoramiento)/,
 ];
 
+// Frase por frase y sin las preguntas: el paciente sí pregunta "¿se cura con
+// antibióticos?" o "¿me vas a mandar a un especialista?" (se lo pide el
+// prompt cuando le dicen qué tiene).
 export function soundsLikeDoctor(text: string): boolean {
 	const t = text
 		.toLowerCase()
 		.normalize("NFD")
 		.replace(/\p{Diacritic}/gu, "");
-	return OUT_OF_ROLE.some((re) => re.test(t));
+	return t
+		.split(/(?<=[.!?\n])\s*/)
+		.filter((s) => !s.includes("?") && !s.includes("¿"))
+		.some((s) => OUT_OF_ROLE.some((re) => re.test(s)));
 }

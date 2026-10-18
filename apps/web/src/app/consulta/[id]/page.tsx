@@ -36,6 +36,7 @@ import {
 	MAX_HYPOTHESIS_LENGTH,
 	prepareDifferentials,
 } from "@/lib/consulta/differentials";
+import { createHearing } from "@/lib/consulta/hearing";
 import { createPendingCloses } from "@/lib/consulta/pending-closes";
 import type { Ear, ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
@@ -135,16 +136,32 @@ export default function ConsultationPage() {
 	// Ya se pidió cerrar este examen mientras se escuchaba: el turno guardado
 	// no lo vuelve a pedir.
 	const heardEnd = useRef(false);
+	// Por voz se juzga solo lo dicho desde que se abrió el examen, y después
+	// de una pausa (lib/consulta/hearing.ts).
+	const examOpenNow = useRef(examOpen);
+	examOpenNow.current = examOpen;
+	const [hearing] = useState(() =>
+		createHearing((said) => {
+			if (examOpenNow.current && !heardEnd.current && asksToEndExam(said)) {
+				heardEnd.current = true;
+				setEndRequest((n) => n + 1);
+			}
+		}),
+	);
 	useEffect(() => {
 		if (!examOpen) heardEnd.current = false;
-	}, [examOpen]);
+		else hearing.examOpened();
+	}, [examOpen, hearing]);
+	useEffect(() => () => hearing.stop(), [hearing]);
 	function checkStudent(turn: Turn, byText: boolean) {
 		if (turn.speaker !== "estudiante") return;
 		lastStudent.current = turn.text;
 		// Una respuesta que llega con la consulta ya cerrándose no abre nada.
 		if (closingNow.current) return;
 		if (examOpen) {
-			if (heardEnd.current) heardEnd.current = false;
+			// Por voz ya lo juzgó lo que se iba escuchando (el turno guardado
+			// trae también lo dicho antes de abrir el examen).
+			if (!byText) heardEnd.current = false;
 			else if (asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
 		} else if (!tool && asksForTemperature(turn.text)) {
 			// No hay herramienta de voz para la temperatura: también por voz se
@@ -169,12 +186,7 @@ export default function ConsultationPage() {
 		onState: showState,
 		// "Cerrá la boca" cierra apenas se escucha, sin esperar a que se guarde
 		// el turno (eso pasa recién cuando el paciente contesta).
-		onHearing: (text) => {
-			if (examOpen && !heardEnd.current && asksToEndExam(text)) {
-				heardEnd.current = true;
-				setEndRequest((n) => n + 1);
-			}
-		},
+		onHearing: (text) => hearing.heard(text),
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
 			// Midiendo presión, temperatura o buscando el dolor, otro examen no
