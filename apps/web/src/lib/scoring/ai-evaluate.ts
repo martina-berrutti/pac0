@@ -12,6 +12,7 @@ import {
 	type JsonLlm,
 	verifyOmissions,
 } from "./ai-judge";
+import { improvementsFor } from "./diagnosis";
 import { assembleReport, evaluate } from "./evaluate";
 import { extract } from "./extractor";
 import { creditSeenZones } from "./rule-judge";
@@ -87,7 +88,18 @@ export async function evaluateWithAi(
 			(i) => creditSeenZones(i, extracted),
 		);
 		const report = assembleReport(input, items, reasoning, "ia", extracted);
-		return await writeFeedback(report, input, llm);
+		const written = await writeFeedback(report, input, llm);
+		// Los puntos a mejorar salen de los textos reescritos por el redactor.
+		return written.diagnosis
+			? {
+					...written,
+					improvements: improvementsFor(
+						input.clinicalCase,
+						written.diagnosis,
+						written.mistakes,
+					),
+				}
+			: written;
 	} catch (error) {
 		console.warn("Evaluador con IA falló; uso el juez por reglas.", error);
 		return evaluate(input);

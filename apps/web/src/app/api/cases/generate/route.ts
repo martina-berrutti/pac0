@@ -8,6 +8,7 @@ import { limitByIp } from "@/server/rate-limit";
 import { store } from "@/server/store";
 
 const MAX_GENERATED_PER_USER = 15;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const bodySchema = z.object({
 	text: z.string().min(3).max(300),
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
 		// Cada paciente usa la IA: tope por usuario y por día. Con "por día"
 		// explícito: los de una cuenta de Google no se borran, y contándolos a
 		// todos, la cuenta quedaba sin poder generar nunca más.
-		const since = Date.now() - 24 * 60 * 60 * 1000;
+		const since = Date.now() - DAY_MS;
 		const own = (await store.listCases(viewer.uid)).filter(
 			(c) => c.origin === "generado" && (c.createdAt ?? 0) >= since,
 		);
@@ -33,6 +34,16 @@ export async function POST(req: Request) {
 			);
 		// También por IP: cada invitado nuevo traía otros 15 pedidos a la IA.
 		await limitByIp("generate");
+		// Y atómico por usuario: con pedidos en paralelo, contar la lista de
+		// arriba deja pasar a todos.
+		const allowed = await store
+			.hitRate(`generate:${viewer.uid}`, DAY_MS, MAX_GENERATED_PER_USER)
+			.catch(() => true);
+		if (!allowed)
+			throw new HttpError(
+				429,
+				"Ya pediste muchos pacientes. Usá uno de los que tenés.",
+			);
 		try {
 			const { clinicalCase, personalityKey } = await generateCase(body);
 			await store.addGeneratedCase(viewer.uid, clinicalCase);

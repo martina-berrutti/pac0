@@ -105,6 +105,19 @@ const DISRESPECT = [
 	"me tenes harto",
 	"me tenes podrid",
 ];
+// Despedida o cierre amable al final de la consulta.
+const KIND_CLOSING = [
+	"gracias",
+	"que te mejores",
+	"que se mejore",
+	"cuidate",
+	"cuidese",
+	"cualquier cosa",
+	"cualquier duda",
+	"chau",
+	"hasta luego",
+	"un gusto",
+];
 // Turnos que describen un hallazgo para el evaluador: la jerga ahí no cuenta.
 const FINDING_STARTS = ["veo", "observo", "se ve", "se observa", "noto"];
 
@@ -188,8 +201,13 @@ export type Extracted = {
 	// Turnos del estudiante con jerga sin explicar.
 	jargonTurns: Turn[];
 	// Pistas emocionales o de dolor que el estudiante no recogió en su
-	// respuesta siguiente.
+	// respuesta siguiente, y las que sí recogió.
 	ignoredCues: { cue: Turn; reply: Turn }[];
+	acknowledgedCues: { cue: Turn; reply: Turn }[];
+	// Turnos del estudiante con empatía (clasificador o frases de la lista).
+	empathyTurns: Turn[];
+	// Turno con el que se despidió con amabilidad (de los dos últimos).
+	kindClosing: Turn | null;
 	insisted: { turn?: Turn; examActionId?: string } | null;
 	disrespectfulTurns: Turn[];
 	// Confianza al empezar (sale de la personalidad, como en
@@ -253,16 +271,15 @@ export function extract(input: EvaluationInput): Extracted {
 				).tags,
 		]),
 	);
+	const empathic = (t: Turn) =>
+		Boolean(tags.get(t.id)?.includes("empatia")) || says(t.text, ACKNOWLEDGES);
 	const ignoredCues: Extracted["ignoredCues"] = [];
+	const acknowledgedCues: Extracted["acknowledgedCues"] = [];
 	ordered.forEach((cue, i) => {
 		if (cue.speaker !== "paciente" || !says(cue.text, CUES)) return;
 		const reply = ordered.slice(i + 1).find((t) => t.speaker === "estudiante");
-		if (
-			reply &&
-			!tags.get(reply.id)?.includes("empatia") &&
-			!says(reply.text, ACKNOWLEDGES)
-		)
-			ignoredCues.push({ cue, reply });
+		if (!reply) return;
+		(empathic(reply) ? acknowledgedCues : ignoredCues).push({ cue, reply });
 	});
 	const { personality } = session;
 
@@ -289,6 +306,15 @@ export function extract(input: EvaluationInput): Extracted {
 			(t) => tags.get(t.id)?.includes("jerga") && !says(t.text, FINDING_STARTS),
 		),
 		ignoredCues,
+		acknowledgedCues,
+		empathyTurns: studentTurns.filter((t) =>
+			tags.get(t.id)?.includes("empatia"),
+		),
+		kindClosing:
+			studentTurns.length > 2
+				? (studentTurns.slice(-2).find((t) => says(t.text, KIND_CLOSING)) ??
+					null)
+				: null,
 		insisted: findInsistence(ordered, examActions, events),
 		disrespectfulTurns: studentTurns.filter((t) => says(t.text, DISRESPECT)),
 		trust: {

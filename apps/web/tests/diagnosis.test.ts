@@ -10,7 +10,10 @@ import {
 	toldPatientMistake,
 } from "@/lib/scoring/diagnosis";
 import { reasoningScore } from "@/lib/scoring/evaluate";
+import { hasKeyword } from "@/lib/scoring/rule-judge";
 import type { EvaluationInput } from "@/lib/scoring/types";
+
+import { amigdalitis } from "./helpers";
 
 const byId = (id: string) => {
 	const c = findCase(id);
@@ -225,5 +228,95 @@ describe("razonamiento por caso", () => {
 		const bare = reasoningScore(input("otitis media"));
 		expect(bare.parts?.studies).toBe(false);
 		expect(good.score - bare.score).toBe(35);
+	});
+});
+
+describe("arreglos de la revisión", () => {
+	const viral = byId("garganta-02");
+
+	test.each([
+		["faringitis estreptocócica", "otro_diagnostico"],
+		["Faringitis viral por los mocos", "acertaste"],
+		["faringitis", "acertaste"],
+		["no es un resfrío, es gripe", "otro_diagnostico"],
+		["Resfrío común; descarto faringoamigdalitis estreptocócica", "acertaste"],
+	])("Lucía (faringitis viral): «%s» → %s", (hypothesis, result) => {
+		const d = diagnosisFeedback(
+			viral,
+			items("garganta-02", []),
+			close(hypothesis),
+			[],
+		);
+		expect(d.result).toBe(result);
+	});
+
+	test("si nombra un diferencial, la IA no puede darlo por bueno", () => {
+		const d = diagnosisFeedback(
+			viral,
+			items("garganta-02", []),
+			close("faringitis estreptocócica"),
+			[],
+			true,
+		);
+		expect(d.result).toBe("otro_diagnostico");
+	});
+
+	test("diagnóstico general: nombrar la causa es más preciso, no un error", () => {
+		const d = diagnosisFeedback(
+			amigdalitis,
+			amigdalitis.expectedChecklist.map((i) => ({
+				itemId: i.id,
+				item: i.item,
+				dimension: i.dimension,
+				weight: i.weight,
+				status: "no" as const,
+				evidence: [],
+			})),
+			close("faringoamigdalitis estreptocócica"),
+			[],
+		);
+		expect(d.result).toBe("acertaste");
+	});
+
+	test("un diferencial vacío o «otitis» sola no cubren diferenciales", () => {
+		expect(
+			reasoningScore({
+				clinicalCase: media,
+				session: { closing: close("otitis media aguda", [""]) },
+			} as unknown as EvaluationInput).parts?.differentialsCovered,
+		).toBe(0);
+		expect(
+			reasoningScore({
+				clinicalCase: media,
+				session: { closing: close("otitis media aguda", ["otitis"]) },
+			} as unknown as EvaluationInput).parts?.differentialsCovered,
+		).toBe(0);
+		expect(
+			reasoningScore({
+				clinicalCase: media,
+				session: { closing: close("otitis media aguda", ["otitis externa"]) },
+			} as unknown as EvaluationInput).parts?.differentialsCovered,
+		).toBe(1);
+	});
+
+	test("descartar un diagnóstico frente al paciente no es decírselo", () => {
+		const d = diagnosisFeedback(media, items("oido-02", []), null, [
+			said("No creo que sea otitis externa, el conducto está sano."),
+		]);
+		expect(d.toldPatient).toBeUndefined();
+	});
+
+	test.each([
+		["¿Me pasás los datos?", "tos", false],
+		["Tomate un momento", "mate", false],
+		["¿Aguantás bien el dolor?", "agua", false],
+		["Tenía 137 de presión", "37", false],
+		["Tenés tos seca", "tos", true],
+		["La garganta está roja", "roj", true],
+		["Tuviste 37,5", "37", true],
+		["¿Te metiste al agua?", "agua", true],
+		["¿Sos alérgica?", "alérgic", true],
+	])("«%s» contiene «%s»: %s", (text, keyword, expected) => {
+		expect(hasKeyword(text, keyword)).toBe(expected);
 	});
 });

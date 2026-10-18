@@ -21,21 +21,24 @@ import {
 import {
 	diagnosisFeedback,
 	improvementsFor,
+	judgeHypothesis,
+	namesDifferential,
 	toldPatientMistake,
 } from "./diagnosis";
 import {
 	dimensionScore,
 	MIN_ANAMNESIS_FOR_DIAGNOSIS,
 	PENALTY_CAP,
-	TRUST_BONUS,
 	TRUST_GAIN,
 	totalScore,
 	verdictFor,
 } from "./engine";
 import { type Extracted, extract } from "./extractor";
+import { buildRapport, rapportBonus, trustPenalty } from "./rapport";
 import {
 	DESCRIBE_ITEM,
 	expectedFinding,
+	hasKeyword,
 	judgeItem,
 	normalize,
 } from "./rule-judge";
@@ -121,15 +124,15 @@ export function reasoningFromParts(p: ReasoningParts): Reasoning {
 export function reasoningScore(input: EvaluationInput): Reasoning {
 	const closing = input.session.closing;
 	if (!closing) return NO_HYPOTHESIS;
-	const { truth } = input.clinicalCase;
-	const hyp = normalize(closing.hypothesis);
-	const diffs = closing.differentials.map(normalize);
+	const c = input.clinicalCase;
+	const { truth } = c;
+	const hyp = closing.hypothesis;
 	return reasoningFromParts({
-		hypothesisMatches: [truth.diagnosis, ...truth.acceptable].some((d) =>
-			hyp.includes(normalize(d)),
-		),
+		// "faringitis estreptocócica" no es "faringitis viral" (diagnosis.ts).
+		hypothesisMatches: judgeHypothesis(c, hyp).matches,
+		// Un diferencial vacío o "otitis" sola no cubren nada.
 		differentialsCovered: truth.differentials.filter((d) =>
-			diffs.some((x) => x.includes(normalize(d)) || normalize(d).includes(x)),
+			closing.differentials.some((x) => namesDifferential(c, d, x)),
 		).length,
 		differentialsExpected: truth.differentials.length,
 		// Justifica si cita un dato de la consulta: las palabras generales o
@@ -137,10 +140,10 @@ export function reasoningScore(input: EvaluationInput): Reasoning {
 		justified: [
 			...JUSTIFICATION_WORDS,
 			...truth.keyClues.flatMap((k) => k.keywords),
-		].some((w) => hyp.includes(normalize(w))),
+		].some((w) => hasKeyword(hyp, w)),
 		// Conducta razonable para este caso; sin lista propia, la de garganta.
 		studies: (truth.conduct.length > 0 ? truth.conduct : STUDIES).some((s) =>
-			hyp.includes(normalize(s)),
+			hasKeyword(hyp, s),
 		),
 	});
 }
@@ -202,6 +205,9 @@ function penalties(
 			points: 2,
 			tag: "interrumpe",
 			what: `Interrumpiste al paciente (${Math.round(e.atMs / 1000)} s).`,
+			why: "Cortar al paciente le quita información y lo hace sentir apurado.",
+			nextTime:
+				"Esperá a que termine de hablar antes de preguntar lo siguiente.",
 		});
 	}
 	const asked = new Set<string>();
@@ -213,6 +219,9 @@ function penalties(
 				points: 1,
 				tag: "pregunta-sugestiva",
 				what: "Pregunta sugestiva.",
+				why: 'Una pregunta que ya trae la respuesta ("¿tenés fiebre, no?") empuja al paciente a decir que sí.',
+				nextTime:
+					'Preguntá de forma neutra: "¿Tuviste fiebre?" en vez de "Tenés fiebre, ¿no?".',
 				turnId: t.id,
 			});
 		}
@@ -225,6 +234,9 @@ function penalties(
 				points: 1,
 				tag: "repite-pregunta",
 				what: "Repetiste una pregunta ya respondida.",
+				why: "Repetir hace sentir al paciente que no lo escucharon.",
+				nextTime:
+					"Anotá o resumí lo que te contestó antes de seguir con otra pregunta.",
 				turnId: t.id,
 			});
 		}
@@ -285,7 +297,10 @@ function earPenalties(
 ): Penalty[] {
 	if (otoscopies.length === 0) return [];
 	const affected = affectedEar(
-		otoscopyScenario(clinicalCase.id, clinicalCase.patient.age),
+		otoscopyScenario(
+			clinicalCase.templateId ?? clinicalCase.id,
+			clinicalCase.patient.age,
+		),
 	);
 	if (!affected) return [];
 	const ears = otoscopies.map((a) =>
@@ -512,6 +527,7 @@ export function assembleReport(
 	const { clinicalCase } = input;
 	const pens = [
 		...penalties(extracted, clinicalCase, input.turns),
+		...trustPenalty(extracted),
 		...earPenalties(input, extracted),
 		...jumpedToDiagnosis(input, items, extracted),
 	];
@@ -535,12 +551,12 @@ export function assembleReport(
 			pensFor("comunicacion"),
 		),
 	};
-	// Suma: subir la confianza de un paciente difícil.
+	// Suma: el buen trato (reconocer lo que siente, empatía, ganar su
+	// confianza, despedirse bien), con tope. Lo que resta ya está en pens.
 	const { trust } = extracted;
 	const wonTrust = trust.difficult && trust.end - trust.start >= TRUST_GAIN;
-	if (wonTrust) {
-		scores.comunicacion = Math.min(100, scores.comunicacion + TRUST_BONUS);
-	}
+	const kindness = rapportBonus(extracted);
+	scores.comunicacion = Math.min(100, scores.comunicacion + kindness.bonus);
 
 	const mistakes: Mistake[] = criticalMistakes(items, extracted);
 	const description = describeMistake(items, extracted, input);
@@ -632,6 +648,16 @@ export function assembleReport(
 			})),
 	].slice(0, 3);
 
+	const rapport = buildRapport({
+		extracted,
+		items,
+		penalties: pens,
+		mistakes,
+		bonus: kindness.bonus,
+		plus: kindness.plus,
+		score: scores.comunicacion,
+	});
+
 	const total = totalScore(scores);
 	const { verdict, message } = verdictFor(
 		total,
@@ -654,6 +680,7 @@ export function assembleReport(
 		notMeasurable: ["Contacto ocular", "Expresión facial y postura"],
 		diagnosis,
 		improvements: improvementsFor(clinicalCase, diagnosis, mistakes),
+		rapport,
 		judge,
 		createdAt: Date.now(),
 	});

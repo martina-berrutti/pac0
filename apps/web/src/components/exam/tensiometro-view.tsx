@@ -105,6 +105,8 @@ export function TensiometroView({
 	const [armCm, setArmCm] = useState<number | null>(start?.armCm ?? null);
 	const [cuff, setCuff] = useState<CuffSize | null>(null);
 	const [rolledUp, setRolledUp] = useState(false);
+	// Mientras se coloca el manguito: sin doble clic.
+	const [placing, setPlacing] = useState(false);
 	const [drag, setDrag] = useState<{
 		size: CuffSize;
 		x: number;
@@ -156,8 +158,10 @@ export function TensiometroView({
 	}, [sessionId, onClose, measurementId]);
 
 	async function startMeasuring() {
-		if (!measurementId || !cuff) return;
-		audio.current = new AudioContext();
+		if (!measurementId || !cuff || placing) return;
+		setPlacing(true);
+		// Uno solo por tensiómetro, aunque se reintente después de un error.
+		audio.current ??= new AudioContext();
 		try {
 			const r = await api.placeCuff(sessionId, measurementId, cuff, !rolledUp);
 			gauge.current = r.gauge;
@@ -167,6 +171,8 @@ export function TensiometroView({
 			toast.error(
 				e instanceof ApiError ? e.message : "No se pudo colocar el manguito.",
 			);
+		} finally {
+			setPlacing(false);
 		}
 	}
 
@@ -343,7 +349,7 @@ export function TensiometroView({
 					<Button variant="outline" onClick={onClose}>
 						Cancelar
 					</Button>
-					<Button onClick={startMeasuring} disabled={!cuff}>
+					<Button onClick={startMeasuring} disabled={!cuff || placing}>
 						Listo, a medir
 					</Button>
 				</div>

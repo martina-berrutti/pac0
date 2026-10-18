@@ -69,7 +69,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Los eventos objetivos actualizan el estado (plan.md, sección 5, versión 1): interrumpir baja `paciencia` (−0,1) y `confianza` (−0,05), un silencio largo baja `paciencia` (−0,05) y pedir consentimiento sube `confianza` (+0,1). Cada cambio queda como `cambio_animo` con el motivo (`lib/patient/state.ts`)
 - [ ] Calibrar esos valores con un docente
 - [x] Clasificador rápido por turno (`lib/patient/turn-classifier.ts`): pregunta abierta o cerrada, sugestiva, jerga, empatía y repetida; actualiza el estado y avisa al modelo de voz con una nota silenciosa
-- [ ] Persona 2: usar las etiquetas de `turn.tags` en el evaluador (preguntas abiertas, jerga, sugestivas)
+- [x] Persona 2: usar las etiquetas de `turn.tags` en el evaluador (`lib/scoring/extractor.ts`; verificado el 18/10)
 
 ### Voz (plan.md, secciones 4 y 5) · Gemini Live de Google AI Studio
 - [x] Decisión del 17/10: la voz usa Gemini Live (Google AI Studio) en vez de OpenAI Realtime
@@ -148,11 +148,11 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Variantes de apertura (parcial, completa, negado) según la claridad
 - [x] Guardar los tiempos por zona (`PATCH /api/sessions/[id]/exam/[actionId]`)
 - [x] Registro de fotos por clave de asset con sus zonas (`lib/exam/oropharynx.ts`); sin foto, sigue el esquema. Un test exige que cada foto exista y esté en `CREDITS.md`
-- [ ] Persona 3: subir `mouth-partial-01`, `throat-exudate-01` y `throat-erythema-01` a `apps/web/public/exam/` con `CREDITS.md`; después registrarlas y ubicar las zonas (tecla Z en desarrollo)
+- [x] Persona 3: fotos de garganta (normal, eritema, exudado) y de oído en `apps/web/public/exam/` con `CREDITS.md`; la apertura parcial se ve en el avatar, sin foto (verificado el 18/10)
 - [x] Tecla de abatelenguas (A, o botón): sin él, amígdalas y pared posterior cuentan la mitad
 - [x] Describir lo que vio y compararlo con el hallazgo esperado; parcial si vio sin describir; ignora lo negado ("no veo placas"). También para el oído
 - [x] Aviso sin puntaje por un examen que el caso no necesitaba (`Report.notices`)
-- [ ] Persona 3: mostrar en el informe `source` de cada error y `notices`
+- [x] Persona 3: mostrar en el informe `source` de cada error y `notices` (verificado el 18/10)
 
 ### Motor de puntaje (plan.md, sección 8)
 - [x] Pesos 3, 2, 1; parcial 50%; ganados ÷ aplicables × 100 (`lib/scoring/engine.ts`)
@@ -192,7 +192,7 @@ Termina cuando: el informe sale con puntaje, evidencia y veredicto válido.
 - [x] Traccionar con arrastre, introducir con scroll, vista circular en esquema y técnica del afiche HC-02 (`components/exam/otoscopio-view.tsx`)
 - [x] Hallazgos por caso: examinar los dos oídos y empezar por el sano; hallazgo esperado en palabras (`lib/exam/otoscope.ts`)
 - [x] Registro de fotos de oído por hallazgo (`EAR_PHOTOS`)
-- [ ] Persona 3: fotos de oído con licencia y el ítem `describe-hallazgo` en `oido-01.json`
+- [x] Persona 3: fotos de oído con licencia. El ítem `describe-hallazgo` de Diego ya no hace falta: Diego salió del banco (no hay avatar varón)
 
 ### Si la Persona 2 se atrasa
 - [ ] Simplificar el informe a puntaje por dimensión y errores principales
@@ -234,6 +234,8 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 - [x] Inicio con la leyenda "herramienta de práctica, no reemplaza a pacientes reales ni a docentes"
 - [ ] Entrar, perfil, elegir caso (con el generador), consulta, examen e informe
 - [ ] Informe con las siete partes: veredicto con 4 barras, lo que hiciste bien, errores, línea de tiempo, mapa del examen, repetición sugerida y perfil de errores
+- [x] Sección «Cómo trataste al paciente» en el informe (pedido el 17/10; hecho por la Persona 1, avisar a las Personas 2 y 3): nivel, confianza del paciente al empezar y al terminar, lo que sumó y lo que restó con la cita de cada cosa, y un consejo. Suma a comunicación (con tope de 10): reconocer lo que siente el paciente (+2), frases con empatía (+1, hasta 2), que termine con más confianza (+3; +5 si es un paciente difícil) y despedirse con amabilidad (+1). Resta, además de lo que ya restaba: que termine con bastante menos confianza (−3). `lib/scoring/rapport.ts`
+- [ ] Calibrar con un docente los puntos del trato
 - [ ] Todas las pantallas sin cortes a 390 y 1280 px
 
 ### Personajes y avatar (plan.md, sección 9)
@@ -253,7 +255,7 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 - [x] Cambios atómicos de sesión, historia oculta fuera de la vista, topes de gasto y arreglos de voz (ver PROGRESO.md)
 - [x] Límite por IP para crear invitados y sesiones (50 invitados y 100 consultas por hora por IP; se cambian con `MAX_GUESTS_PER_IP_PER_HOUR` y `MAX_SESSIONS_PER_IP_PER_HOUR`, que habría que declarar en `.env.schema`)
-- [ ] Persona 2: en `lib/scoring/ai-judge.ts`, comparar la hipótesis con `truth.acceptable` en código antes de confiar en el sí/no de la IA
+- [x] En `lib/scoring/ai-judge.ts`, la hipótesis se compara en código antes de confiar en el sí/no de la IA: si nombra un diferencial, no coincide (`judgeHypothesis`, 18/10)
 
 ## Fase final · Convex (Persona 1)
 

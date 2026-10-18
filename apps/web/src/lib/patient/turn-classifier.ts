@@ -144,22 +144,87 @@ export function askedToRepeat(patientText: string) {
 	return SHORT_REPEAT.test(t) || REPEAT_REQUESTS.some((w) => t.includes(w));
 }
 
-// Empatía, con el texto normalizado. "No entiendo" no lo es, y "tranqui"
-// cuenta suelto o en "quedate tranquila", no en "¿dormís tranquilo?".
-function isEmpathy(t: string, question: boolean) {
+// Empatía, frase por frase: en una pregunta, "¿es normal que tengas fiebre?"
+// no lo es, pero "Entiendo. ¿Tenés fiebre?" sí. "No entiendo" no lo es, y
+// "tranquila" cuenta suelto, no en "¿dormís tranquilo?".
+const FEELING =
+	/deb(e|e\s+de)\s+ser\s+((muy|re|bastante|tan|realmente|super|sumamente|una\s+situacion)\s+)*(dificil|feo|feisimo|molesto|horrible|terrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso|complicado|bravo|pesado|jodido|una\s+pesadilla|un\s+garron|un\s+embole)(?!\p{L})/u
+		.source;
+const SAYS_FEELING = new RegExp(String.raw`(?<!\p{L})${FEELING}`, "u");
+const DENIES_FEELING = new RegExp(String.raw`(?<!\p{L})no\s+${FEELING}`, "u");
+// "No debe ser fácil" sí es empatía.
+const NOT_EASY =
+	/(^| )no deb(e|e de) ser ((nada|muy|tan) )?(facil|lindo|agradable|grato|divertido)( |$)/;
+
+type Kind = "afirma" | "pregunta" | "coletilla";
+
+function sentenceShowsEmpathy(sentence: string, kind: Kind) {
+	const t = normalize(sentence);
+	// Con las comas: "no, debe ser horrible" no niega nada.
+	const plain = sentence
+		.toLowerCase()
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "");
 	if (/(^| )no (te |le |lo |la )?entiendo( |$)/.test(t)) return false;
-	// "Debe ser difícil" sí; "debe ser viral" no.
-	if (
-		/deb(e|e de) ser (muy |re |bastante |tan |una situacion )?(dificil|feo|molesto|horrible|duro|incomodo|angustiante|preocupante|cansador|agotador|doloroso|complicado|bravo|pesado|jodido)/.test(
-			t,
-		)
-	)
-		return !question;
-	// En una pregunta no son empatía: "¿es normal que tengas fiebre?".
-	if (question && /(es normal que|imagino que|debe ser)/.test(t)) return false;
-	if (/(^| )tranqui( |$)/.test(t)) return true;
-	if (/(quedate|estate|esta) tranquil[ao]/.test(t)) return true;
-	return EMPATHY.some((w) => t.includes(w));
+	// "Debe ser difícil" (también "debe ser difícil, ¿no?") sí; "debe ser
+	// viral" o "no debe ser tan grave" no.
+	const feeling =
+		NOT_EASY.test(t) ||
+		(SAYS_FEELING.test(plain) && !DENIES_FEELING.test(plain));
+	if (kind !== "pregunta" && feeling) return true;
+	if (kind !== "afirma") {
+		// "¿Es normal que tengas fiebre?", "imagino que tomaste algo, ¿no?",
+		// "¿dormís tranquilo?" o "¿está tranquila?" no son empatía, pero no
+		// tapan lo de otra parte de la frase: "Entiendo, imagino que es
+		// incómodo, ¿no?".
+		return sentence.split(",").some((part) => {
+			const c = normalize(part);
+			if (/^(tranqui|tranquil[ao]s?)$/.test(c)) return true;
+			if (/(es normal que|imagino que|debe ser|tranquil)/.test(c)) return false;
+			return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(c));
+		});
+	}
+	if (/(^| )(tranqui|tranquil[ao]s?)( |$)/.test(t)) return true;
+	// Desde el comienzo de una palabra: "reglamento" no es "lamento".
+	return EMPATHY.some((w) => new RegExp(`(^| )${w}`).test(t));
+}
+
+// Una coletilla al final ("..., ¿no?", "..., o no?", "..., o es la primera
+// vez?") hace pregunta a toda la frase.
+const TAG = /^(o no|no|verdad|cierto|no es cierto|o .+)$/;
+
+// Parte el texto en frases. Lo de antes de la pregunta se juzga aparte:
+// "Tranquila, ¿desde cuándo te duele?", y también sin el "¿" ("tranquila,
+// desde cuándo te duele?"): ahí la pregunta empieza después de la última coma.
+function sentences(text: string) {
+	const out: { text: string; kind: Kind }[] = [];
+	for (const s of text.replace(/¿/g, ".¿").match(/[^.?!]+[.?!]*/g) ?? []) {
+		const prev = out.at(-1);
+		if (s.includes("¿") && TAG.test(normalize(s)) && prev) {
+			prev.text += s;
+			prev.kind = "coletilla";
+			continue;
+		}
+		const comma = s.lastIndexOf(",");
+		if (s.includes("?") && !s.includes("¿") && comma > 0) {
+			if (TAG.test(normalize(s.slice(comma + 1))))
+				out.push({ text: s, kind: "coletilla" });
+			else {
+				out.push({ text: s.slice(0, comma), kind: "afirma" });
+				out.push({ text: s.slice(comma + 1), kind: "pregunta" });
+			}
+		} else
+			out.push({
+				text: s,
+				kind: s.includes("?") || s.includes("¿") ? "pregunta" : "afirma",
+			});
+	}
+	return out;
+}
+
+// La usa también el paciente sin IA.
+export function showsEmpathy(text: string) {
+	return sentences(text).some((s) => sentenceShowsEmpathy(s.text, s.kind));
 }
 
 export type Classification = {
@@ -211,7 +276,7 @@ export function classifyStudentTurn(
 	if (isLeadingQuestion(text)) tags.push("sugestiva");
 	if (JARGON.some((w) => t.includes(w)) && !EXPLAINS.some((w) => t.includes(w)))
 		tags.push("jerga");
-	if (isEmpathy(t, text.includes("?"))) tags.push("empatia");
+	if (showsEmpathy(text)) tags.push("empatia");
 	if (
 		isQuestion &&
 		t.length > 8 &&

@@ -2,6 +2,30 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 17/10 · Persona 1 · Revisión de bugs después del rediseño
+
+Pull de main (frontend nuevo, voz y Convex) y revisión en tres partes: pantallas y voz, servidor, y evaluador. En producción, antes de arreglar: API de punta a punta, consulta completa (Puerta 2) y personaje (12 de 12) en verde.
+
+- **Evaluador (lo más importante):**
+  - «faringitis estreptocócica» salía «acertaste» en la faringitis viral (por «faringitis»), igual que «otitis media con efusión» en la otitis media. Ahora la hipótesis se lee por frases: si en la misma frase aparece algo propio de un diferencial, es ese diferencial; las frases que descartan («no es…», «descarto…») no cuentan. Misma regla para el puntaje, el juez con IA y la devolución.
+  - Un diferencial vacío o «otitis» sola ya no dan los 25 puntos de diferenciales.
+  - Palabras clave cortas: «tos» ya no aparece en «datos», «mate» en «tomate» ni «agua» en «aguantás» (`hasKeyword`). «¿En qué te puedo ayudar?» ya no cuenta como pedir permiso para examinar.
+  - Pacientes de otitis generados: la otoscopia se evaluaba como si los dos oídos fueran sanos.
+  - Plantillas: los diferenciales de la faringitis viral tienen nombre completo; la presión tiene su conducta y qué distingue a cada diferencial.
+  - Puntos a mejorar: sin repetir las notas del razonamiento, con textos propios para pregunta sugestiva, repetida e interrupción, y armados después del redactor con IA.
+- **Servidor:** topes atómicos por consulta para los turnos con IA y por usuario para el generador (con pedidos en paralelo se salteaban); la voz no reserva conexión si la consulta ya terminó; el paciente no inventa el estado civil que ya está en su perfil; la otoscopia con foto se termina una sola vez.
+- **Pantallas:** si la voz se cae con un examen abierto, aparecen «Probar la voz de nuevo», «Seguir por texto» y «Cerrar el examen» (antes la única salida era terminar la consulta). Casos y Perfil ya no se quedan cargando si falla la API (sin sesión, a entrar). El tensiómetro no toma las teclas del chat ni crea un audio nuevo por cada intento. Los labios del avatar se recuperan si falla la carga. Claves repetidas en el informe. «Salir» avisa si falla.
+- Scripts: `probar-api.mjs` acepta voz con clave (token) o sin clave (503); `probar-personaje.mjs` prueba solo los casos que se ofrecen.
+- Validación: 351 tests en web (18 nuevos) y 25 en backend; lint, tipos y build pasan.
+- Quedan anotados, sin arreglar (baja): los tiempos del examen de garganta no se guardan si se cierra la consulta con la cruz; el segundo oído en modo foto no guarda su tiempo; un informe reevaluado tras 2 minutos puede pisar al primero.
+## 17/10 · Persona 1 · Cómo trataste al paciente
+
+- **Sección nueva en el informe, «Cómo trataste al paciente»:** nivel (muy bueno, bueno, mejorable, a trabajar), resumen, barra de la confianza del paciente al empezar y al terminar, lo que **sumó** y lo que **restó** con la frase citada de cada cosa y sus puntos, y un consejo para la próxima.
+- **Suma a comunicación** (con tope de 10): reconocer lo que siente el paciente cuando dice que le duele o tiene miedo (+2 por vez), otras frases con empatía (+1, hasta 2), que el paciente termine con más confianza (+3; +5 si es difícil, como antes) y despedirse con amabilidad (+1). Cada frase suma una sola vez.
+- **Resta:** lo que ya restaba (interrumpir desde la tercera vez, preguntas sugestivas, jerga sin explicar, ignorar lo que siente) y, nuevo, que el paciente termine con bastante menos confianza que al empezar (−3). Una o dos interrupciones se avisan sin restar. El trato irrespetuoso o insistir contra su negativa siguen siendo errores críticos.
+- Sirve igual con el juez por reglas y con el de IA (los dos pasan por `assembleReport`). Es terreno de las Personas 2 (puntaje) y 3 (pantalla): avisarles.
+- Validación: 5 tests nuevos en `tests/rapport.test.ts` (339 en web); lint, tipos y build. En Chrome a 390 y 1280 px: sin desborde ni errores en la consola.
+
 ## 17/10 · Persona 1 · Revisión final sobre main
 
 Tres revisores independientes leyeron enteros los 71 archivos de la Persona 1 en `main` (después del #7) y cerraron con una conclusión explícita.

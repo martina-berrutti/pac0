@@ -18,6 +18,7 @@ import {
 	type SessionEventType,
 	type Turn,
 } from "@/lib/contracts/session";
+import { asksForEarExam } from "@/lib/exam/end-intent";
 import {
 	buildPatientBrief,
 	buildPatientPrompt,
@@ -507,9 +508,17 @@ export async function sendTurn(
 		sessionId,
 	);
 	const clean = text.trim().slice(0, 1000);
+	if (!clean) throw new HttpError(400, "Escribí algo");
 	if ((await store.listTurns(sessionId)).length >= MAX_TEXT_TURNS)
 		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
-	if (!clean) throw new HttpError(400, "Escribí algo");
+	// Contar la lista no alcanza con pedidos en paralelo (todos ven menos de
+	// 120): el contador atómico frena antes de llamar a la IA. Si falla el
+	// contador, sigue el tope de arriba.
+	const allowed = await store
+		.hitRate(`turns:${sessionId}`, DAY_MS, MAX_TEXT_TURNS / 2)
+		.catch(() => true);
+	if (!allowed)
+		throw new HttpError(429, "Esta consulta ya tiene demasiados turnos.");
 
 	const classified = await classifyStudent(session, clean, elapsed);
 	const studentTurn: Turn = {
@@ -529,7 +538,16 @@ export async function sendTurn(
 	let reply: string;
 	let exam: ExamResult | null = null;
 	const zone = defaultZone(clinicalCase);
-	if (zone && isExamRequest(clean)) {
+	// Con el mismo criterio que la pantalla: "¿tenés vértigo en el oído?" o
+	// "¿te revisaron el oído?" son preguntas y las responde el paciente.
+	if (asksForEarExam(clean)) {
+		// El oído se examina con el otoscopio de la pantalla, como por voz: no es
+		// un pedido de garganta (no registra examen ni resta "no indicado").
+		reply =
+			current.consentGiven || current.personality.cooperacion >= 0.5
+				? "Dale, revisame el oído."
+				: "Bueno... pero despacito, ¿eh?";
+	} else if (zone && isExamRequest(clean)) {
 		const decision = interpretExamInstruction(
 			clean,
 			current.personality,

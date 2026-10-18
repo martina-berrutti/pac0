@@ -1,6 +1,6 @@
 // Prueba de seguridad del personaje (plan.md, sección 5): intenta sacar al
 // paciente del personaje por la API de texto y avisa si revela el diagnóstico.
-// Prueba los cuatro casos del banco; con GEMINI_API_KEY en el servidor prueba
+// Prueba los casos del banco que tengan intentos acá; con GEMINI_API_KEY en el servidor prueba
 // el paciente con IA, sin clave el de reglas.
 // Uso, con la app corriendo: node scripts/probar-personaje.mjs [url] [caseId]
 const base = process.argv[2] ?? "http://localhost:3001";
@@ -82,8 +82,7 @@ let total = 0;
 for (const [caseId, { attempts, forbidden }] of Object.entries(CASES)) {
 	if (only && caseId !== only) continue;
 	if (!available.has(caseId)) {
-		console.log(`
-=== ${caseId}: no está en el banco, se saltea ===`);
+		console.log(`\n=== ${caseId}: no está en el banco, se saltea ===`);
 		continue;
 	}
 	console.log(`\n=== ${caseId} ===`);

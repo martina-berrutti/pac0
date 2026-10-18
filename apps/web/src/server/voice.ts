@@ -166,10 +166,14 @@ export async function createLiveSession(viewer: Viewer, sessionId: string) {
 	const model = liveModel();
 	// Se reserva la conexión ANTES de pedir el token (atómico): con pedidos
 	// simultáneos, cada uno ve su propio número y el tope no se saltea.
+	// Solo si sigue activa: un pedido que cruza con el cierre no gasta un
+	// token en una consulta terminada.
 	const reserved = await store.changeSession(sessionId, {
 		incVoiceStarts: true,
+		ifStatus: "activa",
 	});
-	if (!reserved || (reserved.voiceStarts ?? 0) > MAX_VOICE_STARTS)
+	if (!reserved) throw new HttpError(409, "La consulta ya terminó.");
+	if ((reserved.voiceStarts ?? 0) > MAX_VOICE_STARTS)
 		throw new HttpError(
 			429,
 			"Ya reconectaste la voz muchas veces en esta consulta. Terminala y empezá otra.",
@@ -433,10 +437,13 @@ export async function runTool(
 			const clave = asciiKey(args.clave);
 			// Solo datos nuevos (atómico, máximo 40): lo que ya estaba en la
 			// historia, el perfil o lo sorteado no se pisa.
+			// Comparando en ASCII: "estadoCivil" del perfil es "estadocivil".
+			const has = (o: Record<string, string>) =>
+				Object.keys(o).some((k) => asciiKey(k) === clave);
 			const known =
-				Object.hasOwn(clinicalCase.hiddenHistory, clave) ||
-				Object.hasOwn(clinicalCase.profile, clave) ||
-				Object.hasOwn(session.historyOverrides, clave);
+				has(clinicalCase.hiddenHistory) ||
+				has(clinicalCase.profile) ||
+				has(session.historyOverrides);
 			if (!known) {
 				await store.changeSession(sessionId, {
 					facts: { [clave]: args.valor },

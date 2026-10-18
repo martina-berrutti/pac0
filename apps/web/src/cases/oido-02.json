@@ -163,7 +163,12 @@
 			"item": "antecedentes de otitis",
 			"dimension": "anamnesis",
 			"weight": 1,
-			"keywords": ["antes", "otras veces", "de chico", "antecedente"]
+			"keywords": [
+				"otras veces",
+				"de chico",
+				"antecedente",
+				"alguna vez tuviste"
+			]
 		},
 		{
 			"id": "consentimiento",
@@ -173,9 +178,14 @@
 			"keywords": [
 				"te voy a revisar",
 				"te voy a mirar",
-				"puedo",
 				"permiso",
-				"te parece si"
+				"te parece si",
+				"puedo?",
+				"puedo revisar",
+				"puedo mirar",
+				"puedo examinar",
+				"me dejás",
+				"me permitís"
 			]
 		},
 		{

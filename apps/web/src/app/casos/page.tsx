@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { CaseSummary } from "@/cases/schema";
+import LoadError from "@/components/load-error";
 import Loader from "@/components/loader";
 import {
 	Initial,
@@ -43,14 +44,32 @@ export default function CasesPage() {
 	const [problem, setProblem] = useState<Record<string, string>>({});
 	const [request, setRequest] = useState("");
 	const [busy, setBusy] = useState(false);
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	useEffect(() => {
-		api.me().then(({ viewer }) => {
-			if (viewer && !viewer.alias) router.replace("/perfil");
-			setAlias(viewer?.alias ?? null);
-		});
-		api.cases().then((r) => setCases(r.cases));
-		api.personalities().then((r) => setPersonalities(r.personalities));
+		// Sin sesión (por ejemplo, un invitado de más de 24 horas), a entrar; si
+		// falla otra cosa, un mensaje en vez de quedarse cargando.
+		const failed = (error: unknown) => {
+			if (error instanceof ApiError && error.status === 401)
+				router.replace("/entrar");
+			else setLoadError("No pudimos cargar los casos. Probá de nuevo.");
+		};
+		api
+			.me()
+			.then(({ viewer }) => {
+				if (viewer && !viewer.alias) router.replace("/perfil");
+				setAlias(viewer?.alias ?? null);
+			})
+			.catch(() => {});
+		api
+			.cases()
+			.then((r) => setCases(r.cases))
+			.catch(failed);
+		// Sin la lista, queda solo "Personalidad del caso".
+		api
+			.personalities()
+			.then((r) => setPersonalities(r.personalities))
+			.catch(() => {});
 	}, [router]);
 
 	async function start(key: string, options: CaseSummary[]) {
@@ -102,6 +121,7 @@ export default function CasesPage() {
 		}
 	}
 
+	if (loadError) return <LoadError message={loadError} />;
 	if (cases === null) return <Loader />;
 
 	return (

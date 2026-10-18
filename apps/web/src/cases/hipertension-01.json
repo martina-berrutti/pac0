@@ -50,7 +50,12 @@
 			"hoy no tomé café"
 		]
 	},
-	"vitals": { "pa": [136, 86], "fc": 92, "fr": 18, "tax": 36.5 },
+	"vitals": {
+		"pa": [136, 86],
+		"fc": 92,
+		"fr": 18,
+		"tax": 36.5
+	},
 	"exam": {},
 	"expectedChecklist": [
 		{
@@ -183,10 +188,15 @@
 			"weight": 3,
 			"keywords": [
 				"te voy a tomar",
-				"puedo",
 				"permiso",
 				"te parece si",
-				"te voy a medir"
+				"te voy a medir",
+				"puedo?",
+				"puedo revisar",
+				"puedo mirar",
+				"puedo examinar",
+				"me dejás",
+				"me permitís"
 			]
 		},
 		{
@@ -224,6 +234,26 @@
 			"lectura falsamente elevada por mala técnica",
 			"hipertensión de bata blanca",
 			"hipertensión secundaria"
-		]
+		],
+		"conduct": [
+			"repetir",
+			"volver a medir",
+			"control",
+			"mapa",
+			"automedida",
+			"adherencia",
+			"todos los dias",
+			"pastillero",
+			"alarma",
+			"dieta",
+			"sal",
+			"ejercicio",
+			"reposo"
+		],
+		"differentialHints": {
+			"lectura falsamente elevada por mala técnica": "Con café, cigarrillo, la vejiga llena, hablando o con el manguito chico la presión sale más alta: hay que repetirla bien hecha antes de concluir.",
+			"hipertensión de bata blanca": "En la de bata blanca la presión sube solo en el consultorio; en casa da normal.",
+			"hipertensión secundaria": "La secundaria se sospecha en jóvenes, con presión muy difícil de controlar o con síntomas de otra enfermedad."
+		}
 	}
 }

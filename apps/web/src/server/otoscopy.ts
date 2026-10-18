@@ -85,11 +85,18 @@ export async function finishOtoscopy(
 		(t) => t.speaker === "estudiante" && t.startMs <= action.startMs,
 	);
 	if ("mode" in record) {
-		await store.updateExamAction(actionId, {
-			hotspotTimesMs: { conducto: record.lookedMs, timpano: record.lookedMs },
-			endMs: elapsed,
-			technique: assessPhotoOtoscopy(record.lookedMs, before),
-		});
+		// Atómico, igual que la otoscopia completa: un doble envío no la evalúa
+		// dos veces.
+		const done = await store.patchExamActionIf(
+			actionId,
+			{
+				hotspotTimesMs: { conducto: record.lookedMs, timpano: record.lookedMs },
+				endMs: elapsed,
+				technique: assessPhotoOtoscopy(record.lookedMs, before),
+			},
+			{ endMs: null },
+		);
+		if (!done) throw new HttpError(409, "Esta otoscopia ya terminó");
 		return { ok: true };
 	}
 	const technique = assessOtoscopy(

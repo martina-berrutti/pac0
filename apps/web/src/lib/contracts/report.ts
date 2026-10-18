@@ -63,6 +63,30 @@ export const diagnosisFeedbackSchema = z.object({
 		.optional(),
 });
 
+// Cómo trató al paciente (lib/scoring/rapport.ts): lo que sumó y lo que restó
+// en comunicación, cada cosa con su cita.
+export const rapportEntrySchema = z.object({
+	text: z.string(),
+	// Puntos de comunicación que sumó o restó. Sin número: es un ítem de la
+	// lista de cotejo (ya cuenta ahí) o algo que todavía no resta.
+	points: z.number().optional(),
+	critical: z.boolean().optional(),
+	evidence: z.array(evidenceSchema),
+});
+
+export const rapportSchema = z.object({
+	level: z.enum(["muy_bueno", "bueno", "mejorable", "a_trabajar"]),
+	summary: z.string(),
+	tip: z.string(),
+	// Confianza del paciente en el estudiante, de 0 a 1.
+	trust: z.object({ start: z.number(), end: z.number() }),
+	// Puntos que sumó (ya con el tope) y que restó en comunicación.
+	bonus: z.number(),
+	penalty: z.number(),
+	plus: z.array(rapportEntrySchema),
+	minus: z.array(rapportEntrySchema),
+});
+
 export const verdictSchema = z.enum([
 	"lo_hiciste_bien",
 	"error_critico",
@@ -97,6 +121,8 @@ export const reportSchema = z.object({
 	// guardados antes.
 	diagnosis: diagnosisFeedbackSchema.optional(),
 	improvements: z.array(z.string()).optional(),
+	// Trato al paciente. Opcional para los informes guardados antes.
+	rapport: rapportSchema.optional(),
 	judge: z.enum(["reglas", "ia"]),
 	createdAt: z.number(),
 });
@@ -107,3 +133,5 @@ export type Mistake = z.infer<typeof mistakeSchema>;
 export type Verdict = z.infer<typeof verdictSchema>;
 export type Report = z.infer<typeof reportSchema>;
 export type DiagnosisFeedback = z.infer<typeof diagnosisFeedbackSchema>;
+export type Rapport = z.infer<typeof rapportSchema>;
+export type RapportEntry = z.infer<typeof rapportEntrySchema>;

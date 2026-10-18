@@ -39,6 +39,50 @@ describe("el paciente no conoce el diagnóstico", () => {
 		expect(reply).toContain("para eso vine");
 	});
 
+	test.each([
+		"No entiendo, ¿me lo explicás de nuevo?",
+		"¿Dormís tranquilo?",
+		"Debe ser viral",
+		"Leí el reglamento",
+		"¿Es normal que tengas fiebre?",
+		"No debe ser tan complicado",
+		"¿La nena está tranquila?",
+		"Dormís tranquilo, o no?",
+		"Es normal que te duela tanto, o es la primera vez?",
+		"Imagino que ya tomaste algo, no?",
+		"Imagino que ya tomaste algo, ¿no?",
+	])("sin IA, no cuenta como empatía: %s", (q) => {
+		const low = { ...state, confianza: 0.3 };
+		expect(ruleRespond(brief, low, q, 2).delta).toBeNull();
+	});
+
+	test.each([
+		"Entiendo, debe ser muy molesto",
+		"Entiendo, debe ser muy molesto. ¿Desde cuándo te duele?",
+		"Debe ser difícil, ¿no?",
+		"Entiendo, es normal que estés preocupada. ¿Tenés fiebre?",
+		"Tranquila, no parece nada grave.",
+		"Debe ser realmente difícil",
+		"Tranquila, ¿desde cuándo te duele?",
+		"Entiendo, imagino que te duele mucho, ¿tomaste algo?",
+		"Tranquila, desde cuándo te duele?",
+		"Debe ser difícil, no?",
+		"Entiendo, imagino que te duele, tomaste algo?",
+		"No debe ser fácil",
+		"No, debe ser horrible",
+		"Debe ser horrible, no debería pasarte esto",
+		"Bueno, tranquila, vamos a ver qué pasa.",
+		"Ay, tranquilo.",
+		"Ok tranqui",
+		"Debe ser difícil, ¿no?",
+		"No debe ser fácil, no?",
+		"Entiendo, imagino que es incómodo, ¿no?",
+		"Tranquila, es normal que duela un poco, ¿no?",
+	])("sin IA, la empatía sube la confianza: %s", (q) => {
+		const low = { ...state, confianza: 0.3 };
+		expect(ruleRespond(brief, low, q, 2).delta?.confianza).toBeCloseTo(0.45);
+	});
+
 	test("responde desde su historia", () => {
 		expect(ruleRespond(brief, state, "¿Tuviste fiebre?", 2).text).toContain(
 			"37 y medio",
@@ -320,4 +364,86 @@ test("pedidos de examen sin objeto siguen contando; 'vamos a ver' suelto no", as
 		"Debe ser bravo",
 	])
 		expect(classifyStudentTurn(t, []).tags, t).toContain("empatia");
+});
+
+describe("paciente sin IA: cada pregunta va a su tema", () => {
+	const brief = buildPatientBrief(lucia, lucia.personality, "");
+	const answer = (q: string) => ruleRespond(brief, state, q, 2).text;
+
+	test("¿alguien más tiene fiebre? habla de contactos, no de su fiebre", () => {
+		expect(answer("¿Alguien más en tu casa tiene fiebre?")).not.toContain(
+			"37 y medio",
+		);
+	});
+
+	test("¿con quién viniste? no es con quién vive", () => {
+		const vive = String(brief.profile.vive ?? brief.history.vive ?? "@@");
+		expect(answer("¿Con quién viniste?")).not.toContain(vive);
+	});
+
+	test("un tema que el caso no tiene no tapa a otro", () => {
+		expect(answer("¿Te duele cuando tomás agua?")).not.toContain(
+			"nunca me fijé",
+		);
+	});
+});
+
+describe("examen: no cualquier frase es un pedido", () => {
+	test.each([
+		"¿Te duele cuando abrís la boca?",
+		"Quiero verte de nuevo en 48 horas",
+		"Tengo que verte la semana que viene",
+		"¿Trajiste la receta? Quiero verla",
+	])("no es pedido: %s", (q) => {
+		expect(isExamRequest(q)).toBe(false);
+	});
+
+	test.each([
+		"Abrí la boca",
+		"¿Me abrís la boca?",
+		"Necesito que abra la boca",
+		"¿Puedo verte la garganta?",
+		"¿Puedo revisarla?",
+	])("sí es pedido: %s", (q) => {
+		expect(isExamRequest(q)).toBe(true);
+	});
+
+	test("un 'más' suelto no hace clara la instrucción", () => {
+		const p = getArchetype("directo")?.personality ?? lucia.personality;
+		expect(
+			interpretExamInstruction("¿Me dejás ver la garganta? Así sé más", p, true)
+				.clarity,
+		).toBe("media");
+	});
+});
+
+describe("paciente sin IA: temas nuevos sin falsos aciertos", () => {
+	const brief = buildPatientBrief(lucia, lucia.personality, "");
+	const withFacts = {
+		...brief,
+		history: {
+			...brief.history,
+			agua: "estoy todo el día en la piscina",
+			secrecion: "no me sale nada del oído",
+			picazon: "me picaba bastante",
+			mocos: "estoy con mocos",
+		},
+	};
+	const answer = (q: string) => ruleRespond(withFacts, state, q, 2).text;
+
+	test.each([
+		["¿Es un dolor que aguantás?", "piscina"],
+		["¿Te sale algo de la nariz?", "oído"],
+		["¿Comés picante?", "picaba"],
+	])("%s no responde %s", (q, wrong) => {
+		expect(answer(q)).not.toContain(wrong);
+	});
+
+	test.each([
+		["¿Te metés al agua?", "piscina"],
+		["¿Te sale algo del oído?", "oído"],
+		["¿Te pica el oído?", "picaba"],
+	])("%s responde %s", (q, right) => {
+		expect(answer(q)).toContain(right);
+	});
 });
