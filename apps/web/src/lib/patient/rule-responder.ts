@@ -521,23 +521,34 @@ function tellsDiagnosis(text: string) {
 		.replace(/\p{Diacritic}/gu, "");
 	if (t.includes("?")) return false;
 	// De otro: "tu mamá tiene artritis", "alguien en tu casa tiene gripe",
-	// "la gripe es un virus".
+	// "tu compañera tiene una angina", "la gripe es un virus".
 	if (
-		/\b(alguien|tu (mama|papa|familia|hermano|hermana|pareja|novio|novia|abuel\w*)|(la|el) \w+ es)\b/.test(
+		/\b(alguien|tu (mama|papa|familia|hermano|hermana|pareja|novio|novia|marido|esposo|esposa|abuel\w*|companer\w*|amig\w*)|su (mama|papa|madre|padre|marido|esposo|esposa)|(la|el) (gripe|angina|\w+itis|infeccion|virus|lesion|resfrio) es)\b/.test(
 			t,
 		)
 	)
 		return false;
-	// Como explicación: "lo que tenés es…", "creo que tenés…", "por lo que vi
-	// tenés…", o después de otra cosa ("te saco el otoscopio, tenés una
-	// otitis"). "Tenés gripe" al principio, sin signos, es una pregunta.
+	// Preguntas tipeadas sin signos: "tenés un virus o algo así", "tiene una
+	// lesión previa", "tenés una infección en algún lado".
+	if (/\b(o algo( asi)?|o no|previa|antes|alguna vez|algun lado)\b/.test(t))
+		return false;
+	// Sin las muletillas del principio: "bueno, tenés…", "y decime, tenés…".
+	const s = t.replace(
+		/^((y|e|bueno|a ver|ok|che|decime|mira|bien)[\s,]+)+/,
+		"",
+	);
 	return (
+		// Como explicación: "lo que tenés es…", "lo que te pasa es que…",
+		// "creo que tenés…", "por lo que veo en la rodilla tenés…", "debe ser
+		// un virus", "la rodilla tiene una lesión".
 		new RegExp(
-			`\\b(lo que (tenes|tiene) es|(creo|parece|me parece|seguro|pienso) que (tenes|tiene|es)|por lo que (vi|veo)[^.?!]{0,10}(tenes|tiene))\\b[^.?!]{0,20}${DIAGNOSIS_WORD}`,
-		).test(t) ||
-		new RegExp(`[,.;] ?(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`).test(t) ||
-		// "Es un virus, no te preocupes": con "es" al principio también explica.
-		new RegExp(`^es (una|un) ${DIAGNOSIS_WORD}`).test(t)
+			`\\b(lo que (tenes|tiene|te pasa)\\b[^.?!]{0,25}\\b(es|que tenes|que tiene)|(creo|parece|me parece|seguro|pienso) que (tenes|tiene|es)|por lo que (vi|veo)[^.?!]{0,30}\\b(tenes|tiene|es)|(debe|puede|podria) ser|(seguramente|probablemente) (sea|es)|(la|el|tu|su) (rodilla|oido|garganta|menisco|ligamento) (tiene|tenes))\\b[^.?!]{0,20}${DIAGNOSIS_WORD}`,
+		).test(s) ||
+		// Dicho de frente: "tenés una otitis externa", "te revisé y tenés una
+		// otitis", "te saco el otoscopio, tenés una otitis", "es un virus".
+		new RegExp(
+			`(^|[,.;] ?|\\by )(tenes|tiene|es) (una|un) ${DIAGNOSIS_WORD}`,
+		).test(s)
 	);
 }
 
