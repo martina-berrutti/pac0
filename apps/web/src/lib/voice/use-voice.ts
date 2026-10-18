@@ -193,6 +193,9 @@ export function useVoice({
 	// Herramientas pedidas por el modelo que todavía no se respondieron: una
 	// nota en ese momento cortaría la respuesta en curso.
 	const toolsPending = useRef(0);
+	// Se respondió una herramienta y el paciente todavía no terminó de contestar
+	// (antes del primer audio, patientTurnStarted sigue en false).
+	const awaitingReply = useRef(false);
 	// Guardado diferido del turno del estudiante (ver onMessage).
 	const studentFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -200,7 +203,11 @@ export function useVoice({
 	// paciente está generando su respuesta, mandarlo la cortaría (y contaría
 	// como una interrupción del estudiante): espera a que termine su turno.
 	const deliverNote = useCallback((text: string) => {
-		if (st.current.patientTurnStarted || toolsPending.current > 0) {
+		if (
+			st.current.patientTurnStarted ||
+			toolsPending.current > 0 ||
+			awaitingReply.current
+		) {
 			pendingNotes.current.push(text);
 			return;
 		}
@@ -415,7 +422,9 @@ export function useVoice({
 				openSession(target)
 			) {
 				safeSend(() => target.sendToolResponse({ functionResponses }));
-				// Se respondió: el paciente va a hablar ahora.
+				// Se respondió: el paciente va a hablar ahora (las notas esperan a
+				// que termine).
+				awaitingReply.current = true;
 				return true;
 			}
 			return false;
@@ -467,6 +476,7 @@ export function useVoice({
 				setStudentSpeaking(true);
 			}
 			if (content?.interrupted) {
+				awaitingReply.current = false;
 				// El estudiante habló encima del paciente: se corta el audio. Solo
 				// cuenta como interrupción (y penaliza) si el paciente ya se
 				// escuchaba; si el audio no había empezado, no interrumpió a nadie.
@@ -498,6 +508,7 @@ export function useVoice({
 			if (content?.outputTranscription?.text)
 				s.patientText += content.outputTranscription.text;
 			if (content?.turnComplete) {
+				awaitingReply.current = false;
 				if (studentFlushTimer.current) {
 					clearTimeout(studentFlushTimer.current);
 					studentFlushTimer.current = null;
@@ -649,6 +660,9 @@ export function useVoice({
 		// El reloj de una voz anterior no vale mientras conecta.
 		setRemainingMs(null);
 		reconnects.current = 0;
+		// Nada de una consulta anterior pasa a esta.
+		pendingNotes.current = [];
+		awaitingReply.current = false;
 		const mine = ++attempt.current;
 		const cancelled = () => attempt.current !== mine;
 		// Los AudioContext se crean en el mismo clic (Safari, sobre todo en
