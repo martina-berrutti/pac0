@@ -231,6 +231,27 @@ describe("herramientas del paciente", () => {
 		);
 	});
 
+	test("examinar el oído izquierdo abre ese lado", async () => {
+		const id = await startSession(ana, lucia.id, "caso");
+		const r = await runTool(ana, id, "examinar", {
+			zona: "oído izquierdo",
+			claridad: "media",
+			consentimiento: true,
+		});
+		expect(r.ui).toEqual({ kind: "otoscope", side: "izquierdo" });
+	});
+
+	test.each(["garganta", "oído"])(
+		"mostrar_region con %s manda a examinar, sin decir que no está",
+		async (region) => {
+			const id = await startSession(ana, lucia.id, "caso");
+			const r = await runTool(ana, id, "mostrar_region", { region });
+			expect(r.ui.kind).toBe("none");
+			expect(r.output.disponible).toBe(true);
+			expect(String(r.output.mensaje)).toContain("examinar");
+		},
+	);
+
 	test("una herramienta desconocida o de otra persona se rechaza", async () => {
 		const id = await startSession(ana, lucia.id, "caso");
 		await expect(runTool(ana, id, "dar_diagnostico", {})).rejects.toThrow(

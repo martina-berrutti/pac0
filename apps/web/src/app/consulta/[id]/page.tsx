@@ -26,6 +26,7 @@ import Loader from "@/components/loader";
 import { ApiError, api } from "@/lib/api-client";
 import type { Mood } from "@/lib/avatar/commands";
 import { moodFor } from "@/lib/avatar/mood";
+import { createPendingCloses } from "@/lib/consulta/pending-closes";
 import type { Ear, ExamResult } from "@/lib/contracts/exam";
 import type { PatientState, Turn } from "@/lib/contracts/session";
 import {
@@ -104,7 +105,7 @@ export default function ConsultationPage() {
 		onTool: (ui: ToolUi) => {
 			if (ui.kind === "state") showState(ui.state);
 			if (ui.kind === "exam") setExam(ui.exam);
-			if (ui.kind === "otoscope") setEar(earIn(lastStudent.current));
+			if (ui.kind === "otoscope") setEar(ui.side ?? earIn(lastStudent.current));
 			if (ui.kind === "vitals")
 				setBp({
 					start: { measurementId: ui.measurementId, armCm: ui.armCm },
@@ -264,14 +265,41 @@ export default function ConsultationPage() {
 				.catch(() => toast.error("No se guardó el tiempo del examen."));
 		}
 		setExam(null);
+		closes.closed();
 	}
 
-	// La cruz: corta la voz, cierra lo que esté abierto y pasa a la hipótesis.
+	function closeEar() {
+		setEar(null);
+		closes.closed();
+	}
+
+	// Cierra la garganta o el oído por su propio camino, que guarda lo que se
+	// miró (tiempos, otoscopia). El informe espera a que termine: si no, sale
+	// sin ese examen y el servidor lo rechaza por consulta cerrada.
+	const [closes] = useState(createPendingCloses);
+	function requestClose() {
+		// Todavía no se ve (o no abrió la boca): no hay nada que guardar.
+		if (!revealed) {
+			setExam(null);
+			setEar(null);
+			return;
+		}
+		if (closes.request()) setEndRequest((n) => n + 1);
+	}
+
+	// Al terminar la consulta (la cruz, el reloj o el modelo) con un examen
+	// abierto, se cierra guardando. También si uno se abre tarde.
+	const examShown = examOpen && revealed;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: requestClose lee el estado del render.
+	useEffect(() => {
+		if (closing && examOpen) requestClose();
+	}, [closing, examOpen, examShown]);
+
+	// La cruz: corta la voz y pasa a la hipótesis (el examen abierto se cierra
+	// guardando).
 	function endConsultation() {
 		voice.stop();
-		setExam(null);
 		setBp(null);
-		setEar(null);
 		setClosing(true);
 	}
 
@@ -315,6 +343,7 @@ export default function ConsultationPage() {
 			// Primero se terminan de guardar los últimos turnos de la voz: si no,
 			// el informe sale sin ellos y el servidor los rechaza por consulta cerrada.
 			await voice.drain();
+			await closes.settled();
 			await api.finish(id, hypothesis, list);
 			router.push(`/informe/${id}`);
 		} catch (e) {
@@ -433,8 +462,7 @@ export default function ConsultationPage() {
 										<Button
 											variant="outline"
 											onClick={() => {
-												setExam(null);
-												setEar(null);
+												requestClose();
 												setBp(null);
 											}}
 										>
@@ -467,7 +495,7 @@ export default function ConsultationPage() {
 							<OidoFotoView
 								sessionId={id}
 								ear={ear}
-								onClose={() => setEar(null)}
+								onClose={closeEar}
 								endRequest={endRequest}
 							/>
 						</div>

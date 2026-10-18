@@ -102,7 +102,8 @@ export const PATIENT_TOOLS = [
 			properties: {
 				zona: {
 					type: "string",
-					description: "Zona a examinar: orofaringe (boca o garganta) u oído.",
+					description:
+						"Zona a examinar: orofaringe (boca o garganta) u oído (con el lado si lo dijeron: oído izquierdo).",
 				},
 				maniobra: { type: "string", description: "Por ejemplo inspeccion." },
 				claridad: {
@@ -139,7 +140,7 @@ export const PATIENT_TOOLS = [
 		type: "function",
 		name: "mostrar_region",
 		description:
-			"Llamala cuando el estudiante te pide que le muestres una parte del cuerpo (rodilla, uñas, ojos).",
+			"Llamala cuando el estudiante te pide que le muestres una parte del cuerpo (rodilla, uñas, ojos). Para la garganta, la boca o el oído no: usá examinar.",
 		parameters: {
 			type: "object",
 			properties: { region: { type: "string" } },
