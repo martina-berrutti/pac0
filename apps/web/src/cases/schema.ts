@@ -113,6 +113,9 @@ export const caseSchema = z.object({
 		tax: z.number(),
 	}),
 	exam: z.record(z.string(), examZoneSchema),
+	// Lo que se encuentra al palpar los ganglios del cuello. Sin esto, el
+	// cuello se palpa sin hallazgos.
+	neck: z.object({ tender: z.boolean(), finding: z.string() }).optional(),
 	expectedChecklist: z.array(checklistItemSchema).min(1),
 	notApplicable: z.array(z.string()).default([]),
 	criticalErrors: z.array(z.string()).default([]),

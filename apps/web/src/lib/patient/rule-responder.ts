@@ -187,6 +187,33 @@ const TOPICS: { key: string; words: string[] }[] = [
 	},
 	{ key: "hisopos", words: ["hisopo", "cotonete"] },
 	{ key: "resfrio", words: ["resfri", "engripad", "gripe"] },
+	// Signos de alarma de la odinofagia: antes que dolor ("¿te duele abrir la
+	// boca?" es de abrir la boca).
+	{ key: "respiracion", words: ["falta el aire", "respir", "ahog"] },
+	{ key: "saliva", words: ["saliva", "babe"] },
+	{
+		key: "abrir_boca",
+		words: [
+			"abrir la boca",
+			"abrís la boca",
+			"abris la boca",
+			"mandíbula",
+			"mandibula",
+		],
+	},
+	{
+		key: "tragar",
+		words: [
+			"cuesta tragar",
+			"podés tragar",
+			"podes tragar",
+			"podés comer",
+			"podes comer",
+			"líquidos",
+			"liquidos",
+		],
+	},
+	{ key: "voz", words: ["voz", "disfón", "disfon", "ronca"] },
 	{
 		key: "dolor",
 		words: ["duele", "dolor", "al tragar", "del 1 al 10", "intensidad"],

@@ -76,6 +76,11 @@ describe("terminar el examen hablando", () => {
 		"Saco el otoscopio",
 		"Perfecto, gracias",
 		"Ya fue, volvé a como estabas",
+		"Cierra la boca",
+		"Cierre la boca, por favor",
+		"Bueno, cerrala",
+		"Cerrá",
+		"Ya podés cerrar",
 	])("%s → termina", (text) => {
 		expect(asksToEndExam(text)).toBe(true);
 	});

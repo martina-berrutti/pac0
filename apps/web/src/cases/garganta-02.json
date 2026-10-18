@@ -31,10 +31,15 @@
 	"hiddenHistory": {
 		"inicio": "empezó hace dos días, primero con picazón en la garganta",
 		"dolor": "me molesta al tragar pero lo aguanto, como un 4 de 10",
+		"tragar": "me duele al tragar, pero como y tomo líquidos sin problema",
+		"saliva": "la saliva la trago bien, no se me cae",
+		"abrir_boca": "abro la boca bien, sin problema",
 		"fiebre": "un poco, anoche tuve 37 y medio",
 		"tos": "sí, tengo tos seca",
 		"mocos": "sí, muchos mocos y estornudo todo el tiempo",
-		"voz": "estoy un poco disfónica",
+		"voz": "estoy un poco disfónica por el resfrío, pero hablo normal",
+		"respiracion": "respiro bien, no me falta el aire",
+		"cuello": "no me noté bultitos ni me duele el cuello",
 		"ojos": "tengo los ojos un poco llorosos",
 		"contactos": "mi compañera de apartamento está resfriada",
 		"alergias": "no soy alérgica a nada",
@@ -73,6 +78,10 @@
 			"expected": "Eritema faríngeo difuso sin exudado, amígdalas no aumentadas"
 		}
 	},
+	"neck": {
+		"tender": false,
+		"finding": "No se palpan ganglios cervicales anteriores aumentados ni dolorosos."
+	},
 	"expectedChecklist": [
 		{
 			"id": "presentacion",
@@ -93,6 +102,13 @@
 				"qué te pasa",
 				"cómo estás"
 			]
+		},
+		{
+			"id": "edad",
+			"item": "pregunta la edad",
+			"dimension": "anamnesis",
+			"weight": 2,
+			"keywords": ["edad", "cuántos años", "cuantos años", "qué edad"]
 		},
 		{
 			"id": "inicio",
@@ -132,6 +148,13 @@
 			"dimension": "anamnesis",
 			"weight": 3,
 			"keywords": ["tos", "mocos", "nariz", "congest"]
+		},
+		{
+			"id": "signos-alarma",
+			"item": "descarta signos de alarma: falta de aire, no poder tragar, saliva, abrir la boca y cambios en la voz",
+			"dimension": "anamnesis",
+			"weight": 3,
+			"keywords": []
 		},
 		{
 			"id": "contactos",
@@ -212,6 +235,57 @@
 				"sin pus",
 				"amígdalas",
 				"inflamad"
+			]
+		},
+		{
+			"id": "adenopatias",
+			"item": "palpa o pregunta por ganglios del cuello",
+			"dimension": "examen",
+			"weight": 3,
+			"keywords": [
+				"ganglio",
+				"bultito",
+				"bulto en el cuello",
+				"pelotitas",
+				"cuello"
+			]
+		},
+		{
+			"id": "indica-sintomatico",
+			"item": "indica tratamiento sintomático (analgésico, líquidos, reposo)",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": [
+				"paracetamol",
+				"ibuprofeno",
+				"analgésic",
+				"tomá mucho líquido",
+				"tomá líquidos",
+				"tomá agua",
+				"hidrat",
+				"reposo",
+				"gárgaras",
+				"té con miel"
+			]
+		},
+		{
+			"id": "reconsulta",
+			"item": "explica cuándo volver a consultar",
+			"dimension": "comunicacion",
+			"weight": 2,
+			"keywords": [
+				"volvé a consultar",
+				"volver a consultar",
+				"volvé si",
+				"vení de nuevo",
+				"reconsult",
+				"si empeora",
+				"si no mejora",
+				"si te cuesta respirar",
+				"si te falta el aire",
+				"si no podés tragar",
+				"consultá de nuevo",
+				"si te sube la fiebre"
 			]
 		},
 		{

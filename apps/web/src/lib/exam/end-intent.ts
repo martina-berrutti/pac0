@@ -4,7 +4,10 @@
 import { normalize } from "@/lib/avatar/commands";
 
 const END = [
-	/\bcerr(a|ar|as|ala|ame)\b.*\bboca\b/,
+	// "Cerrá", "cierra" (así lo transcribe a veces la voz), "cierre", "cerrala".
+	/\b(cerr|cierr)\w*\b.*\bboca\b/,
+	/^\W*(ya )?(cerra|cierra|cierre|cerrar)\b/,
+	/\b(cerrala|cierrala|cerrarla)\b/,
 	// "¿Podés bajar la cabeza?" sí; "¿podés volver a abrir?" o "¿podés bajar
 	// la lengua?" son otra instrucción del examen.
 	/\bpod(es|e|eis|ria|rias)\b.*\b(cerrar|tapar|descansar|(bajar|relajar) (la )?(boca|cabeza|mandibula)|volver a (sentarte|como estabas|la normalidad))/,
@@ -147,5 +150,20 @@ export function asksWherePain(text: string): boolean {
 		// "¿Te duele donde voy a tocar?", "¿te duele acá?"
 		/\bduele\b.{0,12}\b(donde (voy a )?toc\w*|aca|aqui)\b/.test(t) ||
 		/\b(mostr|muestr|senal|indic|marc)\w*\b.{0,25}\bdonde\b/.test(t)
+	);
+}
+
+// Palpar los ganglios del cuello ahora ("te palpo el cuello", "te reviso los
+// ganglios"). Preguntar ("¿te duele el cuello?", "¿te notaste ganglios?",
+// "¿te revisaron el cuello?") no abre nada.
+export function asksForNeckExam(text: string): boolean {
+	const t = normalize(
+		text
+			.normalize("NFC")
+			.toLowerCase()
+			.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " "),
+	);
+	return /\b(palp|toc|revis|examin|mir|chequ)\w*\s+(el|los|tu|tus|ese|esos)\s+(cuello|ganglios?)\b/.test(
+		t,
 	);
 }

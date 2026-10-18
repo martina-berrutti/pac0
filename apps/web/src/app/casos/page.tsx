@@ -19,9 +19,6 @@ import {
 } from "@/frontend/ui";
 import { ApiError, api, type PersonalityOption } from "@/lib/api-client";
 
-// Valor del selector de problema para sortear uno.
-const RANDOM = "azar";
-
 // Los casos del mismo paciente (group) van en una sola tarjeta; los
 // generados, cada uno en la suya.
 function groupCases(cases: CaseSummary[]) {
@@ -40,8 +37,6 @@ export default function CasesPage() {
 	const [cases, setCases] = useState<CaseSummary[] | null>(null);
 	const [personalities, setPersonalities] = useState<PersonalityOption[]>([]);
 	const [chosen, setChosen] = useState<Record<string, string>>({});
-	// Problema elegido por paciente: id del caso o RANDOM.
-	const [problem, setProblem] = useState<Record<string, string>>({});
 	const [request, setRequest] = useState("");
 	const [busy, setBusy] = useState(false);
 	const [loadError, setLoadError] = useState<string | null>(null);
@@ -72,12 +67,10 @@ export default function CasesPage() {
 			.catch(() => {});
 	}, [router]);
 
+	// Un paciente con varios problemas (Valeria) viene por uno al azar: el
+	// estudiante no elige qué lesión tiene.
 	async function start(key: string, options: CaseSummary[]) {
-		const picked = problem[key] ?? options[0]?.id;
-		const caseId =
-			picked === RANDOM
-				? options[Math.floor(Math.random() * options.length)]?.id
-				: picked;
+		const caseId = options[Math.floor(Math.random() * options.length)]?.id;
 		if (!caseId) return;
 		setBusy(true);
 		try {
@@ -165,35 +158,11 @@ export default function CasesPage() {
 										</div>
 									</div>
 								</div>
-								{grouped ? (
-									<p className="text-muted-foreground text-sm">
-										Puede venir por {options.length} motivos distintos. Elegí
-										uno o dejalo librado al azar.
-									</p>
-								) : (
-									<p className="font-hand text-2xl leading-snug">
-										“{first.chiefComplaint}”
-									</p>
-								)}
+								<p className="font-hand text-2xl leading-snug">
+									{`“${grouped ? `Vengo por ${first.title.toLowerCase()}` : first.chiefComplaint}”`}
+								</p>
 							</div>
 							<div className="grid gap-2.5">
-								{grouped && (
-									<select
-										aria-label="Problema"
-										value={problem[key] ?? first.id}
-										onChange={(e) =>
-											setProblem((cur) => ({ ...cur, [key]: e.target.value }))
-										}
-										className={selectClass}
-									>
-										{options.map((c) => (
-											<option key={c.id} value={c.id}>
-												{c.problem ?? c.id}
-											</option>
-										))}
-										<option value={RANDOM}>Al azar</option>
-									</select>
-								)}
 								<select
 									aria-label="Personalidad"
 									value={chosen[key] ?? "caso"}

@@ -21,6 +21,50 @@ export const ACTION_ITEMS = new Set([
 	"otoscopia",
 ]);
 
+// Odinofagia (Persona 3): los signos de alarma y los ganglios los juzga
+// siempre este código, también con el juez de IA: tienen reglas propias
+// (cuántos signos descartó; palpar o preguntar).
+export const ALARM_ITEM = "signos-alarma";
+export const NODES_ITEM = "adenopatias";
+export const RULE_ONLY_ITEMS = new Set([
+	...ACTION_ITEMS,
+	ALARM_ITEM,
+	NODES_ITEM,
+]);
+
+// Signos de alarma de la odinofagia y cómo se pregunta por cada uno.
+export const ALARM_SIGNS: { sign: string; keywords: string[] }[] = [
+	{
+		sign: "falta de aire",
+		keywords: ["aire", "respir", "ahog", "disnea", "agitad"],
+	},
+	{
+		sign: "no poder tragar",
+		keywords: ["tragar", "tragas", "comer", "comes", "comida", "disfagia"],
+	},
+	{
+		sign: "saliva",
+		keywords: ["saliva", "babe", "sialorrea", "escupi"],
+	},
+	{
+		sign: "abrir la boca",
+		keywords: [
+			"cuesta abrir",
+			"duele abrir",
+			"dolor al abrir",
+			"abris bien la boca",
+			"mandibula",
+			"trismus",
+		],
+	},
+	{
+		sign: "cambios en la voz",
+		keywords: ["voz", "disfon", "ronca", "papa caliente"],
+	},
+];
+// Con 3 de los 5 descartados, el ítem está cumplido; con 1 o 2, a medias.
+export const MIN_ALARM_SIGNS = 3;
+
 export function normalize(s: string) {
 	return s
 		.toLowerCase()
@@ -218,6 +262,61 @@ function judgeOtoscopy(
 	};
 }
 
+// Signos de alarma: qué signos descartó y con qué turno. Explicarlos como
+// motivo para volver ("si te falta el aire, volvé") es una indicación, no
+// descartarlos: esos turnos (los del ítem reconsulta del caso) no cuentan.
+export function alarmSignsAsked(input: EvaluationInput, extracted: Extracted) {
+	const advice =
+		input.clinicalCase.expectedChecklist.find((i) => i.id === "reconsulta")
+			?.keywords ?? [];
+	const asked = extracted.studentTurns.filter(
+		(t) => !advice.some((k) => hasKeyword(t.text, k)),
+	);
+	return ALARM_SIGNS.flatMap(({ sign, keywords }) => {
+		const turn = findTurn(asked, keywords);
+		return turn ? [{ sign, turn }] : [];
+	});
+}
+
+function judgeAlarmSigns(
+	base: Omit<ItemResult, "status" | "evidence">,
+	input: EvaluationInput,
+	extracted: Extracted,
+): ItemResult {
+	const asked = alarmSignsAsked(input, extracted);
+	if (asked.length === 0) return { ...base, status: "no", evidence: [] };
+	const turns = [...new Map(asked.map((a) => [a.turn.id, a.turn])).values()];
+	return {
+		...base,
+		status: asked.length >= MIN_ALARM_SIGNS ? "si" : "parcial",
+		evidence: turns.slice(0, 3).map((t) => ({ turnId: t.id, quote: t.text })),
+	};
+}
+
+// Ganglios: palparlos o preguntar por ellos (la especificación acepta las
+// dos cosas).
+function judgeNodes(
+	item: ChecklistItem,
+	base: Omit<ItemResult, "status" | "evidence">,
+	extracted: Extracted,
+): ItemResult {
+	const palpation = extracted.neckPalpation;
+	if (palpation)
+		return {
+			...base,
+			status: "si",
+			evidence: [{ examActionId: palpation.id, quote: "palpó el cuello" }],
+		};
+	const turn = findTurn(extracted.studentTurns, item.keywords);
+	return turn
+		? {
+				...base,
+				status: "si",
+				evidence: [{ turnId: turn.id, quote: turn.text }],
+			}
+		: { ...base, status: "no", evidence: [] };
+}
+
 export function judgeItem(
 	item: ChecklistItem,
 	input: EvaluationInput,
@@ -232,6 +331,8 @@ export function judgeItem(
 	if (item.id === "presion-arterial")
 		return judgeBloodPressure(base, extracted);
 	if (item.id === "otoscopia") return judgeOtoscopy(base, extracted);
+	if (item.id === ALARM_ITEM) return judgeAlarmSigns(base, input, extracted);
+	if (item.id === NODES_ITEM) return judgeNodes(item, base, extracted);
 	if (ACTION_ITEMS.has(item.id)) return judgeExamAction(base, extracted);
 	if (item.id === DESCRIBE_ITEM) return judgeDescription(item, base, extracted);
 

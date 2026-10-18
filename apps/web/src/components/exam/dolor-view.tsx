@@ -1,9 +1,9 @@
 "use client";
 
-// "¿Te duele acá?": panel con las dos rodillas de frente. El estudiante toca
-// una zona; la paciente contesta con una pista hasta que da en el lugar. La
-// zona correcta es el diagnóstico: no viaja al navegador, la pista la da el
-// servidor.
+// "¿Te duele donde voy a tocar?": panel con las dos rodillas de frente. El
+// estudiante toca una zona y la paciente contesta sí o no (en voz alta si hay
+// voz, y con la cabeza). Solo queda marcada la última zona tocada. La zona
+// correcta es el diagnóstico: no viaja al navegador, la compara el servidor.
 import { Button } from "@pac0/ui/components/button";
 import { type RefObject, useEffect, useState } from "react";
 import type { PainZone } from "@/cases/schema";
@@ -164,19 +164,26 @@ export function DolorView({
 	avatar,
 	sessionId,
 	onClose,
-	onFound,
+	onAnswer,
+	speaks = false,
 }: {
 	avatar: RefObject<PatientAvatarHandle | null>;
 	sessionId: string;
 	onClose: () => void;
-	onFound?: () => void;
+	// Cada toque: si ahí le duele o no (la consulta se lo hace decir).
+	onAnswer?: (found: boolean) => void;
+	// Con voz, la paciente lo dice en voz alta y no hace falta el texto.
+	speaks?: boolean;
 }) {
-	const [wrong, setWrong] = useState<Set<string>>(new Set());
-	const [foundKey, setFoundKey] = useState<string | null>(null);
-	const found = foundKey !== null;
+	// Última zona tocada y si ahí le duele.
+	const [last, setLast] = useState<{ key: string; found: boolean } | null>(
+		null,
+	);
+	const [everFound, setEverFound] = useState(false);
 	const [asking, setAsking] = useState(false);
 	const [hover, setHover] = useState<string | null>(null);
-	const [said, setSaid] = useState("");
+	const wrong = new Set(last && !last.found ? [last.key] : []);
+	const foundKey = last?.found ? last.key : null;
 
 	// Cuerpo entero mientras el panel está abierto.
 	useEffect(() => {
@@ -184,19 +191,15 @@ export function DolorView({
 	}, [avatar]);
 
 	async function pick(side: Side, spot: Spot) {
-		if (found || asking) return;
+		if (asking) return;
 		setAsking(true);
 		try {
 			const r = await api.locatePain(sessionId, side, spot);
-			setSaid(r.hint);
-			if (r.found) {
-				setFoundKey(keyOf(side, spot));
-				onFound?.();
-			}
-			// Solo queda marcada la última zona tocada.
-			else setWrong(new Set([keyOf(side, spot)]));
+			setLast({ key: keyOf(side, spot), found: r.found });
+			if (r.found) setEverFound(true);
+			onAnswer?.(r.found);
 		} catch {
-			setSaid("Perdón, no te entendí. ¿Me tocás de nuevo?");
+			setLast(null);
 		} finally {
 			setAsking(false);
 		}
@@ -205,7 +208,7 @@ export function DolorView({
 	return (
 		<div className="grid gap-3 rounded-2xl border bg-card p-4">
 			<p className="text-muted-foreground text-sm">
-				¿Te duele acá? Tocá un lugar de la rodilla.
+				Preguntale «¿te duele donde voy a tocar?» y tocá un lugar de la rodilla.
 			</p>
 			<svg
 				viewBox="0 0 400 360"
@@ -247,15 +250,18 @@ export function DolorView({
 					? (ZONES[hover.split(":")[1] as Spot]?.label ?? "")
 					: "El óvalo punteado es adentro, en el centro."}
 			</p>
-			<p
-				className="min-h-[3.5rem] rounded-2xl border border-foreground/10 bg-background px-3 py-2 font-hand text-foreground text-xl"
-				aria-live="polite"
-			>
-				{said}
-			</p>
+			{/* Sin voz, la respuesta se lee: sí o no, corto. */}
+			{!speaks && last && (
+				<p
+					className={`font-hand text-2xl ${last.found ? "text-pen" : "text-muted-foreground"}`}
+					aria-live="polite"
+				>
+					{last.found ? "¡Sííí, ahí!" : "Nooo, ahí no."}
+				</p>
+			)}
 			<div className="flex gap-2">
-				<Button variant={found ? "default" : "outline"} onClick={onClose}>
-					{found ? "Listo" : "Cancelar"}
+				<Button variant={everFound ? "default" : "outline"} onClick={onClose}>
+					{everFound ? "Listo" : "Cancelar"}
 				</Button>
 			</div>
 		</div>

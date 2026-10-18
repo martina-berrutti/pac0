@@ -66,6 +66,7 @@ describe("consulta completa por caso", () => {
 			"¿Desde cuándo te duele?",
 			"¿Tuviste fiebre?",
 			"¿Sos alérgica a algún medicamento?",
+			"¿Te falta el aire? ¿Podés tragar la saliva? ¿Te cuesta abrir la boca?",
 		]);
 		const { exam } = await sendTurn(
 			ana,

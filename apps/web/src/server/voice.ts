@@ -247,6 +247,7 @@ export type ToolUi =
 	| { kind: "exam"; exam: ExamResult }
 	| ({ kind: "vitals" } & BpStart)
 	| { kind: "region"; region: string; available: boolean }
+	| { kind: "neck" }
 	| { kind: "otoscope"; side: "derecho" | "izquierdo" | null }
 	| { kind: "end" }
 	// Ánimo nuevo del paciente, para la cara del avatar (Persona 3).
@@ -291,6 +292,19 @@ export async function runTool(
 	switch (name) {
 		case "examinar": {
 			const args = toolArgs.examinar.parse(rawArgs);
+			// Los ganglios del cuello se palpan en la pantalla (Persona 3): la
+			// herramienta abre el cuello y el paciente se queda quieto.
+			if (/cuello|ganglio/i.test(args.zona)) {
+				if (args.consentimiento) await giveConsent(session, elapsed);
+				return {
+					output: {
+						disponible: true,
+						que_pasa:
+							"Te van a palpar el cuello. Decí algo breve (por ejemplo: dale) y quedate quieto. Si según tu historia te duele el cuello, quejate un poco; si no, no.",
+					},
+					ui: { kind: "neck" },
+				};
+			}
 			// El oído se examina con el otoscopio de la pantalla (Persona 2): la
 			// herramienta lo abre y el paciente se queda quieto.
 			if (/o[ií]do|oreja/i.test(args.zona)) {

@@ -97,14 +97,14 @@ export const PATIENT_TOOLS = [
 		type: "function",
 		name: "examinar",
 		description:
-			"Llamala cuando el estudiante te pide examinarte (abrir la boca, mirar la garganta, decir aaa, o revisarte el oído). Te dice qué ves vos de tu cuerpo y cómo reaccionás. No describas hallazgos médicos.",
+			"Llamala cuando el estudiante te pide examinarte (abrir la boca, mirar la garganta, decir aaa, revisarte el oído o palparte el cuello). Te dice qué ves vos de tu cuerpo y cómo reaccionás. No describas hallazgos médicos.",
 		parameters: {
 			type: "object",
 			properties: {
 				zona: {
 					type: "string",
 					description:
-						"Zona a examinar: orofaringe (boca o garganta) u oído (con el lado si lo dijeron: oído izquierdo).",
+						"Zona a examinar: orofaringe (boca o garganta), oído (con el lado si lo dijeron: oído izquierdo) o cuello (ganglios).",
 				},
 				maniobra: { type: "string", description: "Por ejemplo inspeccion." },
 				claridad: {

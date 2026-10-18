@@ -6,6 +6,7 @@ import type {
 	CuffSize,
 	Ear,
 	ExamAction,
+	NeckFinding,
 	OtoscopyRecord,
 	TemperatureReading,
 } from "@/lib/contracts/exam";
@@ -130,6 +131,8 @@ export const api = {
 		request<TemperatureReading>(`/api/sessions/${id}/temperature`, {
 			method: "POST",
 		}),
+	palpateNeck: (id: string) =>
+		request<NeckFinding>(`/api/sessions/${id}/neck`, { method: "POST" }),
 	startBp: (id: string) =>
 		request<BpStart>(`/api/sessions/${id}/vitals`, { method: "POST" }),
 	placeCuff: (

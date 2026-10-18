@@ -35,6 +35,8 @@ import {
 	verdictFor,
 } from "./engine";
 import { type Extracted, extract } from "./extractor";
+import { buildOdinofagia } from "./odinofagia";
+import { buildOrder } from "./order";
 import { buildRapport, rapportBonus, trustPenalty } from "./rapport";
 import {
 	DESCRIBE_ITEM,
@@ -696,6 +698,8 @@ export function assembleReport(
 		diagnosis,
 		improvements: improvementsFor(clinicalCase, diagnosis, mistakes),
 		rapport,
+		odinofagia: buildOdinofagia(input, items, extracted),
+		order: buildOrder(input, items),
 		judge,
 		createdAt: Date.now(),
 	});
