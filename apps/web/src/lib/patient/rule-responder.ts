@@ -8,27 +8,10 @@ import type { PatientBrief } from "./brief";
 import { showsEmpathy } from "./turn-classifier";
 
 // Tema -> palabras de la pregunta -> clave del perfil o de la historia.
+// Gana el primero que coincide: los temas puntuales van antes que los síntomas
+// y que "desde cuándo", así "¿alguien más tiene fiebre?" va a contactos y
+// "¿hace cuánto que fumás?" a tabaco.
 const TOPICS: { key: string; words: string[] }[] = [
-	{
-		key: "inicio",
-		words: [
-			"desde cuándo",
-			"desde cuando",
-			"cuándo empez",
-			"cuando empez",
-			"hace cuánto",
-			"hace cuanto",
-			"cuántos días",
-			"cuantos dias",
-		],
-	},
-	{
-		key: "dolor",
-		words: ["duele", "dolor", "al tragar", "del 1 al 10", "intensidad"],
-	},
-	{ key: "fiebre", words: ["fiebre", "temperatura", "chuchos"] },
-	{ key: "tos", words: ["tos", "tosés", "toses", "tosiendo"] },
-	{ key: "mocos", words: ["mocos", "nariz", "congest", "estornud"] },
 	{
 		key: "contactos",
 		words: [
@@ -39,7 +22,18 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"alguien con",
 		],
 	},
-	{ key: "alergias", words: ["alérgic", "alergic", "alergia"] },
+	{
+		key: "adherencia",
+		words: [
+			"olvid",
+			"te salteás",
+			"te salteas",
+			"dejás de tomar",
+			"dejas de tomar",
+			"todos los días la",
+			"todos los dias la",
+		],
+	},
 	{
 		key: "medicacion",
 		words: [
@@ -52,10 +46,6 @@ const TOPICS: { key: string; words: string[] }[] = [
 			"remedio",
 			"pastilla",
 		],
-	},
-	{
-		key: "antecedentes",
-		words: ["antecedente", "enfermedad", "operad", "internad"],
 	},
 	{
 		key: "alcohol",
@@ -75,7 +65,110 @@ const TOPICS: { key: string; words: string[] }[] = [
 		key: "drogas",
 		words: ["drogas", "consumís", "consumis", "marihuana", "porro"],
 	},
-	{ key: "vive", words: ["vivís", "vivis", "con quién", "con quien"] },
+	{
+		key: "inicio",
+		words: [
+			"desde cuándo",
+			"desde cuando",
+			"cuándo empez",
+			"cuando empez",
+			"hace cuánto",
+			"hace cuanto",
+			"cuántos días",
+			"cuantos dias",
+		],
+	},
+	{ key: "pecho", words: ["pecho"] },
+	{ key: "cuello", words: ["cuello", "ganglio", "pelotitas", "bulto"] },
+	// Antes que secreción: "¿te sale algo de la nariz?" es de mocos.
+	{ key: "mocos", words: ["mocos", "nariz", "congest", "estornud"] },
+	{
+		key: "secrecion",
+		words: [
+			"secreción",
+			"secrecion",
+			"supura",
+			"líquido",
+			"liquido",
+			"pus",
+			"sale algo del o",
+			"sale del o",
+			"sale algo por el o",
+			"sale por el o",
+		],
+	},
+	// "Pica" suelto no: "¿comés picante?".
+	{
+		key: "picazon",
+		words: ["te pica", "le pica", "picaba", "picazón", "picazon", "comezón"],
+	},
+	{
+		key: "audicion",
+		words: [
+			"escuchás bien",
+			"escuchas bien",
+			"oís bien",
+			"ois bien",
+			"audición",
+			"audicion",
+			"tapado",
+		],
+	},
+	{
+		key: "agua",
+		// "Agua" suelto no: "¿lo aguantás?".
+		words: [
+			"al agua",
+			"el agua",
+			"con agua",
+			"entró agua",
+			"entro agua",
+			"piscina",
+			"pileta",
+			"nadás",
+			"nadas",
+			"nadar",
+		],
+	},
+	{ key: "hisopos", words: ["hisopo", "cotonete"] },
+	{ key: "resfrio", words: ["resfri", "engripad", "gripe"] },
+	{
+		key: "dolor",
+		words: ["duele", "dolor", "al tragar", "del 1 al 10", "intensidad"],
+	},
+	{ key: "fiebre", words: ["fiebre", "temperatura", "chuchos"] },
+	{ key: "tos", words: ["tos", "tosés", "toses", "tosiendo"] },
+	{
+		key: "cansancio",
+		words: ["cansad", "cansancio", "agotad", "energía", "energia"],
+	},
+	{
+		key: "vision",
+		words: ["vista", "visión", "vision", "ves bien", "ve bien", "borros"],
+	},
+	{ key: "cafe", words: ["café", "cafe", "cafeína", "cafeina"] },
+	{ key: "sal", words: ["sal", "salado", "salada", "sodio"] },
+	{
+		key: "actividad",
+		words: [
+			"ejercicio",
+			"deporte",
+			"actividad física",
+			"actividad fisica",
+			"caminás",
+			"caminas",
+		],
+	},
+	{ key: "alergias", words: ["alérgic", "alergic", "alergia"] },
+	{
+		key: "antecedentes",
+		words: ["antecedente", "enfermedad", "operad", "internad"],
+	},
+	// "¿Con quién viniste?" no es dónde vive.
+	{
+		key: "vive",
+		words: ["vivís", "vivis", "vive con", "vive solo", "vive sola"],
+	},
 	{
 		key: "ocupacion",
 		words: [
@@ -176,16 +269,12 @@ export function ruleRespond(
 		motivo = "el estudiante mostró empatía";
 	}
 
-	for (const topic of TOPICS) {
-		if (!has(text, topic.words)) continue;
+	// Un tema que el caso no tiene no tapa a otro que sí: "¿te duele cuando
+	// tomás agua?" en un caso sin "agua" va a dolor.
+	const matched = TOPICS.filter((t) => has(text, t.words));
+	const topic = matched.find((t) => facts[t.key] !== undefined);
+	if (topic) {
 		const answer = facts[topic.key];
-		if (answer === undefined) {
-			return {
-				text: "Mmm, no sé, la verdad nunca me fijé en eso.",
-				delta,
-				motivo,
-			};
-		}
 		const trust = delta?.confianza ?? state.confianza;
 		if (SENSITIVE_KEYS.includes(topic.key) && trust < 0.5) {
 			return { text: "Eh... normal, nada raro. ¿Por qué?", delta, motivo };
@@ -193,6 +282,13 @@ export function ruleRespond(
 		const short = p.locuacidad < 0.4;
 		return {
 			text: short ? `${answer}.` : `Mirá, ${answer}.${nervous}`,
+			delta,
+			motivo,
+		};
+	}
+	if (matched.length) {
+		return {
+			text: "Mmm, no sé, la verdad nunca me fijé en eso.",
 			delta,
 			motivo,
 		};

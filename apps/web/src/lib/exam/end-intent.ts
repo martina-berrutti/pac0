@@ -38,10 +38,24 @@ export function asksToEndExam(text: string): boolean {
 
 // Por texto (plan B) no hay herramientas del modelo: el oído y la presión se
 // piden con palabras, igual que por voz.
-const EXAMINE = /\b(revis|mir|ver|veo|muestr|mostr|examin|chequ|fij)\w*/;
+// Un pedido, no un pasado ni otra palabra: "¿te revisaron el oído?" o
+// "¿tenés vértigo?" no abren el otoscopio.
+const EXAMINE =
+	/\b(revis(o|ar|arte|arle|arlo|arla|e|emos)|mir(o|ar|arte|arle|arlo|arla|e|emos)|ver(te|le|lo|la)?|veo(?! que)|(veamos|vemos) (el|la|los|las|tu|tus|ese|esa) (oido|oidos|oreja|orejas)|muestr(ame|ale|e|eme)|mostra(me|le|s)?|examin(o|ar|arte|arle|arlo|arla|e|emos)|chequ(ear|earte|earle|eemos))\b/;
 
 export function asksForEarExam(text: string): boolean {
-	const t = normalize(text);
+	// Los pasados se sacan antes de quitar las tildes ("te revisó" no es "te
+	// reviso"): "¿alguien te revisó?", "¿te fijaste?", "¿te mostraron?".
+	const present = text
+		.normalize("NFC")
+		.toLowerCase()
+		.replace(/\p{L}+(ó|aron|ieron|aste|iste)(?!\p{L})/gu, " ");
+	// "A ver" de relleno ("a ver, ¿desde cuándo te duele el oído?") no; "a ver
+	// el oído" sí.
+	const t = normalize(present).replace(
+		/\ba ver\b(?! (el|la|los|las|tu|tus|ese|esa) (oido|oidos|oreja|orejas)\b)/g,
+		" ",
+	);
 	return /\b(oido|oidos|oreja|orejas|otoscop\w*)\b/.test(t) && EXAMINE.test(t);
 }
 
