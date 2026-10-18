@@ -567,6 +567,23 @@ describe("cliente de voz", () => {
 		]);
 	});
 
+	test("si el estudiante corta al paciente enseguida, su pregunta se guarda antes", async () => {
+		const { voice, events } = mount();
+		await voice.start();
+		const on = live.callbacks?.onmessage;
+		on?.(msg({ inputTranscription: { text: "¿Desde cuándo" } }));
+		on?.(msg({ modelTurn: { parts: [{ inlineData: { data: "AAAAAA==" } }] } }));
+		on?.(msg({ outputTranscription: { text: "Hace" } }));
+		// El estudiante sigue hablando antes de los 700 ms: corta al paciente.
+		on?.(msg({ inputTranscription: { text: " te duele?" } }));
+		on?.(msg({ interrupted: true }));
+		await voice.drain();
+		expect(events.turns).toEqual([
+			"estudiante:¿Desde cuándo te duele?",
+			"paciente:Hace",
+		]);
+	});
+
 	test("una nota que esperaba una herramienta respondida espera al paciente", async () => {
 		const { voice } = mount();
 		await voice.start();

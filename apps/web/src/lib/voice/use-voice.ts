@@ -488,6 +488,13 @@ export function useVoice({
 				const wasPlaying = (out.current?.sources.size ?? 0) > 0;
 				stopPlayback();
 				if (wasPlaying) event("interrupcion_estudiante");
+				// Lo del estudiante que esperaba su transcripción va antes que el
+				// pedazo del paciente, como en turnComplete.
+				if (studentFlushTimer.current) {
+					clearTimeout(studentFlushTimer.current);
+					studentFlushTimer.current = null;
+					flushStudent();
+				}
 				flushPatient(wasPlaying);
 			}
 			for (const part of content?.modelTurn?.parts ?? []) {

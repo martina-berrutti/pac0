@@ -398,7 +398,7 @@ export async function giveConsent(session: Session, atMs: number) {
 			delta,
 			motivo: "consentimiento",
 		});
-	return next;
+	return rememberTrust(next);
 }
 
 // Si el estudiante explica o pide permiso, queda registrado el consentimiento.
