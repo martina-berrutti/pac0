@@ -85,6 +85,13 @@ describe("cerrar el examen hablando (con un examen abierto)", () => {
 		"Ya podés cerrar",
 		// Contraejemplos del revisor.
 		"Casi listo, ya podés cerrar",
+		"puede bajar el mentón",
+		"listo, ya está, podés bajar el mentón",
+		"ya está, baje el mentón",
+		"listo, ya está, seguimos con unas preguntas",
+		"bueno ya vi, gracias, seguimos",
+		"perfecto, ya terminé, seguimos con la presión",
+		"ya está, podés tirarte para atrás en la silla",
 		"Listo, relajate",
 	];
 	const sigue: string[] = [
@@ -130,8 +137,9 @@ describe("cerrar el examen hablando (con un examen abierto)", () => {
 		"¿Puede volver a abrirla, por favor?",
 		"Puede volver a mostrarme la lengua",
 		"Puede bajar un poquito la cabeza para atrás",
-		"puede bajar el mentón",
 		"Puede descansar un segundo y después seguimos",
+		"Levantá un poco el mentón",
+		"ya podés cerrar, ahora abrí de nuevo",
 		"No hace falta que la abras tanto, un poco nomás",
 	];
 	test.each(cierra)("cierra: %s", (t) => expect(asksToEndExam(t)).toBe(true));
@@ -863,6 +871,7 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 		["oido", "por lo que vi tenes una otitis externa"],
 		["oido", "te saco el otoscopio, tenés una otitis"],
 		["oido", "te voy a limpiar un poco el oido"],
+		["presion", "seguí tomando el enalapril igual"],
 	])("una indicación no es una pregunta (%s): %s", (name, t) =>
 		expect(reply(name, t).text).toMatch(/^Bueno/),
 	);
@@ -878,5 +887,20 @@ describe("paciente sin IA: a qué tema va cada pregunta", () => {
 			const fact = brief.history[key];
 			if (fact) expect(r).not.toContain(fact);
 		}
+	});
+	// Un consejo con el remedio no recita la medicación que toma.
+	test.each([
+		["garganta", "toma paracetamol cada 6 horas si te duele"],
+		["garganta", "si te duele, toma un ibuprofeno"],
+		["presion", "seguí tomando el enalapril igual"],
+	])("un consejo no es la medicación (%s): %s", (name, t) => {
+		const { text: r, brief } = reply(name, t);
+		expect(r).not.toContain(brief.history.medicacion);
+	});
+	test.each([
+		["presion", "¿Toma enalapril?", "medicacion"],
+		["presion", "¿Estás tomando enalapril?", "medicacion"],
+	])("con pregunta sí (%s): %s", (name, t, exp) => {
+		expect(topicOf(name, t)).toBe(exp);
 	});
 });

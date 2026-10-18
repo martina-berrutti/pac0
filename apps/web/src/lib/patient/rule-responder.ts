@@ -131,12 +131,15 @@ const TOPICS: {
 		],
 	},
 	// El remedio por su nombre, solo con un verbo de tomar: "¿tomaste
-	// ibuprofeno?" sí, "te voy a recetar ibuprofeno" es una indicación.
+	// ibuprofeno?" sí, "te voy a recetar ibuprofeno" es una indicación. "Toma"
+	// solo en una pregunta ("¿toma enalapril?"): "toma un ibuprofeno si te
+	// duele" es un consejo; y "tomando" con "estás": "seguí tomando el
+	// enalapril" tampoco pregunta.
 	{
 		key: "medicacion",
 		words: ["ibuprofeno", "paracetamol", "enalapril", "antiinflamatorio"],
 		requires:
-			/(tom[aá]s|tomaste|tom[oó]|toma|tomando|tomabas|us[aá]s|usaste)(?!\p{L})/u,
+			/(tom[aá]s|tomaste|tom[oó]|tomabas|us[aá]s|usaste|est[aá]s? tomando|toma(?=.*\?))(?!\p{L})/u,
 	},
 	// Rodilla: cómo se lastimó, hinchazón, si se traba o se va, si apoya.
 	{

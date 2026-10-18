@@ -51,11 +51,13 @@ const KEEP = [
 	/\b(enseguida|despues|en un segundit\w*|ya vas a poder) cerr/,
 	/\bcasi\b/,
 	/\bno te muevas\b/,
-	// "Puede bajar un poquito la cabeza para atrás", "bajá el mentón",
-	// "descansá un segundo y después seguimos".
-	/\bpara atras\b/,
-	/\bmenton\b/,
-	/\bseguimos\b/,
+	// Una pausa o una postura más: "puede bajar un poquito la cabeza para
+	// atrás", "levantá el mentón", "descansá un segundo y después seguimos".
+	// "Bajá el mentón", "tirate para atrás en la silla" o "ya terminé,
+	// seguimos con la presión" sí terminan.
+	/\bcabeza\b.{0,15}para atras\b/,
+	/\b(levant|sub)\w* (el )?menton\b|\bmenton (para )?arriba\b/,
+	/\bdescans\w* un (segundo|segundito|momento|poquito)\b/,
 	// Con otra instrucción del examen ("listo, ahora sacá la lengua", "ya
 	// está casi, abrí un poco más") sigue examinando.
 	/\b(abr(i|a|as|ime|ame|ila|is|ir)|(deci|diga|hace|haga) a+|sac(a|ate|ar) (la )?lengua|lengua afuera)\b/,
@@ -65,9 +67,9 @@ const KEEP = [
 // cosa del examen; "no cierres" no.
 // "No hace falta que abras más" también, aunque nombre el abrir ("no hace
 // falta que la abras tanto, un poco nomás" sigue examinando). "Casi listo,
-// ya podés cerrar" cierra.
+// ya podés cerrar" cierra; "ya podés cerrar, ahora abrí de nuevo" no.
 const EXPLICIT_END =
-	/\bcerr(a|ar|as|ala|ame)\b.*\bboca\b|\b(guarda|guardar|meter|mete) (la )?lengua\b|\bno hace falta que (la )?(sigas|siga)\b|\bno hace falta que (la )?(abras|abra)( la boca)?( mas)?$|\bya (podes|puedes|puede) cerrar\b/;
+	/\bcerr(a|ar|as|ala|ame)\b.*\bboca\b|\b(guarda|guardar|meter|mete) (la )?lengua\b|\bno hace falta que (la )?(sigas|siga)\b|\bno hace falta que (la )?(abras|abra)( la boca)?( mas)?$|\bya (podes|puedes|puede) cerrar\b(?!.*\babr)/;
 // "Sin cerrar la boca, decí aaa" o "cuando termine cerrás la boca" nombran
 // el cierre pero siguen examinando.
 const NOT_YET =
