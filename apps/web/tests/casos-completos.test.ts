@@ -258,6 +258,7 @@ describe("pedidos por texto que no son de garganta", () => {
 		"¿Te duele cuando abrís la boca?",
 		"Quiero verte de nuevo en 48 horas",
 		"¿Trajiste la receta? Quiero verla",
+		"Te voy a revisar el cuello",
 	])("no es un pedido de examen: %s", async (line) => {
 		const ana = student();
 		const id = await startSession(ana, "garganta-02", "caso");

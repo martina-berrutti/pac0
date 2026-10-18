@@ -59,12 +59,15 @@ export function asksForEarExam(text: string): boolean {
 	return /\b(oido|oidos|oreja|orejas|otoscop\w*)\b/.test(t) && EXAMINE.test(t);
 }
 
+// Un pedido de medir, no una pregunta de la historia: "¿tomás medicación
+// para la presión?", "¿te la tomaron alguna vez?" o "¿te controlás la
+// presión?" no abren el tensiómetro.
+const MEASURE =
+	/\b((te|le|se la|te la|le la)\s+(voy a\s+|vamos a\s+)?(tomo|tomar|mido|medir|controlo|controlar|tomamos|medimos)|(puedo|podemos|dejame|deja|dejas|voy a|vamos a|quiero|necesito|tengo que)\s+(tomar|medir|controlar)(te|le|tela|tele)?|tomemos|midamos|controlemos)\b/;
+
 export function asksForBloodPressure(text: string): boolean {
 	const t = normalize(text);
-	return (
-		/\b(presion|tension|tensiometro)\b/.test(t) &&
-		/\b(tom|med|mid|control)\w*/.test(t)
-	);
+	return /\b(presion|tension|tensiometro)\b/.test(t) && MEASURE.test(t);
 }
 
 // Qué oído nombró; si no dijo, el derecho.

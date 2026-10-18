@@ -28,6 +28,7 @@ import {
 	asksConsent,
 	interpretExamInstruction,
 	isExamRequest,
+	namesOtherZone,
 } from "@/lib/patient/exam-instruction";
 import { getArchetype, resolvePersonality } from "@/lib/patient/personalities";
 import { ruleRespond } from "@/lib/patient/rule-responder";
@@ -547,7 +548,7 @@ export async function sendTurn(
 			current.consentGiven || current.personality.cooperacion >= 0.5
 				? "Dale, revisame el oído."
 				: "Bueno... pero despacito, ¿eh?";
-	} else if (zone && isExamRequest(clean)) {
+	} else if (zone && isExamRequest(clean) && !namesOtherZone(clean)) {
 		const decision = interpretExamInstruction(
 			clean,
 			current.personality,

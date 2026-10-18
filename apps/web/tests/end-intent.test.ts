@@ -91,3 +91,20 @@ describe("terminar el examen hablando", () => {
 		expect(asksToEndExam(text)).toBe(false);
 	});
 });
+
+describe("presión por texto: un pedido, no una pregunta de la historia", () => {
+	test.each([
+		["¿Tomás alguna medicación para la presión?", false],
+		["¿Qué medicación tomás para la presión?", false],
+		["¿Te controlás la presión?", false],
+		["¿Cuándo te midieron la presión por última vez?", false],
+		["¿Alguna vez te tomaron la presión?", false],
+		["¿Te mediste la presión en tu casa?", false],
+		["¿Puedo tomarte la presión?", true],
+		["Dejame tomarte la presión", true],
+		["Vamos a medir la presión", true],
+		["Te tomo la presión", true],
+	])("%s", (text, expected) => {
+		expect(asksForBloodPressure(text)).toBe(expected);
+	});
+});
