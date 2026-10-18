@@ -119,7 +119,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 - [x] Los casos del banco, cada uno con sus palabras prohibidas (con los cuatro de antes: 24 de 24 en producción; el script ya tiene los cuatro problemas actuales). El script separa el eco (el paciente repite sin entender lo que dijo el estudiante) de la fuga
 - [x] Tests de una consulta completa por caso con su herramienta e informe (`tests/casos-completos.test.ts`)
 - [x] Texto: nombrar la garganta («¿desde cuándo te duele la garganta?») ya no abre el examen; hacía falta para el plan B
-- [ ] Persona 2: en producción el informe sale con el juez por reglas aunque hay clave; ver en los logs de Vercel «Evaluador con IA falló»
+- [x] Persona 2: el informe en producción sale con el juez con IA (revisado el 17/10 con `probar-consulta.mjs`: `juez: ia`)
 - [x] Script completo en producción con Convex: 6 de 6 en personaje, sin cortes
 
 ### Generador "pedime un paciente" (feature nueva)
@@ -132,7 +132,7 @@ Termina cuando: una consulta completa funciona de punta a punta con 3 personalid
 
 ### Avatar (P3)
 - [x] Nivel de voz del paciente con `AnalyserNode`: `readPatientLevel()` en `useVoice`
-- [ ] Persona 3: usar `readPatientLevel()` en el avatar para mover la boca
+- [x] Persona 3: el avatar mueve los labios con la voz del paciente (resuelto con HeadAudio en `components/avatar/patient-avatar.tsx`, sin `readPatientLevel()`)
 
 ### Si la Persona 1 termina antes
 - [x] Tensiómetro: lo hizo la Persona 2 (PR #2)
@@ -224,14 +224,14 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 
 
 ### Banco de imágenes (plan.md, sección 7)
-- [ ] Orofaringe normal, faringitis con eritema y faringoamigdalitis con exudado, con licencia
+- [x] Orofaringe normal, faringitis con eritema y faringoamigdalitis con exudado, con licencia (`public/exam/`, validadas por una estudiante avanzada)
 - [ ] Imágenes de apertura parcial (persona sana)
 - [ ] Recortar, igualar color y viñeta, marcar zonas
-- [ ] Registrar cada una en `assets/` y `CREDITS.md` (fuente, licencia, atribución, quién la validó)
+- [x] Registrar cada una en `CREDITS.md` (fuente, licencia, atribución, quién la validó). Faltan validar las dos de oído
 
 ### Diseño y pantallas
 - [ ] `DESIGN.md`: fondo claro, un acento azul sereno, tipografía legible, botones grandes
-- [ ] Inicio con la leyenda "herramienta de práctica, no reemplaza a pacientes reales ni a docentes"
+- [x] Inicio con la leyenda "herramienta de práctica, no reemplaza a pacientes reales ni a docentes"
 - [ ] Entrar, perfil, elegir caso (con el generador), consulta, examen e informe
 - [ ] Informe con las siete partes: veredicto con 4 barras, lo que hiciste bien, errores, línea de tiempo, mapa del examen, repetición sugerida y perfil de errores
 - [ ] Todas las pantallas sin cortes a 390 y 1280 px
@@ -239,7 +239,7 @@ Termina cuando: 2 casos revisados por un médico y la app se ve bien a 390 y 128
 ### Personajes y avatar (plan.md, sección 9)
 - [ ] Método del retrato (generado o de stock) y voz elegida (hoy a las 14:00)
 - [ ] Por personaje: retrato, 4 expresiones, 2 bocas entreabiertas, voz y ficha
-- [ ] Avatar nivel 1: parpadeo, respiración y boca por volumen (P3)
+- [x] Avatar: modelo 3D con labios sincronizados con la voz y cara según el ánimo (TalkingHead y HeadAudio, CC0 y MIT)
 - [ ] Probar 2 APIs de avatar (P3, después de la puerta 2)
 
 ### Validación con estudiantes y pitch
