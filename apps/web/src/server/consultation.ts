@@ -18,6 +18,7 @@ import {
 	type SessionEventType,
 	type Turn,
 } from "@/lib/contracts/session";
+import { asksForEarExam } from "@/lib/exam/end-intent";
 import {
 	buildPatientBrief,
 	buildPatientPrompt,
@@ -537,7 +538,16 @@ export async function sendTurn(
 	let reply: string;
 	let exam: ExamResult | null = null;
 	const zone = defaultZone(clinicalCase);
-	if (zone && isExamRequest(clean)) {
+	// Con el mismo criterio que la pantalla: "¿tenés vértigo en el oído?" o
+	// "¿te revisaron el oído?" son preguntas y las responde el paciente.
+	if (asksForEarExam(clean)) {
+		// El oído se examina con el otoscopio de la pantalla, como por voz: no es
+		// un pedido de garganta (no registra examen ni resta "no indicado").
+		reply =
+			current.consentGiven || current.personality.cooperacion >= 0.5
+				? "Dale, revisame el oído."
+				: "Bueno... pero despacito, ¿eh?";
+	} else if (zone && isExamRequest(clean)) {
 		const decision = interpretExamInstruction(
 			clean,
 			current.personality,
