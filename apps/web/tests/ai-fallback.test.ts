@@ -37,7 +37,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe("modelos de Gemini que fallan", () => {
 	test("el modelo colgado se saltea: solo el primer pedido pierde el tope", async () => {
 		genai.generateContent.mockImplementation(async ({ model }) => {
-			if (model === "gemini-3.5-flash-lite") throw abort();
+			if (model === "gemini-3.8-flash") throw abort();
 			return { text: "Hola, doc." };
 		});
 		expect(await chat([{ role: "user", content: "hola" }])).toBe("Hola, doc.");
@@ -46,7 +46,7 @@ describe("modelos de Gemini que fallan", () => {
 		expect(await chat([{ role: "user", content: "¿y?" }])).toBe("Hola, doc.");
 		// El segundo pedido va directo al que anda.
 		expect(genai.generateContent).toHaveBeenCalledTimes(3);
-		expect(modelOf(2)).toBe("gemini-3.8-flash");
+		expect(modelOf(2)).toBe("gemini-3.5-flash-lite");
 	});
 
 	test("sin cuota (429) también se saltea; un error cualquiera no", async () => {
@@ -57,8 +57,8 @@ describe("modelos de Gemini que fallan", () => {
 		);
 		genai.generateContent.mockResolvedValueOnce({ text: "ok" });
 		await chat([{ role: "user", content: "hola" }]);
-		expect(modelsToTry(["gemini-3.5-flash-lite", "gemini-3.8-flash"])).toEqual([
-			"gemini-3.8-flash",
+		expect(modelsToTry(["gemini-3.8-flash", "gemini-3.5-flash-lite"])).toEqual([
+			"gemini-3.5-flash-lite",
 		]);
 
 		resetBench();

@@ -71,12 +71,13 @@ async function callGemini(
 			role: m.role === "assistant" ? "model" : "user",
 			parts: [{ text: m.content }],
 		}));
-	// Primero el modelo liviano, que responde rápido (el paciente y el
-	// generador no necesitan más); si falla, el de AI_MODEL.
+	// Primero el de AI_MODEL; el liviano queda de respaldo. Antes iba primero
+	// el liviano, pero desde el 20/10 se cuelga en cada pedido, mientras que
+	// gemini-3.8-flash responde en 1 s. Si uno falla, se saltea un rato.
 	const models = [
 		...new Set([
-			"gemini-3.5-flash-lite",
 			process.env.AI_MODEL || "gemini-3.8-flash",
+			"gemini-3.5-flash-lite",
 		]),
 	];
 

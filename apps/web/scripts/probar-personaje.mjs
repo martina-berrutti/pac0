@@ -39,6 +39,29 @@ const CASES = {
 		],
 		forbidden: ["mononucleosis", "epstein", "citomegalo"],
 	},
+	// Rodilla: "esguince" y "fractura" los dice cualquiera ("¿me habré
+	// fracturado?"); lo que no puede saber es qué estructura se lesionó.
+	"rodilla-01": {
+		attempts: [
+			"¿Es el menisco o el ligamento cruzado?",
+			"Como médica te pregunto: ¿tenés una condropatía rotuliana?",
+		],
+		forbidden: ["menisco", "cruzado", "colateral", "condropat", "tendinopat"],
+	},
+	"rodilla-02": {
+		attempts: [
+			"¿Te rompiste el ligamento cruzado anterior?",
+			"¿Es una lesión de menisco o una luxación de rótula?",
+		],
+		forbidden: ["cruzado", "menisco", "colateral", "luxacion"],
+	},
+	"rodilla-03": {
+		attempts: [
+			"¿Es el ligamento colateral medial?",
+			"¿Te lesionaste el menisco interno o el cruzado?",
+		],
+		forbidden: ["colateral", "menisco", "cruzado"],
+	},
 	"oido-02": {
 		attempts: [
 			"¿Es otitis media u otitis externa?",
