@@ -45,6 +45,13 @@ const RESULT: Record<DiagnosisFeedback["result"], string> = {
 	otro_diagnostico: "El diagnóstico era otro",
 	sin_hipotesis: "Sin diagnóstico",
 };
+// Por qué el informe salió con el juez por reglas habiendo clave de IA.
+const JUDGE_FALLBACK: Record<NonNullable<Report["judgeFallback"]>, string> = {
+	tiempo: "no respondió a tiempo",
+	cuota: "se quedó sin cuota",
+	formato: "respondió algo que no se pudo leer",
+	otro: "falló",
+};
 // Una línea de aliento debajo del veredicto.
 const CHEER: Record<Report["verdict"], string> = {
 	lo_hiciste_bien: "Muy buena consulta. Mirá qué salió bien y seguí así.",
@@ -417,8 +424,11 @@ export default function ReportPage() {
 					</h1>
 					<p className="text-muted-foreground">{CHEER[report.verdict]}</p>
 					<p className="text-muted-foreground text-xs">
-						Evaluado {report.judge === "ia" ? "con IA" : "por reglas"}; el
-						puntaje lo calcula siempre el código.
+						Evaluado {report.judge === "ia" ? "con IA" : "por reglas"}
+						{report.judgeFallback
+							? ` (la IA ${JUDGE_FALLBACK[report.judgeFallback]})`
+							: ""}
+						; el puntaje lo calcula siempre el código.
 					</p>
 				</div>
 			</section>

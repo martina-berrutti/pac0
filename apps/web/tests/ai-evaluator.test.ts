@@ -212,7 +212,13 @@ describe("evaluador con IA", () => {
 		});
 		const rules = evaluate(input);
 		expect(report.judge).toBe("reglas");
-		expect({ ...report, createdAt: 0 }).toEqual({ ...rules, createdAt: 0 });
+		// Mismo informe que el juez por reglas, más el motivo de la caída.
+		expect(report.judgeFallback).toBe("otro");
+		expect({ ...report, createdAt: 0, judgeFallback: undefined }).toEqual({
+			...rules,
+			createdAt: 0,
+			judgeFallback: undefined,
+		});
 	});
 });
 

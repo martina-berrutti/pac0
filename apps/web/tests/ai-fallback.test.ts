@@ -96,3 +96,20 @@ describe("modelos de Gemini que fallan", () => {
 		timeout.mockRestore();
 	});
 });
+
+describe("motivo del juez por reglas", () => {
+	test("tiempo, cuota, formato u otro, sin el mensaje del proveedor", async () => {
+		const { fallbackReason } = await import("@/lib/scoring/ai-evaluate");
+		const { z } = await import("zod");
+		expect(fallbackReason(abort())).toBe("tiempo");
+		expect(fallbackReason(new Error("Los modelos de IA están en pausa"))).toBe(
+			"tiempo",
+		);
+		expect(fallbackReason(new Error('{"code":429,"quota"}'))).toBe("cuota");
+		expect(fallbackReason(new SyntaxError("Unexpected token"))).toBe("formato");
+		expect(
+			fallbackReason(z.object({ a: z.string() }).safeParse({}).error),
+		).toBe("formato");
+		expect(fallbackReason(new Error("algo raro"))).toBe("otro");
+	});
+});

@@ -102,6 +102,25 @@ export async function evaluateWithAi(
 			: written;
 	} catch (error) {
 		console.warn("Evaluador con IA falló; uso el juez por reglas.", error);
-		return evaluate(input);
+		return { ...evaluate(input), judgeFallback: fallbackReason(error) };
 	}
+}
+
+// Por qué falló la IA, en una palabra: queda en el informe para saberlo sin
+// mirar los registros del servidor.
+export function fallbackReason(
+	error: unknown,
+): NonNullable<Report["judgeFallback"]> {
+	const text = String(error);
+	const name = error instanceof Error ? error.name : "";
+	if (
+		name === "AbortError" ||
+		name === "TimeoutError" ||
+		/aborted|timed? ?out|en pausa/i.test(text)
+	)
+		return "tiempo";
+	if (/\b429\b|RESOURCE_EXHAUSTED|quota/i.test(text)) return "cuota";
+	if (name === "ZodError" || name === "SyntaxError" || /JSON/i.test(text))
+		return "formato";
+	return "otro";
 }

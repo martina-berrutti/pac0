@@ -187,6 +187,9 @@ export const reportSchema = z.object({
 	odinofagia: odinofagiaSchema.optional(),
 	order: orderSchema.optional(),
 	judge: z.enum(["reglas", "ia"]),
+	// Si había clave pero la IA falló y se usó el juez por reglas: por qué.
+	// Sin el mensaje del error (puede traer datos del proveedor).
+	judgeFallback: z.enum(["tiempo", "cuota", "formato", "otro"]).optional(),
 	createdAt: z.number(),
 });
 
