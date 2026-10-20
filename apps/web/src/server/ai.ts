@@ -16,6 +16,45 @@ export type ChatMessage = {
 	content: string;
 };
 
+// Tope por pedido: el chat del paciente tiene que ser rápido; el evaluador
+// manda la lista de cotejo y toda la conversación, y tarda más.
+export const CHAT_TIMEOUT_MS = 10_000;
+export const JSON_TIMEOUT_MS = 30_000;
+
+// Un modelo que se colgó o se quedó sin cuota se saltea un rato: si no, cada
+// pedido pierde el tope entero esperándolo antes de pasar al que anda (con
+// gemini-3.5-flash-lite colgado, cada respuesta tardaba 11 s y el evaluador
+// con IA terminaba en el juez por reglas).
+export const BENCH_MS = 5 * 60_000;
+const benchedUntil = new Map<string, number>();
+
+function isBenchable(error: unknown) {
+	const text = String(error);
+	return (
+		(error instanceof Error &&
+			(error.name === "AbortError" || error.name === "TimeoutError")) ||
+		/aborted|timed? ?out|\b429\b|RESOURCE_EXHAUSTED|quota|\b503\b|UNAVAILABLE|overloaded/i.test(
+			text,
+		)
+	);
+}
+
+// Los modelos a probar, sin los que están en pausa. Si están todos en pausa,
+// ninguno: el pedido falla enseguida y la app sigue al instante con el
+// paciente y el evaluador por reglas, en vez de esperar el tope en cada turno.
+export function modelsToTry(models: string[], now = Date.now()) {
+	return models.filter((m) => (benchedUntil.get(m) ?? 0) <= now);
+}
+
+export function benchModel(model: string, now = Date.now()) {
+	benchedUntil.set(model, now + BENCH_MS);
+}
+
+// Para los tests.
+export function resetBench() {
+	benchedUntil.clear();
+}
+
 async function callGemini(
 	apiKey: string,
 	messages: ChatMessage[],
@@ -41,8 +80,10 @@ async function callGemini(
 		]),
 	];
 
-	let lastError: unknown;
-	for (const model of models) {
+	let lastError: unknown = new Error(
+		"Los modelos de IA están en pausa por fallar hace poco",
+	);
+	for (const model of modelsToTry(models)) {
 		try {
 			const res = await ai.models.generateContent({
 				model,
@@ -51,7 +92,9 @@ async function callGemini(
 					...(system ? { systemInstruction: system } : {}),
 					temperature: json ? 0.2 : 0.8,
 					...(json ? { responseMimeType: "application/json" } : {}),
-					abortSignal: AbortSignal.timeout(10_000),
+					abortSignal: AbortSignal.timeout(
+						json ? JSON_TIMEOUT_MS : CHAT_TIMEOUT_MS,
+					),
 				},
 			});
 			if (res.text) return res.text;
@@ -59,6 +102,7 @@ async function callGemini(
 		} catch (error) {
 			lastError = error;
 			console.error(`Gemini ${model}`, String(error).slice(0, 200));
+			if (isBenchable(error)) benchModel(model);
 		}
 	}
 	throw lastError;
@@ -81,7 +125,7 @@ async function callOpenAI(
 			temperature: json ? 0.2 : 0.8,
 			...(json ? { response_format: { type: "json_object" } } : {}),
 		}),
-		signal: AbortSignal.timeout(20_000),
+		signal: AbortSignal.timeout(json ? JSON_TIMEOUT_MS : 20_000),
 	});
 	if (!res.ok) throw new Error(`OpenAI respondió ${res.status}`);
 	const data = (await res.json()) as {

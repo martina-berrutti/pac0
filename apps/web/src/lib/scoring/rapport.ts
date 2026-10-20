@@ -130,6 +130,29 @@ const LEVEL_TEXT: Record<Rapport["level"], string> = {
 	a_trabajar: "El trato al paciente es lo primero a trabajar.",
 };
 
+// Ítems de comunicación que son indicaciones al paciente (tratamiento, cuándo
+// volver), no trato: cuentan en comunicación y en los errores, pero no en el
+// nivel de trato. Sin esto, alguien amable que no dio indicaciones salía con
+// "Trato a trabajar".
+export function isInstructionItem(i: ItemResult) {
+	return /^(indica|reconsulta|explica-cuando)/.test(i.itemId);
+}
+
+const CREDIT = { si: 1, parcial: 0.5, no: 0 } as const;
+
+// Puntaje del trato, de 0 a 100: los ítems de trato cumplidos (100 si el caso
+// no tiene), menos lo que restó por el trato (con tope) y más lo que sumó.
+export function rapportScore(
+	trato: ItemResult[],
+	penalty: number,
+	bonus: number,
+) {
+	const total = trato.reduce((s, i) => s + i.weight, 0);
+	const earned = trato.reduce((s, i) => s + i.weight * CREDIT[i.status], 0);
+	const base = total === 0 ? 100 : (earned / total) * 100;
+	return Math.max(0, Math.min(100, Math.round(base - penalty + bonus)));
+}
+
 function levelFor(score: number, critical: boolean): Rapport["level"] {
 	if (critical) return "a_trabajar";
 	if (score >= 90) return "muy_bueno";
@@ -145,7 +168,6 @@ export function buildRapport({
 	mistakes,
 	bonus,
 	plus,
-	score,
 }: {
 	extracted: Extracted;
 	items: ItemResult[];
@@ -153,11 +175,11 @@ export function buildRapport({
 	mistakes: Mistake[];
 	bonus: number;
 	plus: RapportEntry[];
-	// Puntaje final de comunicación.
-	score: number;
 }): Rapport {
 	const turnText = new Map(extracted.studentTurns.map((t) => [t.id, t.text]));
-	const trato = items.filter((i) => i.dimension === "comunicacion");
+	const trato = items.filter(
+		(i) => i.dimension === "comunicacion" && !isInstructionItem(i),
+	);
 
 	// Lo que sumó: los ítems de trato de la lista de cotejo (ya cuentan ahí) y
 	// lo que suma puntos extra.
@@ -203,7 +225,10 @@ export function buildRapport({
 		pens.reduce((s, p) => s + p.points, 0),
 	);
 
-	const level = levelFor(score, critical.length > 0);
+	const level = levelFor(
+		rapportScore(trato, penalty, bonus),
+		critical.length > 0,
+	);
 	const { trust } = extracted;
 	const moved =
 		Math.abs(trust.end - trust.start) < 0.05

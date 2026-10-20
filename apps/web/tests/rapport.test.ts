@@ -182,6 +182,27 @@ describe("trato al paciente", () => {
 		expect(note?.points).toBeUndefined();
 	});
 
+	test("no dar indicaciones no es mal trato: no baja el nivel ni aparece en la sección", () => {
+		const r = evaluate(
+			consulta([
+				[
+					"estudiante",
+					"Hola, soy Ana, estudiante de medicina. ¿Qué te trae por acá?",
+				],
+				["paciente", "Me duele la garganta."],
+				["estudiante", "¿Desde cuándo te duele?"],
+				["paciente", "Desde el lunes."],
+				["estudiante", "Si entendí bien, te duele desde el lunes, ¿es así?"],
+			]),
+		).rapport;
+		expect(["muy_bueno", "bueno"]).toContain(r?.level);
+		const all = [...(r?.plus ?? []), ...(r?.minus ?? [])]
+			.map((e) => e.text)
+			.join(" | ");
+		expect(all).not.toContain("tratamiento sintomático");
+		expect(all).not.toContain("volver a consultar");
+	});
+
 	test("el trato irrespetuoso es crítico y deja el trato en «a trabajar»", () => {
 		const report = evaluate(
 			consulta([

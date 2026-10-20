@@ -672,7 +672,6 @@ export function assembleReport(
 		mistakes,
 		bonus: kindness.bonus,
 		plus: kindness.plus,
-		score: scores.comunicacion,
 	});
 
 	const total = totalScore(scores);

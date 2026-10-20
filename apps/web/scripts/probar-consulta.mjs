@@ -53,8 +53,11 @@ check(
 // 4. Entrevista por texto.
 const lines = [
 	"Hola, soy Ana, estudiante de medicina. ¿Qué te trae por acá?",
-	"¿Desde cuándo te duele la garganta?",
+	"¿Cuántos años tenés?",
+	"¿Desde cuándo te duele la garganta? ¿Cómo es el dolor, te duele al tragar?",
 	"¿Tuviste fiebre? ¿Tenés tos o mocos?",
+	"¿Te falta el aire? ¿Podés tragar la saliva, abrir bien la boca? ¿Te cambió la voz?",
+	"¿Tenés alguna enfermedad o antecedente?",
 	"¿Alguien cerca tuyo está con algo parecido?",
 	"¿Sos alérgica a algún medicamento? ¿Tomás alguna medicación?",
 	"¿Fumás o tomás alcohol?",
@@ -133,9 +136,11 @@ const ghost = report.mistakes.flatMap((m) =>
 	m.evidence.filter((e) => e.turnId && !turnIds.has(e.turnId)),
 );
 check(ghost.length === 0, "ningún error cita un turno inexistente");
+const critical = report.mistakes.filter((m) => m.critical).map((m) => m.tag);
 check(
-	!report.mistakes.some((m) => m.critical),
-	"sin errores críticos (pidió permiso antes de examinar)",
+	critical.length === 0,
+	"sin errores críticos (pidió permiso y preguntó los signos de alarma)",
+	critical.join(", "),
 );
 check(
 	report.diagnosis?.result === "acertaste",
@@ -151,6 +156,13 @@ console.log(
 	`        juez: ${report.judge}; ${report.mistakes.length} error(es) u omisión(es)`,
 );
 for (const m of report.mistakes.slice(0, 3)) console.log(`        - ${m.what}`);
+if (report.rapport) {
+	console.log(
+		`        trato: ${report.rapport.level}, +${report.rapport.bonus} / −${report.rapport.penalty}`,
+	);
+	for (const m of report.rapport.minus)
+		console.log(`          − ${m.points ?? ""} ${m.text}`);
+}
 
 // 7. Privacidad: otro invitado no puede ver el informe.
 const mine = cookie;
