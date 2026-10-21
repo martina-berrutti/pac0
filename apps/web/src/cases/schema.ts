@@ -95,6 +95,27 @@ export const caseSchema = z.object({
 		// Para elegir una voz acorde (lib/patient/voices.ts).
 		sex: z.enum(["f", "m"]).optional(),
 	}),
+	// Quién viene: en cada consulta se sortea un avatar de la lista, una edad
+	// del rango y un nombre acorde (lib/patient/avatars.ts). Lo que cambia si
+	// es del otro sexo que patient.sex va en "otroSexo" (solo las claves que
+	// cambian). Sin esto, viene siempre la persona de patient.
+	patients: z
+		.object({
+			avatars: z.array(z.string()).min(1),
+			age: z.tuple([z.number().int().positive(), z.number().int().positive()]),
+			otroSexo: z
+				.object({
+					chiefComplaint: z.string().optional(),
+					occupation: z.string().optional(),
+					profile: z.record(z.string(), z.string()).default({}),
+					hiddenHistory: z.record(z.string(), z.string()).default({}),
+					variations: z
+						.record(z.string(), z.array(z.string()).min(1))
+						.default({}),
+				})
+				.optional(),
+		})
+		.optional(),
 	personality: personalitySchema,
 	painZone: painZoneSchema.optional(),
 	// Cómo habla con la personalidad propia del caso (opcional).

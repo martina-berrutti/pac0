@@ -36,6 +36,9 @@ export type Session = {
 	voiceUsage: VoiceUsage | null;
 	// Voz de Gemini sorteada al empezar (lib/patient/voices.ts).
 	voice?: string;
+	// Persona sorteada al empezar: avatar, nombre, edad y sexo
+	// (lib/patient/avatars.ts). Las sesiones viejas no la tienen.
+	patient?: { avatar: string; name: string; age: number; sex: "f" | "m" };
 	// Cantidad de turnos del estudiante cuando el modelo cambió su ánimo por
 	// última vez (un cambio por turno, server/voice.ts).
 	stateToolTurn?: number;

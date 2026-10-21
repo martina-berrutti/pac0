@@ -518,7 +518,13 @@ export default function ConsultationPage() {
 
 	return (
 		<div className="fixed inset-0 z-50 overflow-hidden bg-neutral-200 dark:bg-neutral-800">
-			<PatientAvatar ref={avatar} mood={mood} className="absolute inset-0" />
+			<PatientAvatar
+				ref={avatar}
+				avatar={view.session.patient?.avatar}
+				sex={view.session.patient?.sex}
+				mood={mood}
+				className="absolute inset-0"
+			/>
 
 			{/* Arriba: quién es y cuánto queda (izquierda), terminar (derecha). */}
 			<p className="absolute top-3 left-3 z-20 rounded-full bg-background/70 px-3 py-1 text-sm backdrop-blur">

@@ -10,6 +10,7 @@ import {
 export type PatientBrief = {
 	name: string;
 	age: number;
+	sex?: "f" | "m";
 	occupation: string;
 	chiefComplaint: string;
 	profile: Record<string, string>;
@@ -33,6 +34,7 @@ export function buildPatientBrief(
 	return {
 		name: c.patient.name,
 		age: c.patient.age,
+		sex: c.patient.sex,
 		occupation: c.patient.occupation,
 		chiefComplaint: c.chiefComplaint,
 		profile: { ...c.profile },
@@ -57,6 +59,15 @@ export function buildPatientPrompt(
 	const p = brief.personality;
 	return [
 		`Sos ${brief.name}, ${brief.age} años, ${brief.occupation}. Sos un paciente en una consulta médica de práctica con un estudiante de medicina.`,
+		// El paciente de cada consulta se sortea (lib/patient/avatars.ts):
+		// que hable de sí con el género que le tocó.
+		...(brief.sex
+			? [
+					brief.sex === "m"
+						? "Sos varón: hablás de vos en masculino (cansado, preocupado)."
+						: "Sos mujer: hablás de vos en femenino (cansada, preocupada).",
+				]
+			: []),
 		`Motivo de consulta, con tus palabras: "${brief.chiefComplaint}".`,
 		"Hablás en español rioplatense (Uruguay), con voseo y muletillas naturales (eh, mmm, ta).",
 		`Cómo sos: ${brief.style}`,

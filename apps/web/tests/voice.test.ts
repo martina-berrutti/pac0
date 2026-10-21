@@ -339,7 +339,11 @@ describe("pendientes de la Persona 1", () => {
 		);
 		const id = await startSession(ana, lucia.id, "caso");
 		const fiebre = (await store.getSession(id))?.historyOverrides.fiebre;
-		expect(lucia.variations.fiebre).toContain(fiebre);
+		// Si tocó un varón, las opciones son las de "otroSexo".
+		expect([
+			...(lucia.variations.fiebre ?? []),
+			...(lucia.patients?.otroSexo?.variations.fiebre ?? []),
+		]).toContain(fiebre);
 		expect(await voiceInstructions(ana, id)).toContain(fiebre);
 	});
 

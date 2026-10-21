@@ -19,12 +19,13 @@ import {
 } from "@/frontend/ui";
 import { ApiError, api, type PersonalityOption } from "@/lib/api-client";
 
-// Los casos del mismo paciente (group) van en una sola tarjeta; los
-// generados, cada uno en la suya.
+// Los casos del banco van por motivo de consulta (dolor de garganta, de
+// rodilla), sin decir quién viene: el paciente se sortea al empezar. Los
+// generados, cada uno en su tarjeta, con su persona.
 function groupCases(cases: CaseSummary[]) {
 	const groups = new Map<string, CaseSummary[]>();
 	for (const c of cases) {
-		const key = c.group ?? c.id;
+		const key = c.origin === "banco" ? `motivo:${c.title}` : c.id;
 		groups.set(key, [...(groups.get(key) ?? []), c]);
 	}
 	return [...groups.entries()].map(([key, list]) => ({ key, cases: list }));
@@ -67,7 +68,7 @@ export default function CasesPage() {
 			.catch(() => {});
 	}, [router]);
 
-	// Un paciente con varios problemas (Valeria) viene por uno al azar: el
+	// Un motivo con varios casos (rodilla) viene por uno al azar: el
 	// estudiante no elige qué lesión tiene.
 	async function start(key: string, options: CaseSummary[]) {
 		const caseId = options[Math.floor(Math.random() * options.length)]?.id;
@@ -123,10 +124,10 @@ export default function CasesPage() {
 				<Note className="-rotate-1 text-pen">
 					{alias ? `hola, ${alias}` : "hola"}
 				</Note>
-				<h1 className="font-display text-4xl">¿A quién atendemos hoy?</h1>
+				<h1 className="font-display text-4xl">¿Qué atendemos hoy?</h1>
 				<p className="max-w-prose text-muted-foreground">
-					Elegí un paciente y su forma de ser. Cada consulta dura hasta 8
-					minutos.
+					Elegí un motivo de consulta y la forma de ser del paciente. Quién
+					viene te toca al azar. Cada consulta dura hasta 8 minutos.
 				</p>
 			</header>
 
@@ -134,7 +135,7 @@ export default function CasesPage() {
 				{groupCases(cases).map(({ key, cases: options }, index) => {
 					const first = options[0];
 					if (!first) return null;
-					const grouped = options.length > 1;
+					const bank = first.origin === "banco";
 					const ink = inkForCase(first.title);
 					return (
 						<Paper
@@ -146,20 +147,25 @@ export default function CasesPage() {
 						>
 							<div className="grid gap-4">
 								<div className="flex items-center gap-4">
-									<Initial name={first.patient.name} ink={ink} />
+									<Initial
+										name={bank ? first.title : first.patient.name}
+										ink={ink}
+									/>
 									<div className="grid min-w-0 gap-0.5">
 										<h2 className="font-display text-2xl leading-tight">
-											{first.patient.name}, {first.patient.age}
+											{bank
+												? first.title
+												: `${first.patient.name}, ${first.patient.age}`}
 										</h2>
 										<div className="flex flex-wrap gap-x-3">
-											<Tag ink={ink}>{first.title}</Tag>
+											{!bank && <Tag ink={ink}>{first.title}</Tag>}
 											{first.origin === "generado" && <Tag>inventado</Tag>}
 											{!first.reviewed && <Tag>sin revisar</Tag>}
 										</div>
 									</div>
 								</div>
 								<p className="font-hand text-2xl leading-snug">
-									{`“${grouped ? `Vengo por ${first.title.toLowerCase()}` : first.chiefComplaint}”`}
+									{`“${bank ? `Vengo por ${first.title.toLowerCase()}` : first.chiefComplaint}”`}
 								</p>
 							</div>
 							<div className="grid gap-2.5">
@@ -184,7 +190,9 @@ export default function CasesPage() {
 									disabled={busy}
 									onClick={() => start(key, options)}
 								>
-									Hacer pasar a {first.patient.name}
+									{bank
+										? "Hacer pasar al paciente"
+										: `Hacer pasar a ${first.patient.name}`}
 								</Button>
 							</div>
 						</Paper>

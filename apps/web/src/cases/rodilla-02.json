@@ -12,6 +12,19 @@
 		"occupation": "contadora; juega al fútbol 5 los miércoles",
 		"sex": "f"
 	},
+	"patients": {
+		"avatars": ["mujer-joven", "hombre-joven", "mujer-adulta", "hombre-adulto"],
+		"age": [24, 38],
+		"otroSexo": {
+			"occupation": "contador; juega al fútbol 5 los miércoles",
+			"profile": {
+				"ocupacion": "soy contador, y juego al fútbol 5 con amigos"
+			},
+			"hiddenHistory": {
+				"alergias": "no soy alérgico a nada"
+			}
+		}
+	},
 	"personality": {
 		"cooperacion": 0.9,
 		"ansiedad": 0.35,

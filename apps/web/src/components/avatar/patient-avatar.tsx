@@ -21,8 +21,10 @@ import {
 	examPoint,
 	loadThree,
 } from "@/lib/avatar/exam-poses";
+import { Animator, loadLibrary } from "@/lib/avatar/motion";
+import { studioLight } from "@/lib/avatar/scene";
+import { avatarUrl } from "@/lib/patient/avatars";
 
-const AVATAR_URL = "/avatar/mpfb.glb";
 const WORKLET_URL = "/avatar/headworklet.min.mjs";
 const MODEL_URL = "/avatar/model-en-mixed.bin";
 // Cuánto queda la boca abierta por una orden.
@@ -41,7 +43,9 @@ const CAMERA_DISTANCE = 2;
 // Punto a mirar y dirección desde donde se mira, en metros en el sistema del
 // hueso Head (x a la izquierda del paciente, y arriba, z adelante; los ojos
 // están en ±0,032, 0,108, 0,089): así siguen a la cabeza si gira o se
-// inclina. Lente en grados (la vista normal es 10°). Medido sobre el MPFB.
+// inclina. Lente en grados (la vista normal es 10°). Medido sobre el MPFB
+// (Lucía); los avatares nuevos tienen los huesos orientados igual y se
+// escala por el tamaño de la cabeza (de la cabeza a los ojos).
 type Xyz = [number, number, number];
 export type FocusPart = "mouth" | "leftEar" | "rightEar";
 const FOCUS: Record<FocusPart, { target: Xyz; from: Xyz; fov: number }> = {
@@ -51,14 +55,30 @@ const FOCUS: Record<FocusPart, { target: Xyz; from: Xyz; fov: number }> = {
 	rightEar: { target: [-0.075, 0.074, 0], from: [-1, 0.05, 0.2], fov: 3 },
 };
 
+// De la cabeza al ojo en el MPFB, en metros.
+const MPFB_EYE = Math.hypot(0.032, 0.108, 0.089);
+
+// Cuánto más chica o grande es esta cabeza que la del MPFB.
+function headScale(h: TalkingHead) {
+	const head = h.armature?.getObjectByName("Head");
+	const eye = h.armature?.getObjectByName("LeftEye");
+	if (!head || !eye) return 1;
+	const a = head.getWorldPosition(h.camera.position.clone());
+	const b = eye.getWorldPosition(h.camera.position.clone());
+	const d = Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+	return d > 0.05 && d < 0.3 ? d / MPFB_EYE : 1;
+}
+
 // Dónde mirar y desde dónde, según dónde está ahora la cabeza.
-function aim(h: TalkingHead, part: FocusPart) {
+function aim(h: TalkingHead, part: FocusPart, scale = 1) {
 	const head = h.armature?.getObjectByName("Head");
 	if (!head) return null;
 	const v = () => h.camera.position.clone();
 	const { target, from } = FOCUS[part];
 	const origin = head.getWorldPosition(v());
-	const point = head.localToWorld(v().set(...target));
+	const point = head.localToWorld(
+		v().set(target[0] * scale, target[1] * scale, target[2] * scale),
+	);
 	// La dirección también gira con la cabeza.
 	const dir = head
 		.localToWorld(
@@ -74,8 +94,8 @@ function aim(h: TalkingHead, part: FocusPart) {
 
 // Con la parte en primer plano, la cámara la sigue: durante el recorrido
 // corrige el destino y después se queda encima.
-function followFocus(h: TalkingHead, part: FocusPart) {
-	const shot = aim(h, part);
+function followFocus(h: TalkingHead, part: FocusPart, scale: number) {
+	const shot = aim(h, part, scale);
 	if (!shot) return;
 	if (h.cameraClock !== null && h.cameraClock < 1000) {
 		h.controlsEnd = shot.target;
@@ -161,11 +181,16 @@ async function enableMeshopt() {
 
 export function PatientAvatar({
 	ref,
+	avatar,
+	sex,
 	mood = "neutral",
 	className,
 	onReady,
 }: {
 	ref?: Ref<PatientAvatarHandle>;
+	// Quién vino (lib/patient/avatars.ts); sin esto, el MPFB de siempre.
+	avatar?: string;
+	sex?: "f" | "m";
 	// Avisa cuando el modelo terminó de cargar (el clip del inicio).
 	onReady?: () => void;
 	// Ánimo de base; las órdenes con run() se suman encima.
@@ -186,6 +211,15 @@ export function PatientAvatar({
 	const focusPart = useRef<FocusPart | null>(null);
 	// Labios en cada cuadro (cuando hay voz).
 	const lipsTick = useRef<((dt: number) => void) | null>(null);
+	// Movimientos aprendidos (lib/avatar/motion.ts), si hay biblioteca.
+	const animator = useRef<Animator | null>(null);
+	// Volumen de la voz del paciente (0 a 1) y hasta cuándo cuenta que habla.
+	const voiceLevel = useRef(0);
+	const speakingUntil = useRef(0);
+	// Tamaño de la cabeza respecto del MPFB (para el primer plano).
+	const scale = useRef(1);
+	const moodRef = useRef(mood);
+	moodRef.current = mood;
 	const [status, setStatus] = useState<Status>("cargando");
 	const [progress, setProgress] = useState(0);
 
@@ -215,7 +249,10 @@ export function PatientAvatar({
 					for (const v of samples) sum += v * v;
 					const rms = Math.sqrt(sum / samples.length);
 					target = Math.min(JAW_MAX, Math.max(0, (rms - JAW_FLOOR) * JAW_GAIN));
-				}
+					voiceLevel.current = Math.min(1, rms * 4);
+					if (rms > JAW_FLOOR * 2)
+						speakingUntil.current = performance.now() + 500;
+				} else voiceLevel.current = 0;
 				const next = jaw + (target - jaw) * (target > jaw ? 0.6 : 0.25);
 				if (Math.abs(next - jaw) > 0.002 || (next === 0 && jaw !== 0)) {
 					jaw = next < 0.005 ? 0 : next;
@@ -281,19 +318,47 @@ export function PatientAvatar({
 					avatarIdleEyeContact: 0.4,
 					avatarSpeakingEyeContact: 0.7,
 				});
+				const url = avatarUrl(avatar);
 				await instance.showAvatar(
-					{ url: AVATAR_URL, body: "F", avatarMood: "neutral" },
+					{ url, body: sex === "m" ? "M" : "F", avatarMood: "neutral" },
 					(e) => {
 						if (e?.lengthComputable) setProgress(e.loaded / e.total);
 					},
 				);
 				if (cancelled) return instance.dispose();
 				head.current = instance;
-				// Cada cuadro: labios (si hay voz) y cámara sobre la parte examinada.
 				const h = instance;
+				scale.current = headScale(h);
+				// Los avatares nuevos, con luz de estudio (con la de TalkingHead
+				// quedan pálidos).
+				if (url !== "/avatar/mpfb.glb")
+					await studioLight(h).catch((e) => console.warn("Luz", e));
+				// Movimientos reales aprendidos, si hay biblioteca; si no, los de
+				// TalkingHead.
+				const clips = await loadLibrary();
+				if (cancelled) return;
+				if (clips) {
+					const a = new Animator(h, clips);
+					a.voiceLevel = () => voiceLevel.current;
+					a.start();
+					animator.current = a;
+				}
+				// Cada cuadro: labios (si hay voz), movimientos y cámara sobre la
+				// parte examinada.
+				let speaking = false;
 				h.opt.update = (dt) => {
 					lipsTick.current?.(dt);
-					if (focusPart.current) followFocus(h, focusPart.current);
+					const a = animator.current;
+					if (a) {
+						const talking = performance.now() < speakingUntil.current;
+						if (talking !== speaking) {
+							speaking = talking;
+							a.situation(moodRef.current, speaking);
+						}
+						a.step(dt);
+					}
+					if (focusPart.current)
+						followFocus(h, focusPart.current, scale.current);
 				};
 				setStatus("listo");
 				await attachSpeech();
@@ -304,6 +369,7 @@ export function PatientAvatar({
 		})();
 		return () => {
 			cancelled = true;
+			animator.current = null;
 			if (mouthTimer.current) clearTimeout(mouthTimer.current);
 			source.current?.disconnect();
 			source.current = null;
@@ -320,10 +386,12 @@ export function PatientAvatar({
 				}
 			}
 		};
-	}, [attachSpeech]);
+	}, [attachSpeech, avatar, sex]);
 
 	useEffect(() => {
-		if (status === "listo") head.current?.setMood(mood);
+		if (status !== "listo") return;
+		head.current?.setMood(mood);
+		animator.current?.situation(mood);
 	}, [mood, status]);
 
 	const ready = useRef(onReady);
@@ -357,14 +425,18 @@ export function PatientAvatar({
 					if (action.ms === 0) {
 						for (const mt of ["jawOpen", "mouthOpen", "tongueOut"])
 							h.setFixedValue(mt, null);
+						if (!focusPart.current) animator.current?.pause(false);
 						break;
 					}
+					// Lo aprendido pisaría la boca abierta: se pausa mientras tanto.
+					animator.current?.pause(true);
 					h.setFixedValue("jawOpen", 0.9);
 					h.setFixedValue("mouthOpen", 0.7);
 					h.setFixedValue("tongueOut", action.tongue ? 1 : 0);
 					mouthTimer.current = setTimeout(() => {
 						for (const mt of ["jawOpen", "mouthOpen", "tongueOut"])
 							h.setFixedValue(mt, null);
+						if (!focusPart.current) animator.current?.pause(false);
 					}, action.ms ?? MOUTH_MS);
 					break;
 				}
@@ -415,13 +487,16 @@ export function PatientAvatar({
 			baseFov.current ??= h.camera.fov;
 			if (!part) {
 				focusPart.current = null;
+				animator.current?.pause(false);
 				if (moving.current) Object.assign(h.opt, moving.current);
 				moving.current = null;
 				h.setView("head");
 				return zoomLens(h, baseFov.current);
 			}
-			const shot = aim(h, part);
+			const shot = aim(h, part, scale.current);
 			if (!shot) return Promise.resolve();
+			// Quieto mientras se examina (la cabeza no se mueve).
+			animator.current?.pause(true);
 			moving.current ??= Object.fromEntries(
 				Object.keys(STILL).map((k) => [k, h.opt[k]]),
 			);

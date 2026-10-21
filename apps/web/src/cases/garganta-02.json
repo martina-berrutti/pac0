@@ -12,6 +12,27 @@
 		"occupation": "estudiante",
 		"sex": "f"
 	},
+	"patients": {
+		"avatars": ["mujer-joven", "hombre-joven"],
+		"age": [19, 27],
+		"otroSexo": {
+			"profile": {
+				"vive": "con un compañero de apartamento",
+				"estadoCivil": "soltero"
+			},
+			"hiddenHistory": {
+				"voz": "estoy un poco disfónico por el resfrío, pero hablo normal",
+				"contactos": "mi compañero de apartamento está resfriado",
+				"alergias": "no soy alérgico a nada"
+			},
+			"variations": {
+				"fiebre": [
+					"un poco, anoche tuve 37 y medio",
+					"no me tomé la temperatura, pero me sentía calentito"
+				]
+			}
+		}
+	},
 	"personality": {
 		"cooperacion": 0.9,
 		"ansiedad": 0.3,

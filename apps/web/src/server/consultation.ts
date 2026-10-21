@@ -20,6 +20,7 @@ import {
 } from "@/lib/contracts/session";
 import { cutText } from "@/lib/cut-text";
 import { asksForEarExam } from "@/lib/exam/end-intent";
+import { pickPatient, withPatient } from "@/lib/patient/avatars";
 import {
 	buildPatientBrief,
 	buildPatientPrompt,
@@ -67,6 +68,7 @@ export type PublicSession = Pick<
 	| "consentGiven"
 	| "voice"
 	| "state"
+	| "patient"
 >;
 
 export function toPublicSession(s: Session): PublicSession {
@@ -82,6 +84,7 @@ export function toPublicSession(s: Session): PublicSession {
 		consentGiven: s.consentGiven,
 		voice: s.voice,
 		state: s.state,
+		patient: s.patient,
 	};
 }
 
@@ -107,7 +110,7 @@ export async function ownSession(viewer: Viewer, sessionId: string) {
 		throw new HttpError(404, "Sesión no encontrada");
 	const clinicalCase = await store.getCase(session.caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
-	return { session, clinicalCase };
+	return { session, clinicalCase: withPatient(clinicalCase, session.patient) };
 }
 
 // Para leer (consulta e informe): la dueña o un docente autorizado. Para
@@ -118,7 +121,7 @@ export async function readableSession(viewer: Viewer, sessionId: string) {
 	if (!session) throw new HttpError(404, "Sesión no encontrada");
 	const clinicalCase = await store.getCase(session.caseId);
 	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
-	return { session, clinicalCase };
+	return { session, clinicalCase: withPatient(clinicalCase, session.patient) };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -181,8 +184,12 @@ export async function startSession(
 			"Tu sesión vence en unos minutos. Tocá Salir y entrá de nuevo para empezar una consulta.",
 		);
 	const visible = await store.listCases(viewer.uid);
-	const clinicalCase = visible.find((c) => c.id === caseId);
-	if (!clinicalCase) throw new HttpError(404, "Caso no encontrado");
+	const baseCase = visible.find((c) => c.id === caseId);
+	if (!baseCase) throw new HttpError(404, "Caso no encontrado");
+	// Quién viene esta vez (avatar, nombre, edad, sexo), dentro de lo que el
+	// caso permite.
+	const patient = pickPatient(baseCase);
+	const clinicalCase = withPatient(baseCase, patient);
 	await checkSessionLimits(viewer);
 	await beforeCreate();
 	// El chequeo de arriba lee y después se crea: con muchos pedidos a la vez
@@ -224,6 +231,7 @@ export async function startSession(
 		historyOverrides: pickVariations(clinicalCase),
 		// Voz acorde a la personalidad elegida (enojado, feliz…); con la del caso, al azar.
 		voice: voiceFor(getArchetype(key)?.voice, clinicalCase.patient.sex),
+		patient,
 		inventedFacts: {},
 		voiceUsage: null,
 		// Un paciente que ya arranca con confianza la tiene desde el principio.

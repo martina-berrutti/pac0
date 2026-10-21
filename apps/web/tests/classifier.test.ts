@@ -133,11 +133,12 @@ describe("voces al azar", () => {
 				lucia.id,
 				"caso",
 			);
-			const voice = (await store.getSession(id))?.voice;
-			expect(VOICES.f).toContain(voice);
-			voices.add(voice ?? "");
+			const session = await store.getSession(id);
+			// El paciente se sortea: la voz va con el sexo que le tocó.
+			expect(VOICES[session?.patient?.sex ?? "f"]).toContain(session?.voice);
+			voices.add(session?.voice ?? "");
 		}
-		// Lucía es mujer: en 12 consultas tiene que haber variado.
+		// En 12 consultas tiene que haber variado.
 		expect(voices.size).toBeGreaterThan(1);
 	});
 });
