@@ -29,7 +29,7 @@ PERSONAJES = {
         "skin": "old_caucasian_female",
         "hair": "rehmanpolanski_hair_bun_brown",
         "eyebrows": "eyebrow002",
-        "clothes": ["toigo_fisherman_sweater", "toigo_wool_pants", "toigo_ballet_flats"],
+        "clothes": ["toigo_wool_pants", "toigo_fisherman_sweater", "toigo_ballet_flats"],
         "canas": 0.8,
     },
     "hombre-adulto": {

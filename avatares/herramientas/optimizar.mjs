@@ -7,6 +7,8 @@ import { dedup, meshopt, prune } from "@gltf-transform/functions";
 import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
 import sharp from "sharp";
 
+import { orientarComoLucia } from "./orientar.mjs";
+
 const [input, output] = process.argv.slice(2);
 await MeshoptDecoder.ready;
 await MeshoptEncoder.ready;
@@ -19,10 +21,19 @@ const doc = await io.read(input);
 const rig = process.env.RIG ?? input.split(/[\/]/).pop().replace(/\.glb$/, "");
 for (const node of doc.getRoot().listNodes())
 	if (node.getName() === rig) node.setName("Armature");
+// Huesos orientados como los de Lucía, para que TalkingHead los mueva igual
+// (sin esto, los hombros se suben y se inflan).
+const refPath =
+	process.argv.find((a) => a.startsWith("--ref="))?.slice(6) ??
+	"../../../pac0/apps/web/public/avatar/mpfb.glb";
+console.log("huesos orientados como Lucía:", orientarComoLucia(doc, await io.read(refPath)));
 await doc.transform(prune(), dedup());
 // Blender exporta todo como transparente (BLEND) y el navegador lo dibuja en
 // mal orden: se ve a través de la cara. Como en Lucía, opaco salvo lo que
 // tiene recortes (pelo, pestañas, cejas, ojos), que va con máscara.
+const ropas = (process.argv.find((a) => a.startsWith("--ropa="))?.slice(7) ?? "")
+	.split(",")
+	.filter(Boolean);
 for (const mat of doc.getRoot().listMaterials()) {
 	const tex = mat.getBaseColorTexture();
 	let cut = false;
@@ -31,7 +42,10 @@ for (const mat of doc.getRoot().listMaterials()) {
 		cut = channels.length === 4 && channels[3].min < 200;
 	}
 	const hair = /hair|ponytail|braid|bob\d|short\d|long\d|afro/i.test(mat.getName());
-	mat.setAlphaMode(cut ? "MASK" : "OPAQUE").setAlphaCutoff(hair ? 0.3 : 0.5);
+	// La ropa va siempre opaca: algunas prendas traen zonas transparentes en
+	// la textura y quedaban agujeros (--ropa=prenda1,prenda2 la nombra).
+	const ropa = ropas.some((r) => mat.getName().includes(r));
+	mat.setAlphaMode(cut && !ropa ? "MASK" : "OPAQUE").setAlphaCutoff(hair ? 0.3 : 0.5);
 	console.log("material", mat.getName(), mat.getAlphaMode());
 }
 // --canas=0.8: el pelo pasa a gris (0 nada, 1 blanco). En Blender se hacía
