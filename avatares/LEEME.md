@@ -15,6 +15,20 @@ nombres de Mixamo, huesos de los ojos, 52 caras de ARKit y 15 visemas.
   MediaPipe, y se graban gestos (`gestos.mjs`). Se prueba el habla con
   labios en español (`labios-es.mjs`).
 
+## Movimiento aprendido
+
+- `visor/entrenar.html`: una persona del equipo actúa de paciente frente a
+  la cámara (escuchando, contando lo que le pasa, pensando, con dolor...).
+  `captura.mjs` guarda, cuadro a cuadro, las 52 expresiones, la cabeza, el
+  torso, los hombros y el volumen de la voz (con filtro One Euro, calibración
+  y ganancia por gesto). Nunca la imagen ni el audio.
+- `visor/movimiento.mjs`: el avatar se mueve solo con esas tomas (motion
+  matching): toma pedazos de la situación del momento y los encadena por
+  continuidad de postura; hablando, elige pedazos con un volumen de voz
+  parecido y deja la boca a `labios-es.mjs`.
+- La biblioteca se descarga como `biblioteca.json`; va en
+  `visor/movimientos/` para que la usen el visor y, después, Paco.
+
 ## Realismo
 
 - `herramientas/materiales.mjs`: relieve de la piel sacado de su textura de

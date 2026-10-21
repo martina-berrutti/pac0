@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Entrenar movimientos</title>
+<style>
+	:root { --fondo: #e9e6e1; --tinta: #2b2a28; --suave: #6f6b65; --acento: #2f6f5e; --pen: #b4442f; --linea: #d6d1c9; }
+	* { box-sizing: border-box; }
+	body { margin: 0; font-family: system-ui, sans-serif; background: var(--fondo); color: var(--tinta); }
+	main { display: grid; grid-template-columns: minmax(300px, 420px) minmax(0, 1fr); min-height: 100svh; overflow-x: hidden; }
+	@media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+	aside { padding: 16px; display: grid; align-content: start; gap: 16px; border-right: 1px solid var(--linea); overflow-y: auto; max-height: 100svh; }
+	h1 { font-size: 18px; margin: 0; }
+	h2 { font-size: 14px; margin: 0 0 6px; }
+	p { margin: 0; font-size: 13px; color: var(--suave); line-height: 1.4; }
+	button, select { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid #c9c4bc; background: #fff; color: var(--tinta); cursor: pointer; }
+	button[disabled] { opacity: 0.5; cursor: default; }
+	button.rojo { background: var(--pen); border-color: var(--pen); color: #fff; }
+	button[aria-pressed="true"] { background: var(--acento); border-color: var(--acento); color: #fff; }
+	.fila { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+	video { width: 100%; border-radius: 8px; background: #000; transform: scaleX(-1); max-height: 160px; object-fit: contain; }
+	#escena { position: relative; min-height: 420px; min-width: 0; overflow: hidden; }
+	#avatar { position: absolute; inset: 0; }
+	#estado { position: absolute; left: 16px; right: 16px; bottom: 12px; color: var(--suave); font-size: 14px; }
+	#guia { position: absolute; left: 16px; right: 16px; top: 12px; font-size: 16px; background: #fffc; border-radius: 10px; padding: 10px 12px; display: none; }
+	.situacion { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 0; border-top: 1px dashed var(--linea); }
+	.situacion b { font-size: 14px; }
+	.situacion small { color: var(--suave); grid-column: 1; }
+	.situacion button { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+</style>
+<script type="importmap">
+{ "imports": {
+	"three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+	"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+	"talkinghead": "https://cdn.jsdelivr.net/npm/@met4citizen/talkinghead@1.7.0/modules/talkinghead.mjs"
+} }
+</script>
+</head>
+<body>
+<main>
+<aside>
+	<h1>Entrenar movimientos</h1>
+	<p>Actuá de paciente frente a la cámara. Se guardan los números de tus expresiones, la cabeza, los hombros y el volumen de la voz, nunca la imagen ni el audio. Después el avatar se mueve solo con lo que aprendió.</p>
+
+	<section>
+		<h2>1. Prender y calibrar</h2>
+		<div class="fila">
+			<button id="prender">Prender cámara y micrófono</button>
+			<button id="calibrar" disabled>Calibrar (cara neutra)</button>
+			<label><button id="elegir" type="button">Usar un video…</button><input id="archivo" type="file" accept="video/*" hidden /></label>
+		</div>
+		<p style="margin-top:6px">Calibrar: mirá a la cámara con la cara relajada 2 segundos. Hacelo cada vez que cambie la luz o te sientes distinto.</p>
+		<video id="video" playsinline muted style="margin-top:8px"></video>
+	</section>
+
+	<section>
+		<h2>2. Grabar cada situación</h2>
+		<p>Cuanto más grabes de cada una, más natural y variado sale. Con 1 a 2 minutos por situación ya se nota.</p>
+		<div id="situaciones"></div>
+	</section>
+
+	<section>
+		<h2>3. Probar lo aprendido</h2>
+		<p>El avatar se mueve solo, sin cámara, con tus grabaciones.</p>
+		<div class="fila" id="probar" style="margin-top:6px"></div>
+	</section>
+
+	<section>
+		<h2>4. Guardar</h2>
+		<div class="fila">
+			<button id="guardar">Descargar biblioteca</button>
+			<label><button id="cargarBtn" type="button">Cargar biblioteca…</button><input id="cargar" type="file" accept="application/json" hidden /></label>
+			<button id="borrar">Borrar todo</button>
+		</div>
+		<p id="resumen" style="margin-top:6px"></p>
+	</section>
+
+	<div class="fila"><label for="paciente">Avatar</label><select id="paciente"></select></div>
+</aside>
+<div id="escena"><div id="avatar"></div><div id="guia"></div><p id="estado">Cargando…</p></div>
+</main>
+
+<script type="module">
+import { TalkingHead } from "talkinghead";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { Captura, CANALES } from "./captura.mjs";
+import { Animador, Biblioteca } from "./movimiento.mjs";
+import { luzDeEstudio } from "./escena.mjs";
+import { Labios } from "./labios-es.mjs";
+
+const parse = GLTFLoader.prototype.parse;
+GLTFLoader.prototype.parse = function (...a) { this.setMeshoptDecoder(MeshoptDecoder); return parse.apply(this, a); };
+
+// Qué actuar en cada situación. "hablando" se usa cuando el paciente habla.
+const SITUACIONES = [
+	{ estado: "escuchando", titulo: "Escuchando", guia: "Escuchá como si el estudiante te preguntara algo. Mirá a la cámara, asentí a veces, pestañeá normal, apartá la vista un momento." },
+	{ estado: "hablando", titulo: "Contando lo que le pasa", guia: "Hablá en voz alta contando qué te pasa (inventado): desde cuándo te duele, qué tomaste, cómo dormiste. Gesticulá con la cara como al charlar." },
+	{ estado: "pensando", titulo: "Pensando", guia: "Pensá antes de responder: mirá hacia arriba o a un costado, fruncí un poco, volvé a mirar a la cámara." },
+	{ estado: "dolor", titulo: "Con dolor", guia: "Tragá saliva y que te duela. Hacé gestos chicos de molestia, respirá hondo." },
+	{ estado: "preocupado", titulo: "Preocupado", guia: "Estás preocupado por lo que te puede pasar: cejas para arriba, mirada inquieta, apretá los labios." },
+	{ estado: "aliviado", titulo: "Aliviado", guia: "Te dicen que no es grave: soltá el aire, sonreí apenas, relajá la cara." },
+	{ estado: "molesto", titulo: "Molesto", guia: "Te hicieron esperar mucho: cara seria, cejas bajas, mirá de reojo." },
+];
+
+const $ = (id) => document.getElementById(id);
+const PERSONAS = [["mujer-joven", "Mujer joven", "F"], ["hombre-joven", "Hombre joven", "M"], ["mujer-adulta", "Mujer adulta", "F"], ["hombre-adulto", "Hombre adulto", "M"], ["senora-mayor", "Señora mayor", "F"], ["senor-mayor", "Señor mayor", "M"], ["nina", "Niña", "F"], ["nino", "Niño", "M"]];
+for (const [id, n] of PERSONAS) $("paciente").append(new Option(n, id));
+const estado = (t) => { $("estado").textContent = t; };
+const head = new TalkingHead($("avatar"), { ttsEndpoint: null, lipsyncModules: [], cameraView: "head", avatarMood: "neutral" });
+window.head = head;
+const captura = new Captura();
+let biblio = new Biblioteca();
+let animador = null;
+const labios = new Labios(head);
+
+// Las tomas quedan en este navegador (IndexedDB) además del archivo.
+const DB = "pac0-movimientos";
+async function db(modo, valor) {
+	try {
+		const base = await new Promise((ok, mal) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore("b"); r.onsuccess = () => ok(r.result); r.onerror = mal; });
+		const tx = base.transaction("b", modo === "leer" ? "readonly" : "readwrite").objectStore("b");
+		return await new Promise((ok) => { const r = modo === "leer" ? tx.get("biblioteca") : tx.put(valor, "biblioteca"); r.onsuccess = () => ok(r.result); r.onerror = () => ok(null); });
+	} catch { return null; }
+}
+const guardarLocal = () => db("escribir", JSON.stringify(biblio));
+
+async function mostrar() {
+	const p = PERSONAS.find((x) => x[0] === $("paciente").value);
+	animador?.apagar();
+	estado(`Cargando ${p[1]}…`);
+	await head.showAvatar({ url: `modelos/${p[0]}.glb`, body: p[2], avatarMood: "neutral" });
+	head.setView("head");
+	luzDeEstudio(head);
+	animador = new Animador(head, biblio);
+	animador.nivelVoz = () => labios.cola.length ? 0.5 : 0;
+	if (captura.corriendo) animador.enVivo(vivo);
+	estado(`${p[1]} listo.`);
+}
+$("paciente").onchange = mostrar;
+
+// Vista previa: el avatar copia lo que ve la cámara.
+const vivo = () => Float32Array.from(CANALES, (c) => captura.actual[c] ?? 0);
+
+async function prender(opciones) {
+	estado("Preparando el análisis de cara y cuerpo…");
+	try {
+		await captura.empezar($("video"), opciones);
+		$("calibrar").disabled = false;
+		animador.enVivo(vivo);
+		estado("Te estoy copiando. Ahora calibrá con la cara relajada.");
+	} catch (e) {
+		estado(`No se pudo prender: ${e.message}`);
+	}
+}
+$("prender").onclick = () => prender({});
+$("elegir").onclick = () => $("archivo").click();
+$("archivo").onchange = (e) => e.target.files[0] && prender({ archivo: e.target.files[0] });
+$("calibrar").onclick = async () => {
+	estado("Quedate quieto con la cara relajada…");
+	const n = await captura.calibrar();
+	estado(n ? "Calibrado. Ya podés grabar." : "No te vi bien: acercate a la cámara y probá de nuevo.");
+};
+
+function segundos(e) {
+	return biblio.clips.filter((c) => c.estado === e).reduce((s, c) => s + c.duracion, 0) / 1000;
+}
+function pintar() {
+	$("situaciones").replaceChildren(...SITUACIONES.map((s) => {
+		const d = document.createElement("div");
+		d.className = "situacion";
+		const b = document.createElement("b");
+		b.textContent = s.titulo;
+		const sm = document.createElement("small");
+		const seg = segundos(s.estado);
+		sm.textContent = seg ? `${Math.round(seg)} s grabados` : "sin grabar";
+		const btn = document.createElement("button");
+		const grabandoEsta = captura.grabando?.estado === s.estado;
+		btn.textContent = grabandoEsta ? "Terminar" : "Grabar";
+		btn.className = grabandoEsta ? "rojo" : "";
+		btn.onclick = () => grabar(s);
+		d.append(b, btn, sm);
+		return d;
+	}));
+	const tot = biblio.clips.reduce((s, c) => s + c.duracion, 0) / 1000;
+	$("resumen").textContent = `${biblio.clips.length} tomas, ${Math.round(tot)} s en total.`;
+	$("probar").replaceChildren(...SITUACIONES.map((s) => {
+		const b = document.createElement("button");
+		b.textContent = s.titulo;
+		b.disabled = !biblio.clips.length;
+		b.onclick = () => probar(s.estado);
+		return b;
+	}));
+}
+
+function grabar(s) {
+	if (!captura.corriendo) return estado("Primero prendé la cámara.");
+	if (captura.grabando) {
+		const toma = captura.terminar();
+		$("guia").style.display = "none";
+		if (toma) {
+			biblio.agregar(toma);
+			guardarLocal();
+			estado(`Guardé ${Math.round(toma.duracion / 1000)} s de "${s.titulo}".`);
+		} else {
+			estado("La toma quedó muy corta o no te vi la cara: grabá de nuevo, más tiempo y de frente.");
+		}
+		return pintar();
+	}
+	captura.grabar(`${s.estado}-${Date.now()}`, s.estado);
+	$("guia").textContent = s.guia;
+	$("guia").style.display = "block";
+	estado(`Grabando "${s.titulo}"… tocá Terminar cuando quieras.`);
+	pintar();
+}
+
+function probar(e) {
+	captura.parar();
+	$("calibrar").disabled = true;
+	animador.apagar();
+	animador = new Animador(head, biblio);
+	animador.nivelVoz = () => 0.5;
+	animador.situacion(e, { hablando: e === "hablando" });
+	animador.encender();
+	if (e === "hablando") {
+		const frase = "Y bueno, empezó hace dos días, primero con picazón, y ahora me duele mucho al tragar, ¿viste?";
+		labios.decir(frase);
+	}
+	estado(`Moviéndose solo: ${SITUACIONES.find((s) => s.estado === e).titulo}.`);
+}
+
+$("guardar").onclick = () => {
+	const a = document.createElement("a");
+	a.href = URL.createObjectURL(new Blob([JSON.stringify(biblio)], { type: "application/json" }));
+	a.download = "biblioteca.json";
+	a.click();
+};
+$("cargarBtn").onclick = () => $("cargar").click();
+$("cargar").onchange = async (e) => {
+	const f = e.target.files[0];
+	if (!f) return;
+	const datos = JSON.parse(await f.text());
+	for (const c of datos.clips ?? []) biblio.agregar(c);
+	guardarLocal();
+	pintar();
+	estado(`Cargué ${datos.clips?.length ?? 0} tomas.`);
+};
+$("borrar").onclick = () => {
+	biblio = new Biblioteca();
+	animador.biblio = biblio;
+	guardarLocal();
+	pintar();
+	estado("Biblioteca vacía.");
+};
+
+// Al abrir: lo guardado en este navegador o en movimientos/biblioteca.json.
+const local = await db("leer");
+let datos = local ? JSON.parse(local) : null;
+if (!datos?.clips?.length) datos = await fetch("movimientos/biblioteca.json").then((r) => r.ok ? r.json() : null).catch(() => null);
+if (datos) biblio = new Biblioteca(datos);
+await mostrar();
+pintar();
+window.captura = captura;
+window.biblio = () => biblio;
+window.animador = () => animador;
+</script>
+</body>
+</html>
