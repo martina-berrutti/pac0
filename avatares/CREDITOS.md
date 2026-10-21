@@ -14,6 +14,9 @@ static.makehumancommunity.org:
 - hair01, shirts01, pants01, dress01, shoes01, eyebrows01, eyelashes01
 - faceunits01 (las 52 caras de ARKit) y visemes02 (los 15 visemas de Oculus)
 
+Cejas y pestañas: mindfront_eyebrows_04 a 14 y mindfront_eyelashes_02
+(eyebrows01 y eyelashes01, CC0), como las de Lucía.
+
 No se usaron los paquetes CC-BY (hair02, hair03, shirts02). No hay fotos ni
 rasgos de personas reales: los cuerpos salen de los controles de edad, sexo y
 peso de MakeHuman.

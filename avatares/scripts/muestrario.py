@@ -28,8 +28,8 @@ for opcion in opciones:
     ropa = [opcion] if tipo == "clothes" else p["clothes"][:1]
     info.update({
         "eyes": "high-poly.mhclo",
-        "eyebrows": p["eyebrows"] + ".mhclo",
-        "eyelashes": "eyelashes01.mhclo",
+        "eyebrows": (opcion if tipo == "eyebrows" else p["eyebrows"]) + ".mhclo",
+        "eyelashes": (opcion if tipo == "eyelashes" else p.get("eyelashes", "eyelashes01")) + ".mhclo",
         "hair": (opcion if tipo == "hair" else p["hair"]) + ".mhclo",
         "skin_mhmat": p["skin"] + ".mhmat",
         "skin_material_type": "GAMEENGINE",
@@ -46,11 +46,16 @@ for opcion in opciones:
     top = max((body.matrix_world @ v.co).z for v in body.data.vertices
               if any(g.group == piel and g.weight > 0.5 for g in v.groups))
     cam_data = bpy.data.cameras.new("cam")
-    cam_data.lens = 60 if tipo == "hair" else 35
+    cerca = tipo in ("eyebrows", "eyelashes")
+    cam_data.lens = 120 if cerca else 60 if tipo == "hair" else 35
     cam = bpy.data.objects.new("cam", cam_data)
     bpy.context.scene.collection.objects.link(cam)
-    cam.location = (0.35, -1.0, top - 0.12) if tipo == "hair" else (0, -2.2, top - 0.45)
-    cam.rotation_euler = (1.5708, 0, 0.33 if tipo == "hair" else 0)
+    if cerca:
+        cam.location = (0, -0.9, top - 0.1)
+        cam.rotation_euler = (1.5708, 0, 0)
+    else:
+        cam.location = (0.35, -1.0, top - 0.12) if tipo == "hair" else (0, -2.2, top - 0.45)
+        cam.rotation_euler = (1.5708, 0, 0.33 if tipo == "hair" else 0)
     sc = bpy.context.scene
     sc.camera = cam
     sc.render.engine = "BLENDER_WORKBENCH"

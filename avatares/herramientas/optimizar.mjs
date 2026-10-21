@@ -55,6 +55,11 @@ await materialesReales(doc, { pelo, ropa: ropas });
 // --canas=0.8: el pelo pasa a gris (0 nada, 1 blanco). En Blender se hacía
 // con nodos que no viajan en el GLB, así que se tiñe la textura.
 const canas = Number(process.argv.find((a) => a.startsWith("--canas="))?.slice(8) ?? 0);
+// --cejas=0.6: brillo de las cejas (para que hagan juego con el pelo).
+const cejas = Number(process.argv.find((a) => a.startsWith("--cejas="))?.slice(8) ?? 1);
+const browTextures = new Set();
+for (const mat of doc.getRoot().listMaterials())
+	if (/eyebrow/i.test(mat.getName()) && mat.getBaseColorTexture()) browTextures.add(mat.getBaseColorTexture());
 const hairTextures = new Set();
 for (const mat of doc.getRoot().listMaterials())
 	if (/hair|ponytail|braid|bob|short|long|afro/i.test(mat.getName()) && mat.getBaseColorTexture())
@@ -67,6 +72,11 @@ for (const tex of doc.getRoot().listTextures()) {
 	// Primero a PNG: algunas texturas de MakeHuman traen un espacio de color
 	// que la conversión directa a WebP no acepta.
 	let png = await sharp(Buffer.from(tex.getImage())).png().toBuffer();
+	if (browTextures.has(tex))
+		png = await sharp(png)
+			.modulate({ brightness: cejas, saturation: canas > 0 ? 1 - canas * 0.6 : 1 })
+			.png()
+			.toBuffer();
 	if (canas > 0 && hairTextures.has(tex))
 		png = await sharp(png)
 			.modulate({ saturation: 1 - canas, brightness: 1 + canas * 1.2 })

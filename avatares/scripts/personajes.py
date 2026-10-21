@@ -19,7 +19,8 @@ PERSONAJES = {
                       "muscle": 0.4, "height": 0.45, "race": URUGUAY},
         "skin": "old_caucasian_male",
         "hair": "short04",
-        "eyebrows": "eyebrow001",
+        "eyebrows": "mindfront_eyebrows_14",
+        "cejas": 0.8,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["male_casualsuit03", "shoes02"],
         "canas": 0.85,
     },
@@ -28,7 +29,8 @@ PERSONAJES = {
                       "muscle": 0.35, "height": 0.4, "race": URUGUAY},
         "skin": "old_caucasian_female",
         "hair": "rehmanpolanski_hair_bun_brown",
-        "eyebrows": "eyebrow002",
+        "eyebrows": "mindfront_eyebrows_05",
+        "cejas": 0.8,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["toigo_wool_pants", "toigo_fisherman_sweater", "toigo_ballet_flats"],
         "canas": 0.8,
     },
@@ -37,7 +39,8 @@ PERSONAJES = {
                       "muscle": 0.55, "height": 0.55, "race": URUGUAY},
         "skin": "middleage_caucasian_male",
         "hair": "short01",
-        "eyebrows": "eyebrow003",
+        "eyebrows": "mindfront_eyebrows_11",
+        "cejas": 0.55,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["male_casualsuit01", "shoes01"],
     },
     "mujer-adulta": {
@@ -45,7 +48,8 @@ PERSONAJES = {
                       "muscle": 0.45, "height": 0.5, "race": URUGUAY},
         "skin": "middleage_caucasian_female",
         "hair": "toigo_curled_under_bob",
-        "eyebrows": "eyebrow010",
+        "eyebrows": "mindfront_eyebrows_07",
+        "cejas": 0.6,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["female_elegantsuit01", "toigo_flats"],
     },
     "hombre-joven": {
@@ -53,7 +57,8 @@ PERSONAJES = {
                       "muscle": 0.6, "height": 0.6, "race": URUGUAY},
         "skin": "young_caucasian_male",
         "hair": "short02",
-        "eyebrows": "eyebrow004",
+        "eyebrows": "mindfront_eyebrows_12",
+        "cejas": 0.6,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["male_casualsuit05", "shoes03"],
     },
     "mujer-joven": {
@@ -61,7 +66,8 @@ PERSONAJES = {
                       "muscle": 0.5, "height": 0.5, "race": URUGUAY},
         "skin": "young_caucasian_female",
         "hair": "long01",
-        "eyebrows": "eyebrow011",
+        "eyebrows": "mindfront_eyebrows_06",
+        "cejas": 0.6,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["toigo_basic_tucked_t-shirt", "toigo_wool_pants", "toigo_ballet_flats"],
     },
     "nino": {
@@ -69,7 +75,8 @@ PERSONAJES = {
                       "muscle": 0.5, "height": 0.5, "race": URUGUAY},
         "skin": "young_caucasian_male",
         "hair": "short02",
-        "eyebrows": "eyebrow005",
+        "eyebrows": "mindfront_eyebrows_13",
+        "cejas": 0.65,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["male_casualsuit06", "shoes01"],
     },
     "nina": {
@@ -77,7 +84,8 @@ PERSONAJES = {
                       "muscle": 0.5, "height": 0.5, "race": URUGUAY},
         "skin": "young_caucasian_female",
         "hair": "toigo_blunt_bob_with_bangs",
-        "eyebrows": "eyebrow006",
+        "eyebrows": "mindfront_eyebrows_04",
+        "cejas": 0.7,  # brillo de las cejas (menos es más oscuro)
         "clothes": ["toigo_dress_with_tiered_skirt", "toigo_ballet_flats"],
     },
 }

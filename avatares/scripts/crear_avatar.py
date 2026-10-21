@@ -38,7 +38,8 @@ info.update({
     "rig": "mixamo",
     "eyes": "high-poly.mhclo",
     "eyebrows": p["eyebrows"] + ".mhclo",
-    "eyelashes": "eyelashes01.mhclo",
+    # Las de Lucía: suaves (las eyelashes01 son negras y en punta).
+    "eyelashes": p.get("eyelashes", "mindfront_eyelashes_02") + ".mhclo",
     "teeth": "teeth_base.mhclo",
     "tongue": "tongue01.mhclo",
     "hair": p["hair"] + ".mhclo",
