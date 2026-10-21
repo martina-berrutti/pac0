@@ -113,9 +113,12 @@ async function callGemini(
 		"Los modelos de IA están en pausa por fallar hace poco",
 	);
 	for (const model of modelsToTry(models, kind)) {
-		// Pensar poco: el paciente y el evaluador no necesitan más y así
-		// responden antes. Si el modelo no acepta la opción, se reintenta sin.
-		for (const think of noThinking.has(model) ? [false] : [true, false]) {
+		// El evaluador piensa poco: con la lista de cotejo y toda la conversación,
+		// sin esto no terminaba a tiempo. El chat va sin la opción: con ella
+		// tardaba 10 s o más, y sin ella responde en 1 s (medido el 21/10). Si
+		// el modelo no acepta la opción, se reintenta sin ella.
+		const tries = json && !noThinking.has(model) ? [true, false] : [false];
+		for (const think of tries) {
 			try {
 				const res = await ai.models.generateContent({
 					model,

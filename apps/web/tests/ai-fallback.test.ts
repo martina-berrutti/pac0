@@ -110,26 +110,31 @@ describe("modelos de Gemini que fallan", () => {
 		expect(modelsToTry(["gemini-3.8-flash"], "json")).toEqual([]);
 	});
 
-	test("piensa poco; si el modelo no acepta la opción, se reintenta sin ella", async () => {
+	test("el evaluador piensa poco y el chat no; si el modelo no acepta la opción, se reintenta sin ella", async () => {
+		const { completeJson } = await import("@/server/ai");
+		const { z } = await import("zod");
 		genai.generateContent.mockImplementation(async ({ config }) => {
 			if (config.thinkingConfig)
 				throw new Error(
 					"400 INVALID_ARGUMENT: thinking_level is not supported",
 				);
-			return { text: "ok" };
+			return { text: '{"ok":true}' };
 		});
-		expect(await chat([{ role: "user", content: "hola" }])).toBe("ok");
-		const configs = genai.generateContent.mock.calls.map(
-			(c) => (c[0] as { config: { thinkingConfig?: unknown } }).config,
-		);
-		expect(configs[0]?.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
-		expect(configs[1]?.thinkingConfig).toBeUndefined();
+		const configOf = (i: number) =>
+			(
+				genai.generateContent.mock.calls[i]?.[0] as
+					| { config: { thinkingConfig?: unknown } }
+					| undefined
+			)?.config;
+		await chat([{ role: "user", content: "hola" }]);
+		expect(configOf(0)?.thinkingConfig).toBeUndefined();
+
+		await completeJson("x", z.object({ ok: z.boolean() }));
+		expect(configOf(1)?.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
+		expect(configOf(2)?.thinkingConfig).toBeUndefined();
 		// Ya sabe que ese modelo no la acepta: no la vuelve a mandar.
-		await chat([{ role: "user", content: "¿y?" }]);
-		const third = genai.generateContent.mock.calls[2]?.[0] as
-			| { config: { thinkingConfig?: unknown } }
-			| undefined;
-		expect(third?.config.thinkingConfig).toBeUndefined();
+		await completeJson("y", z.object({ ok: z.boolean() }));
+		expect(configOf(3)?.thinkingConfig).toBeUndefined();
 	});
 
 	test("el evaluador (JSON) tiene más tiempo que el chat", async () => {
