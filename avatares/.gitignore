@@ -1,0 +1,8 @@
+# Archivos de trabajo pesados: se regeneran con ./generar.sh
+salida/
+muestrario/
+herramientas/node_modules/
+visor/modelos/lucia-actual.glb
+__pycache__/
+*.blend
+*.blend1
