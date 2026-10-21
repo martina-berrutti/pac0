@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Estudio de gestos</title>
+<style>
+	:root { --fondo: #e9e6e1; --tinta: #2b2a28; --suave: #6f6b65; --acento: #2f6f5e; --pen: #b4442f; }
+	* { box-sizing: border-box; }
+	body { margin: 0; font-family: system-ui, sans-serif; background: var(--fondo); color: var(--tinta); }
+	main { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); min-height: 100svh; overflow-x: hidden; }
+	@media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+	aside { padding: 16px; display: grid; align-content: start; gap: 14px; border-right: 1px solid #d6d1c9; }
+	h1 { font-size: 18px; margin: 0; }
+	h2 { font-size: 14px; margin: 0 0 6px; }
+	p { margin: 0; font-size: 13px; color: var(--suave); line-height: 1.4; }
+	button, select, input[type=text] { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px; border: 1px solid #c9c4bc; background: #fff; color: var(--tinta); }
+	button { cursor: pointer; }
+	button.rojo { background: var(--pen); border-color: var(--pen); color: #fff; }
+	.fila { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+	video { width: 100%; border-radius: 8px; background: #000; transform: scaleX(-1); max-height: 180px; object-fit: contain; }
+	#escena { position: relative; min-height: 420px; min-width: 0; overflow: hidden; }
+	#avatar { position: absolute; inset: 0; }
+	#estado { position: absolute; left: 16px; bottom: 12px; color: var(--suave); font-size: 13px; }
+	ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+	li { display: flex; gap: 6px; align-items: center; font-size: 14px; }
+	li span { flex: 1; }
+</style>
+<script type="importmap">
+{ "imports": {
+	"three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+	"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+	"talkinghead": "https://cdn.jsdelivr.net/npm/@met4citizen/talkinghead@1.7.0/modules/talkinghead.mjs"
+} }
+</script>
+</head>
+<body>
+<main>
+<aside>
+	<h1>Estudio de gestos</h1>
+	<div class="fila">
+		<label for="paciente">Paciente</label>
+		<select id="paciente"></select>
+	</div>
+
+	<section>
+		<h2>1. Copiar una cara real</h2>
+		<p>El avatar copia en vivo las expresiones y el giro de cabeza. No se guarda la imagen, solo los números de las expresiones.</p>
+		<div class="fila" style="margin-top:8px">
+			<button id="camara">Usar la cámara</button>
+			<label><button id="elegir" type="button">Analizar un video…</button>
+				<input id="archivo" type="file" accept="video/*" hidden /></label>
+			<button id="parar">Parar</button>
+		</div>
+		<video id="video" playsinline muted></video>
+	</section>
+
+	<section>
+		<h2>2. Grabar un gesto</h2>
+		<p>Ideas: escuchando, pensando, dolor al tragar, preocupada, alivio, sonrisa tímida, asentir, negar, molesta.</p>
+		<div class="fila" style="margin-top:8px">
+			<input id="nombre" type="text" placeholder="Nombre del gesto" value="escuchando" />
+			<button id="grabar" class="rojo">Grabar</button>
+		</div>
+		<ul id="lista" style="margin-top:8px"></ul>
+	</section>
+
+	<section>
+		<h2>3. Probar el habla</h2>
+		<p>Habla con la voz del navegador y los labios en español.</p>
+		<div class="fila" style="margin-top:8px">
+			<input id="frase" type="text" value="Hola, doctora. Me duele la garganta desde hace dos días y estoy con mucho moco." style="flex:1" />
+			<button id="hablar">Hablar</button>
+		</div>
+	</section>
+</aside>
+<div id="escena"><div id="avatar"></div><p id="estado">Cargando…</p></div>
+</main>
+
+<script type="module">
+import { TalkingHead } from "talkinghead";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { Gestos } from "./gestos.mjs";
+import { Labios } from "./labios-es.mjs";
+
+const parse = GLTFLoader.prototype.parse;
+GLTFLoader.prototype.parse = function (...args) {
+	this.setMeshoptDecoder(MeshoptDecoder);
+	return parse.apply(this, args);
+};
+
+const PERSONAS = [
+	["mujer-joven", "Mujer joven", "F"], ["hombre-joven", "Hombre joven", "M"],
+	["mujer-adulta", "Mujer adulta", "F"], ["hombre-adulto", "Hombre adulto", "M"],
+	["senora-mayor", "Señora mayor", "F"], ["senor-mayor", "Señor mayor", "M"],
+	["nina", "Niña", "F"], ["nino", "Niño", "M"],
+];
+const $ = (id) => document.getElementById(id);
+const estado = $("estado");
+const head = new TalkingHead($("avatar"), { ttsEndpoint: null, lipsyncModules: [], cameraView: "head", avatarMood: "neutral" });
+window.head = head;
+const gestos = new Gestos(head);
+const labios = new Labios(head);
+window.labios = labios; // para revisar desde la consola
+const grabados = [];
+
+for (const [id, nombre] of PERSONAS) $("paciente").append(new Option(nombre, id));
+async function mostrar() {
+	const p = PERSONAS.find((x) => x[0] === $("paciente").value);
+	estado.textContent = `Cargando ${p[1]}…`;
+	await head.showAvatar({ url: `modelos/${p[0]}.glb`, body: p[2], avatarMood: "neutral" });
+	head.setView("head");
+	estado.textContent = p[1];
+}
+$("paciente").onchange = mostrar;
+mostrar();
+
+async function seguir(archivo) {
+	estado.textContent = "Preparando el análisis de la cara…";
+	try {
+		await gestos.seguir($("video"), archivo);
+		estado.textContent = archivo ? "Copiando la cara del video." : "Copiando tu cara. Probá cejas, ojos, boca y girar la cabeza.";
+	} catch (e) {
+		estado.textContent = `No se pudo: ${e.message}`;
+	}
+}
+$("camara").onclick = () => seguir(null);
+$("elegir").onclick = () => $("archivo").click();
+$("archivo").onchange = (e) => e.target.files[0] && seguir(e.target.files[0]);
+$("parar").onclick = () => { gestos.parar(); estado.textContent = "Listo."; };
+
+function descargar(gesto) {
+	const a = document.createElement("a");
+	a.href = URL.createObjectURL(new Blob([JSON.stringify(gesto)], { type: "application/json" }));
+	a.download = `${gesto.nombre}.json`;
+	a.click();
+}
+function pintarLista() {
+	$("lista").replaceChildren(...grabados.map((g) => {
+		const li = document.createElement("li");
+		const s = document.createElement("span");
+		s.textContent = `${g.nombre} (${(g.duracion / 1000).toFixed(1)} s)`;
+		const ver = document.createElement("button");
+		ver.textContent = "Ver";
+		ver.onclick = () => { gestos.parar(); gestos.reproducir(g); };
+		const bajar = document.createElement("button");
+		bajar.textContent = "Guardar";
+		bajar.onclick = () => descargar(g);
+		li.append(s, ver, bajar);
+		return li;
+	}));
+}
+$("grabar").onclick = () => {
+	if (!gestos.corriendo) { estado.textContent = "Primero prendé la cámara o elegí un video."; return; }
+	if (gestos.grabando) {
+		const g = gestos.terminarGrabacion();
+		$("grabar").textContent = "Grabar";
+		if (g) { grabados.push(g); pintarLista(); estado.textContent = `Gesto "${g.nombre}" grabado.`; }
+		return;
+	}
+	gestos.grabar($("nombre").value.trim() || "gesto");
+	$("grabar").textContent = "Terminar";
+	estado.textContent = "Grabando…";
+};
+
+// Voz del navegador en español; cada palabra que dice mueve los labios.
+// La lista de voces llega un rato después de cargar la página.
+const voces = () => new Promise((listo) => {
+	if (speechSynthesis.getVoices().length) return listo(speechSynthesis.getVoices());
+	speechSynthesis.addEventListener("voiceschanged", () => listo(speechSynthesis.getVoices()), { once: true });
+	setTimeout(() => listo(speechSynthesis.getVoices()), 1500);
+});
+$("hablar").onclick = async () => {
+	const texto = $("frase").value;
+	await voces();
+	const u = new SpeechSynthesisUtterance(texto);
+	const voz = speechSynthesis.getVoices().find((v) => /es[-_](UY|AR)/i.test(v.lang)) ?? speechSynthesis.getVoices().find((v) => v.lang.startsWith("es"));
+	if (voz) u.voice = voz;
+	u.lang = voz?.lang ?? "es-AR";
+	let porLetra = false;
+	u.onboundary = (e) => {
+		if (e.name !== "word") return;
+		porLetra = true;
+		const palabra = texto.slice(e.charIndex).match(/^[^\s]+/)?.[0] ?? "";
+		labios.decir(palabra, performance.now(), Math.max(160, palabra.length * 62));
+	};
+	u.onstart = () => {
+		// Si el navegador no avisa palabra por palabra, se reparte la frase entera.
+		setTimeout(() => { if (!porLetra) labios.decir(texto); }, 250);
+	};
+	u.onend = () => setTimeout(() => labios.callar(), 200);
+	speechSynthesis.cancel();
+	speechSynthesis.speak(u);
+};
+</script>
+</body>
+</html>

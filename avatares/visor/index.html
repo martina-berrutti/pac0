@@ -52,6 +52,7 @@
 import { TalkingHead } from "talkinghead";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { Labios } from "./labios-es.mjs";
 
 // Los modelos vienen con meshopt (como mpfb.glb de Lucía).
 const parse = GLTFLoader.prototype.parse;
@@ -108,27 +109,33 @@ for (const [id, nombre] of PERSONAS) {
 	personas.append(b);
 }
 
-// "Hola, me duele la garganta desde hace dos días": visemas aproximados sobre
-// audio en silencio, para ver cómo se mueve la boca.
-const FRASE = "sil O nn aa sil PP E DD U E nn aa sil kk aa RR kk aa nn DD aa sil DD E SS DD E aa SS E DD O SS DD I aa SS sil".split(" ");
+// Habla con la voz del navegador; los labios siguen cada palabra en español
+// (labios-es.mjs).
+const labios = new Labios(head);
+const FRASE = "Hola, doctora. Me duele la garganta desde hace dos días.";
 function hablar() {
-	const ms = 95;
-	const ctx = head.audioCtx;
-	const audio = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * (FRASE.length * ms) / 1000), ctx.sampleRate);
-	head.speakAudio({
-		audio,
-		words: [], wtimes: [], wdurations: [],
-		visemes: FRASE,
-		vtimes: FRASE.map((_, i) => i * ms),
-		vdurations: FRASE.map(() => ms),
-	});
+	const u = new SpeechSynthesisUtterance(FRASE);
+	const voz = speechSynthesis.getVoices().find((v) => v.lang.startsWith("es"));
+	if (voz) u.voice = voz;
+	u.lang = voz?.lang ?? "es-AR";
+	let porPalabra = false;
+	u.onboundary = (e) => {
+		if (e.name !== "word") return;
+		porPalabra = true;
+		const palabra = FRASE.slice(e.charIndex).match(/^[^\s]+/)?.[0] ?? "";
+		labios.decir(palabra, performance.now(), Math.max(160, palabra.length * 62));
+	};
+	u.onstart = () => setTimeout(() => { if (!porPalabra) labios.decir(FRASE); }, 250);
+	u.onend = () => setTimeout(() => labios.callar(), 200);
+	speechSynthesis.cancel();
+	speechSynthesis.speak(u);
 }
 
 function marcar(grupo, boton) {
 	for (const b of document.querySelectorAll(`[data-${grupo}]`))
 		b.setAttribute("aria-pressed", String(b === boton));
 }
-document.querySelector("[data-hablar]").onclick = () => { head.audioCtx.resume(); hablar(); };
+document.querySelector("[data-hablar]").onclick = hablar;
 for (const b of document.querySelectorAll("[data-vista]"))
 	b.onclick = () => { head.setView(b.dataset.vista); marcar("vista", b); };
 for (const b of document.querySelectorAll("[data-animo]"))

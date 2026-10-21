@@ -21,12 +21,16 @@ peso de MakeHuman.
 | Paciente | Piel | Pelo | Ropa |
 |---|---|---|---|
 | senor-mayor | old_caucasian_male | short04 (con canas) | male_casualsuit03, shoes02 |
-| senora-mayor | old_caucasian_female | rehmanpolanski_hair_bun_brown (con canas) | toigo_fisherman_sweater, toigo_wool_pants, toigo_ballet_flats |
+| senora-mayor | old_caucasian_female | rehmanpolanski_hair_bun_brown (con canas) | toigo_wool_pants, toigo_fisherman_sweater, toigo_ballet_flats |
 | hombre-adulto | middleage_caucasian_male | short01 | male_casualsuit01, shoes01 |
 | mujer-adulta | middleage_caucasian_female | long01 | female_elegantsuit01, toigo_flats |
 | hombre-joven | young_caucasian_male | short02 | male_casualsuit05, shoes03 |
 | mujer-joven | young_caucasian_female | ponytail01 | toigo_basic_tucked_t-shirt, toigo_wool_pants, toigo_ballet_flats |
 | nino | young_caucasian_male | short02 | male_casualsuit06, shoes01 |
-| nina | young_caucasian_female | braid01 | toigo_dress_with_tiered_skirt, toigo_ballet_flats |
+| nina | young_caucasian_female | toigo_blunt_bob_with_bangs | toigo_dress_with_tiered_skirt, toigo_ballet_flats |
 
 El visor usa TalkingHead 1.7.0 (MIT) y three.js 0.180 (MIT) desde jsDelivr.
+El estudio de gestos usa MediaPipe Tasks Vision 0.10.22 y su modelo Face
+Landmarker (Apache 2.0), de Google: lee la cara en el navegador y no manda
+imágenes a ningún lado. De los gestos se guardan solo los números de las
+expresiones, y los graba gente del equipo que acepta hacerlo.

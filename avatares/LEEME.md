@@ -11,6 +11,9 @@ nombres de Mixamo, huesos de los ojos, 52 caras de ARKit y 15 visemas.
 - `scripts/muestrario.py` + `herramientas/hoja.mjs`: hoja de pruebas de
   peinados o ropa.
 - `visor/`: página para verlos (`python -m http.server 8770 -d visor`).
+- `visor/estudio.html`: el avatar copia una cara real (cámara o video) con
+  MediaPipe, y se graban gestos (`gestos.mjs`). Se prueba el habla con
+  labios en español (`labios-es.mjs`).
 
 ## Cuidados (lo que ya salió mal una vez)
 

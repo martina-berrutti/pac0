@@ -76,7 +76,7 @@ PERSONAJES = {
         "phenotype": {"gender": 0.0, "age": edad(8), "weight": 0.5,
                       "muscle": 0.5, "height": 0.5, "race": URUGUAY},
         "skin": "young_caucasian_female",
-        "hair": "braid01",
+        "hair": "toigo_blunt_bob_with_bangs",
         "eyebrows": "eyebrow006",
         "clothes": ["toigo_dress_with_tiered_skirt", "toigo_ballet_flats"],
     },

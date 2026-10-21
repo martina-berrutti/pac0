@@ -9,7 +9,11 @@ import bpy
 sys.path.insert(0, os.path.dirname(__file__))
 from personajes import PERSONAJES  # noqa: E402
 
-from bl_ext.user_default.mpfb.services import AssetService, HumanService  # noqa: E402
+from bl_ext.user_default.mpfb.services import (  # noqa: E402
+    AssetService,
+    HumanService,
+    TargetService,
+)
 
 nombre, tipo, carpeta, *opciones = sys.argv[sys.argv.index("--") + 1:]
 p = PERSONAJES[nombre]
@@ -36,7 +40,11 @@ for opcion in opciones:
     settings = HumanService.get_default_deserialization_settings()
     settings.update({"subdiv_levels": 0})
     body = HumanService.deserialize_from_dict(info, settings)
-    top = max((body.matrix_world @ v.co).z for v in body.data.vertices)
+    TargetService.bake_targets(body)  # la edad y el sexo son formas: sin esto mide un adulto
+    # Solo la piel: la geometría auxiliar de MakeHuman puede quedar más alta.
+    piel = body.vertex_groups["body"].index
+    top = max((body.matrix_world @ v.co).z for v in body.data.vertices
+              if any(g.group == piel and g.weight > 0.5 for g in v.groups))
     cam_data = bpy.data.cameras.new("cam")
     cam_data.lens = 60 if tipo == "hair" else 35
     cam = bpy.data.objects.new("cam", cam_data)
