@@ -45,6 +45,9 @@
 	<button data-animo="fear">Ansioso</button>
 	<button data-gesto="handup">Saludar</button>
 	<button data-gesto="shrug">No sé</button>
+	<span>Luz:</span>
+	<button data-luz="estudio" aria-pressed="true">De estudio</button>
+	<button data-luz="original">Original</button>
 </div>
 <div id="escena"><div id="avatar"></div><p id="estado">Cargando…</p></div>
 
@@ -53,6 +56,7 @@ import { TalkingHead } from "talkinghead";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { Labios } from "./labios-es.mjs";
+import { luzDeEstudio } from "./escena.mjs";
 
 // Los modelos vienen con meshopt (como mpfb.glb de Lucía).
 const parse = GLTFLoader.prototype.parse;
@@ -91,6 +95,7 @@ async function mostrar(id) {
 		b.setAttribute("aria-pressed", String(b.dataset.id === id));
 	try {
 		await head.showAvatar({ url: `modelos/${id}.glb`, body: p[2], avatarMood: "neutral" });
+		luzDeEstudio(head, document.querySelector("[data-luz=estudio]").getAttribute("aria-pressed") === "true");
 		// La cámara depende de la altura de los ojos: se recalcula con cada uno.
 		head.setView(document.querySelector("[data-vista][aria-pressed=true]")?.dataset.vista ?? "head");
 		actual = id;
@@ -140,6 +145,8 @@ for (const b of document.querySelectorAll("[data-vista]"))
 	b.onclick = () => { head.setView(b.dataset.vista); marcar("vista", b); };
 for (const b of document.querySelectorAll("[data-animo]"))
 	b.onclick = () => { head.setMood(b.dataset.animo); marcar("animo", b); };
+for (const b of document.querySelectorAll("[data-luz]"))
+	b.onclick = () => { luzDeEstudio(head, b.dataset.luz === "estudio"); marcar("luz", b); };
 for (const b of document.querySelectorAll("[data-gesto]"))
 	b.onclick = () => head.playGesture(b.dataset.gesto, 3);
 

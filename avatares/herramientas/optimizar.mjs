@@ -7,6 +7,7 @@ import { dedup, meshopt, prune } from "@gltf-transform/functions";
 import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
 import sharp from "sharp";
 
+import { materialesReales } from "./materiales.mjs";
 import { orientarComoLucia } from "./orientar.mjs";
 
 const [input, output] = process.argv.slice(2);
@@ -48,6 +49,9 @@ for (const mat of doc.getRoot().listMaterials()) {
 	mat.setAlphaMode(cut && !ropa ? "MASK" : "OPAQUE").setAlphaCutoff(hair ? 0.3 : 0.5);
 	console.log("material", mat.getName(), mat.getAlphaMode());
 }
+// Relieve de la piel, ojos húmedos, brillo de pelo y ropa mate.
+const pelo = (process.argv.find((a) => a.startsWith("--pelo="))?.slice(7) ?? "").split(",").filter(Boolean);
+await materialesReales(doc, { pelo, ropa: ropas });
 // --canas=0.8: el pelo pasa a gris (0 nada, 1 blanco). En Blender se hacía
 // con nodos que no viajan en el GLB, así que se tiñe la textura.
 const canas = Number(process.argv.find((a) => a.startsWith("--canas="))?.slice(8) ?? 0);

@@ -15,6 +15,14 @@ nombres de Mixamo, huesos de los ojos, 52 caras de ARKit y 15 visemas.
   MediaPipe, y se graban gestos (`gestos.mjs`). Se prueba el habla con
   labios en español (`labios-es.mjs`).
 
+## Realismo
+
+- `herramientas/materiales.mjs`: relieve de la piel sacado de su textura de
+  color (poros, líneas y arrugas con volumen), brillo de piel con terciopelo
+  en los bordes, ojos húmedos, brillo de pelo y ropa mate.
+- `visor/escena.mjs`: luz de estudio (principal cálida, relleno y contorno
+  frío) y bordes suaves en pelo y pestañas. Hay que usarla también en Paco.
+
 ## Cuidados (lo que ya salió mal una vez)
 
 - **Hombros inflados:** TalkingHead mueve los huesos con los ángulos de

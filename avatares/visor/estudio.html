@@ -83,6 +83,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
 import { Gestos } from "./gestos.mjs";
 import { Labios } from "./labios-es.mjs";
+import { luzDeEstudio } from "./escena.mjs";
 
 const parse = GLTFLoader.prototype.parse;
 GLTFLoader.prototype.parse = function (...args) {
@@ -111,6 +112,7 @@ async function mostrar() {
 	estado.textContent = `Cargando ${p[1]}…`;
 	await head.showAvatar({ url: `modelos/${p[0]}.glb`, body: p[2], avatarMood: "neutral" });
 	head.setView("head");
+	luzDeEstudio(head);
 	estado.textContent = p[1];
 }
 $("paciente").onchange = mostrar;
