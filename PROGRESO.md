@@ -2,6 +2,16 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 21/10 · Persona 1 · Barrido de bugs: IA lenta, juez por reglas y nivel de trato
+
+- **IA colgada:** `gemini-3.5-flash-lite` se colgaba en cada pedido. Cada respuesta del paciente por texto tardaba 11 s, y el evaluador con IA terminaba en el juez por reglas (en producción y en local). Ahora va primero `gemini-3.8-flash`; un modelo que se cuelga o se queda sin cuota se saltea 5 minutos, y la pausa por tiempo es por tipo de pedido (chat o evaluador). Si están todos en pausa, el pedido falla enseguida y sigue el respaldo por reglas sin esperar.
+- **Evaluador:** piensa poco (`thinkingLevel` LOW), tiene 25 s por pedido y 45 s en total. En producción volvió a salir con el juez con IA (cierre en 6,5 s). El chat va sin esa opción porque con ella tardaba 10 s o más.
+- **El informe dice por qué no usó la IA** (`judgeFallback`: tiempo, cuota, formato u otro). Así se encontró el problema sin los registros de Vercel.
+- **Nivel de trato:** las indicaciones (tratamiento, cuándo volver) ya no bajan el nivel de «Cómo trataste al paciente». Antes, un estudiante amable salía con «Trato a trabajar».
+- **Scripts:** `probar-consulta.mjs` pregunta los signos de alarma y la edad (no preguntarlos es error crítico desde el ítem nuevo) y muestra el juez y el trato. `probar-personaje.mjs` suma los tres casos de rodilla: 24 de 24 en personaje en producción.
+- **Clave local:** la clave del `.env.local` de la demo no tiene cuota para `gemini-3.8-flash` (429). En localhost la voz anda, pero el paciente por texto y el evaluador usan el respaldo por reglas. Para la demo conviene usar la misma clave que producción.
+- Validación: 1438 tests en web y 25 en backend; lint y tipos. En producción: Puerta 2 en verde, juez con IA y trato «muy bueno».
+
 ## 18/10 · Persona 1 · Lo que dice en la consulta cuenta para el diagnóstico
 
 - **Se registra** cada frase en la que el estudiante le dice al paciente qué tiene ("creo que es una faringitis viral", "podría ser una gripe", "lo que tenés es una angina"), con su veredicto: correcto, diferencial u otro. Las preguntas, los descartes ("no es un resfrío") y "creo que tenés un poco de fiebre" no cuentan.
