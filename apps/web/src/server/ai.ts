@@ -4,7 +4,7 @@
 // Las claves solo se leen acá, en el servidor (AGENTS.md).
 import "server-only";
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import type { z } from "zod";
 
 export function aiEnabled() {
@@ -19,40 +19,67 @@ export type ChatMessage = {
 // Tope por pedido: el chat del paciente tiene que ser rápido; el evaluador
 // manda la lista de cotejo y toda la conversación, y tarda más.
 export const CHAT_TIMEOUT_MS = 10_000;
-export const JSON_TIMEOUT_MS = 30_000;
+export const JSON_TIMEOUT_MS = 25_000;
 
 // Un modelo que se colgó o se quedó sin cuota se saltea un rato: si no, cada
 // pedido pierde el tope entero esperándolo antes de pasar al que anda (con
 // gemini-3.5-flash-lite colgado, cada respuesta tardaba 11 s y el evaluador
-// con IA terminaba en el juez por reglas).
+// con IA terminaba en el juez por reglas). La pausa por tiempo es por tipo de
+// pedido: que el evaluador (pedidos largos) se pase de tiempo no tiene que
+// dejar al paciente sin IA. Sin cuota, en cambio, se pausan los dos.
 export const BENCH_MS = 5 * 60_000;
+export type AiKind = "chat" | "json";
+const KINDS: AiKind[] = ["chat", "json"];
 const benchedUntil = new Map<string, number>();
+const benchKey = (model: string, kind: AiKind) => `${model}|${kind}`;
 
-function isBenchable(error: unknown) {
+function benchReason(error: unknown): "cuota" | "tiempo" | null {
 	const text = String(error);
-	return (
-		(error instanceof Error &&
-			(error.name === "AbortError" || error.name === "TimeoutError")) ||
-		/aborted|timed? ?out|\b429\b|RESOURCE_EXHAUSTED|quota|\b503\b|UNAVAILABLE|overloaded/i.test(
+	if (
+		/\b429\b|RESOURCE_EXHAUSTED|quota|\b503\b|UNAVAILABLE|overloaded/i.test(
 			text,
 		)
+	)
+		return "cuota";
+	if (
+		(error instanceof Error &&
+			(error.name === "AbortError" || error.name === "TimeoutError")) ||
+		/aborted|timed? ?out/i.test(text)
+	)
+		return "tiempo";
+	return null;
+}
+
+// Los modelos a probar para este tipo de pedido, sin los que están en pausa.
+// Si están todos en pausa, ninguno: el pedido falla enseguida y la app sigue
+// al instante con el paciente o el evaluador por reglas, en vez de esperar el
+// tope en cada turno.
+export function modelsToTry(
+	models: string[],
+	kind: AiKind = "chat",
+	now = Date.now(),
+) {
+	return models.filter(
+		(m) => (benchedUntil.get(benchKey(m, kind)) ?? 0) <= now,
 	);
 }
 
-// Los modelos a probar, sin los que están en pausa. Si están todos en pausa,
-// ninguno: el pedido falla enseguida y la app sigue al instante con el
-// paciente y el evaluador por reglas, en vez de esperar el tope en cada turno.
-export function modelsToTry(models: string[], now = Date.now()) {
-	return models.filter((m) => (benchedUntil.get(m) ?? 0) <= now);
+export function benchModel(
+	model: string,
+	kinds: AiKind[] = KINDS,
+	now = Date.now(),
+) {
+	for (const kind of kinds)
+		benchedUntil.set(benchKey(model, kind), now + BENCH_MS);
 }
 
-export function benchModel(model: string, now = Date.now()) {
-	benchedUntil.set(model, now + BENCH_MS);
-}
+// Modelos que no aceptan thinkingConfig: se les pide sin él.
+const noThinking = new Set<string>();
 
 // Para los tests.
 export function resetBench() {
 	benchedUntil.clear();
+	noThinking.clear();
 }
 
 async function callGemini(
@@ -60,6 +87,7 @@ async function callGemini(
 	messages: ChatMessage[],
 	json: boolean,
 ) {
+	const kind: AiKind = json ? "json" : "chat";
 	const ai = new GoogleGenAI({ apiKey });
 	const system = messages
 		.filter((m) => m.role === "system")
@@ -84,26 +112,41 @@ async function callGemini(
 	let lastError: unknown = new Error(
 		"Los modelos de IA están en pausa por fallar hace poco",
 	);
-	for (const model of modelsToTry(models)) {
-		try {
-			const res = await ai.models.generateContent({
-				model,
-				contents,
-				config: {
-					...(system ? { systemInstruction: system } : {}),
-					temperature: json ? 0.2 : 0.8,
-					...(json ? { responseMimeType: "application/json" } : {}),
-					abortSignal: AbortSignal.timeout(
-						json ? JSON_TIMEOUT_MS : CHAT_TIMEOUT_MS,
-					),
-				},
-			});
-			if (res.text) return res.text;
-			lastError = new Error("Gemini no devolvió texto");
-		} catch (error) {
-			lastError = error;
-			console.error(`Gemini ${model}`, String(error).slice(0, 200));
-			if (isBenchable(error)) benchModel(model);
+	for (const model of modelsToTry(models, kind)) {
+		// Pensar poco: el paciente y el evaluador no necesitan más y así
+		// responden antes. Si el modelo no acepta la opción, se reintenta sin.
+		for (const think of noThinking.has(model) ? [false] : [true, false]) {
+			try {
+				const res = await ai.models.generateContent({
+					model,
+					contents,
+					config: {
+						...(system ? { systemInstruction: system } : {}),
+						temperature: json ? 0.2 : 0.8,
+						...(json ? { responseMimeType: "application/json" } : {}),
+						...(think
+							? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+							: {}),
+						abortSignal: AbortSignal.timeout(
+							json ? JSON_TIMEOUT_MS : CHAT_TIMEOUT_MS,
+						),
+					},
+				});
+				if (res.text) return res.text;
+				lastError = new Error("Gemini no devolvió texto");
+				break;
+			} catch (error) {
+				lastError = error;
+				console.error(`Gemini ${model}`, String(error).slice(0, 200));
+				if (think && /thinking/i.test(String(error))) {
+					noThinking.add(model);
+					continue;
+				}
+				const reason = benchReason(error);
+				if (reason === "cuota") benchModel(model, KINDS);
+				if (reason === "tiempo") benchModel(model, [kind]);
+				break;
+			}
 		}
 	}
 	throw lastError;

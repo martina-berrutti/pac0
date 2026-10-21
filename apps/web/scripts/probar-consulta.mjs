@@ -153,7 +153,7 @@ check(
 	`${report.improvements?.length ?? 0}`,
 );
 console.log(
-	`        juez: ${report.judge}; ${report.mistakes.length} error(es) u omisión(es)`,
+	`        juez: ${report.judge}${report.judgeFallback ? ` (la IA falló: ${report.judgeFallback})` : ""}; ${report.mistakes.length} error(es) u omisión(es)`,
 );
 for (const m of report.mistakes.slice(0, 3)) console.log(`        - ${m.what}`);
 if (report.rapport) {

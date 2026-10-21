@@ -74,36 +74,62 @@ Respondé solo JSON: {"mistakes":[{"index":0,"why":"...","nextTime":"..."}]}.`;
 	}
 }
 
+// Tope para todo el evaluador con IA (juez, omisiones y redactor van uno
+// detrás del otro): si no termina, sale el juez por reglas y el cierre no
+// pasa el límite de tiempo de la función en Vercel.
+export const AI_EVAL_BUDGET_MS = 45_000;
+
+function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const deadline = new Promise<never>((_, reject) => {
+		timer = setTimeout(
+			() =>
+				reject(
+					Object.assign(new Error("El evaluador con IA tardó demasiado"), {
+						name: "TimeoutError",
+					}),
+				),
+			ms,
+		);
+	});
+	return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+}
+
 export async function evaluateWithAi(
 	input: EvaluationInput,
 	llm: JsonLlm,
+	budgetMs = AI_EVAL_BUDGET_MS,
 ): Promise<Report> {
 	try {
-		const extracted = extract(input);
-		const [judged, reasoning] = await Promise.all([
-			aiJudgeItems(input, extracted, llm),
-			aiReasoning(input, llm),
-		]);
-		const items = (await verifyOmissions(judged, input, extracted, llm)).map(
-			(i) => creditSeenZones(i, extracted),
-		);
-		const report = assembleReport(input, items, reasoning, "ia", extracted);
-		const written = await writeFeedback(report, input, llm);
-		// Los puntos a mejorar salen de los textos reescritos por el redactor.
-		return written.diagnosis
-			? {
-					...written,
-					improvements: improvementsFor(
-						input.clinicalCase,
-						written.diagnosis,
-						written.mistakes,
-					),
-				}
-			: written;
+		return await withDeadline(runAi(input, llm), budgetMs);
 	} catch (error) {
 		console.warn("Evaluador con IA falló; uso el juez por reglas.", error);
 		return { ...evaluate(input), judgeFallback: fallbackReason(error) };
 	}
+}
+
+async function runAi(input: EvaluationInput, llm: JsonLlm): Promise<Report> {
+	const extracted = extract(input);
+	const [judged, reasoning] = await Promise.all([
+		aiJudgeItems(input, extracted, llm),
+		aiReasoning(input, llm),
+	]);
+	const items = (await verifyOmissions(judged, input, extracted, llm)).map(
+		(i) => creditSeenZones(i, extracted),
+	);
+	const report = assembleReport(input, items, reasoning, "ia", extracted);
+	const written = await writeFeedback(report, input, llm);
+	// Los puntos a mejorar salen de los textos reescritos por el redactor.
+	return written.diagnosis
+		? {
+				...written,
+				improvements: improvementsFor(
+					input.clinicalCase,
+					written.diagnosis,
+					written.mistakes,
+				),
+			}
+		: written;
 }
 
 // Por qué falló la IA, en una palabra: queda en el informe para saberlo sin

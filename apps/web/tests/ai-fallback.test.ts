@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const genai = vi.hoisted(() => ({ generateContent: vi.fn() }));
 vi.mock("@google/genai", () => ({
+	ThinkingLevel: { LOW: "LOW" },
 	GoogleGenAI: class {
 		models = { generateContent: genai.generateContent };
 	},
@@ -79,7 +80,56 @@ describe("modelos de Gemini que fallan", () => {
 		);
 		expect(genai.generateContent).toHaveBeenCalledTimes(2);
 		const models = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];
-		expect(modelsToTry(models, Date.now() + BENCH_MS + 1)).toEqual(models);
+		expect(modelsToTry(models, "chat", Date.now() + BENCH_MS + 1)).toEqual(
+			models,
+		);
+	});
+
+	test("que el evaluador se pase de tiempo no deja al paciente sin IA", async () => {
+		const { completeJson } = await import("@/server/ai");
+		const { z } = await import("zod");
+		genai.generateContent.mockImplementation(async ({ config }) => {
+			if (config.responseMimeType === "application/json") throw abort();
+			return { text: "Hola, doc." };
+		});
+		await expect(
+			completeJson("x", z.object({ ok: z.boolean() })),
+		).rejects.toThrow();
+		const models = ["gemini-3.8-flash", "gemini-3.5-flash-lite"];
+		expect(modelsToTry(models, "json")).toEqual([]);
+		expect(modelsToTry(models, "chat")).toEqual(models);
+		expect(await chat([{ role: "user", content: "hola" }])).toBe("Hola, doc.");
+	});
+
+	test("sin cuota se pausa para los dos tipos de pedido", async () => {
+		genai.generateContent.mockRejectedValueOnce(
+			new Error("RESOURCE_EXHAUSTED: quota"),
+		);
+		genai.generateContent.mockResolvedValueOnce({ text: "ok" });
+		await chat([{ role: "user", content: "hola" }]);
+		expect(modelsToTry(["gemini-3.8-flash"], "json")).toEqual([]);
+	});
+
+	test("piensa poco; si el modelo no acepta la opción, se reintenta sin ella", async () => {
+		genai.generateContent.mockImplementation(async ({ config }) => {
+			if (config.thinkingConfig)
+				throw new Error(
+					"400 INVALID_ARGUMENT: thinking_level is not supported",
+				);
+			return { text: "ok" };
+		});
+		expect(await chat([{ role: "user", content: "hola" }])).toBe("ok");
+		const configs = genai.generateContent.mock.calls.map(
+			(c) => (c[0] as { config: { thinkingConfig?: unknown } }).config,
+		);
+		expect(configs[0]?.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
+		expect(configs[1]?.thinkingConfig).toBeUndefined();
+		// Ya sabe que ese modelo no la acepta: no la vuelve a mandar.
+		await chat([{ role: "user", content: "¿y?" }]);
+		const third = genai.generateContent.mock.calls[2]?.[0] as
+			| { config: { thinkingConfig?: unknown } }
+			| undefined;
+		expect(third?.config.thinkingConfig).toBeUndefined();
 	});
 
 	test("el evaluador (JSON) tiene más tiempo que el chat", async () => {
@@ -111,5 +161,19 @@ describe("motivo del juez por reglas", () => {
 			fallbackReason(z.object({ a: z.string() }).safeParse({}).error),
 		).toBe("formato");
 		expect(fallbackReason(new Error("algo raro"))).toBe("otro");
+	});
+});
+
+describe("tope del evaluador con IA", () => {
+	test("si no termina a tiempo, sale el juez por reglas con el motivo", async () => {
+		const { evaluateWithAi } = await import("@/lib/scoring/ai-evaluate");
+		const { averageStudent } = await import("./helpers");
+		const report = await evaluateWithAi(
+			averageStudent(),
+			() => new Promise(() => {}),
+			50,
+		);
+		expect(report.judge).toBe("reglas");
+		expect(report.judgeFallback).toBe("tiempo");
 	});
 });
