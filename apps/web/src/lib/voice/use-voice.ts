@@ -214,6 +214,8 @@ export function useVoice({
 	const cancelledCalls = useRef(new Set<string>());
 	// Notas para el paciente que llegaron mientras generaba su respuesta.
 	const pendingNotes = useRef<string[]>([]);
+	// Lo que el paciente tiene que decir y espera a que termine de hablar.
+	const pendingSay = useRef<string | null>(null);
 	// Herramientas pedidas por el modelo que todavía no se respondieron: una
 	// nota en ese momento cortaría la respuesta en curso.
 	const toolsPending = useRef(0);
@@ -249,6 +251,42 @@ export function useVoice({
 		);
 	}, []);
 
+	// Lo que el paciente tiene que decir ya (turnComplete true), por ejemplo
+	// "sí" o "no" cuando el estudiante le toca la rodilla. Si está hablando o
+	// por contestar, espera a que termine: mandarlo lo cortaría y contaría
+	// como una interrupción del estudiante. Si se juntan varios, vale el último
+	// (el último toque). Después de mandarlo, el paciente va a contestar: las
+	// notas esperan su respuesta.
+	const deliverSay = useCallback((text: string) => {
+		if (
+			st.current.patientTurnStarted ||
+			toolsPending.current > 0 ||
+			awaitingReply.current ||
+			reconnecting.current
+		) {
+			pendingSay.current = text;
+			return;
+		}
+		const target = openSession(live.current);
+		if (!target) return;
+		awaitingReply.current = true;
+		safeSend(() =>
+			target.sendClientContent({
+				turns: [{ role: "user", parts: [{ text }] }],
+				turnComplete: true,
+			}),
+		);
+	}, []);
+
+	// Lo que esperaba a que el paciente terminara: primero las notas, después
+	// lo que tiene que decir.
+	const flushQueued = useCallback(() => {
+		for (const note of pendingNotes.current.splice(0)) deliverNote(note);
+		const next = pendingSay.current;
+		pendingSay.current = null;
+		if (next) deliverSay(next);
+	}, [deliverNote, deliverSay]);
+
 	// Todo lo que se manda al servidor va en fila (lib/voice/queue.ts): los
 	// turnos quedan en el orden en que se dijeron, el permiso se anota antes de
 	// que corra examinar y dos escrituras de la misma sesión no se pisan.
@@ -281,6 +319,7 @@ export function useVoice({
 				studentFlushTimer.current = null;
 			}
 			pendingNotes.current = [];
+			pendingSay.current = null;
 			reconnecting.current = false;
 			// Lo último que se dijo antes de cortar también va al informe.
 			flushPending.current();
@@ -481,10 +520,10 @@ export function useVoice({
 					toolsPending.current === 0 &&
 					!st.current.patientTurnStarted
 				)
-					for (const note of pendingNotes.current.splice(0)) deliverNote(note);
+					flushQueued();
 			}
 		},
-		[answerTools, deliverNote],
+		[answerTools, flushQueued],
 	);
 
 	const onMessage = useCallback(
@@ -553,8 +592,8 @@ export function useVoice({
 				}
 				flushStudent();
 				flushPatient(false);
-				// Las notas que esperaban al paciente ya se pueden mandar.
-				for (const note of pendingNotes.current.splice(0)) deliverNote(note);
+				// Lo que esperaba al paciente ya se puede mandar.
+				flushQueued();
 			}
 			for (const id of m.toolCallCancellation?.ids ?? [])
 				cancelledCalls.current.add(id);
@@ -581,10 +620,10 @@ export function useVoice({
 			}
 		},
 		[
-			deliverNote,
 			enqueue,
 			event,
 			flushPatient,
+			flushQueued,
 			flushStudent,
 			playChunk,
 			runTools,
@@ -677,7 +716,7 @@ export function useVoice({
 			setStatus("live");
 			// Las notas que llegaron mientras reconectaba salen en la sesión nueva.
 			reconnecting.current = false;
-			for (const note of pendingNotes.current.splice(0)) deliverNote(note);
+			flushQueued();
 		} catch (e) {
 			// Si la estudiante cortó mientras reconectaba, no es un error.
 			if (attempt.current !== mine) return;
@@ -693,7 +732,7 @@ export function useVoice({
 			// le baja el indicador a una nueva).
 			if (attempt.current === mine) reconnecting.current = false;
 		}
-	}, [connect, deliverNote, flushPatient, flushStudent, stop, stopPlayback]);
+	}, [connect, flushPatient, flushQueued, flushStudent, stop, stopPlayback]);
 	reconnectRef.current = () => {
 		// Red de seguridad: si algo inesperado falla al reconectar, se corta con
 		// aviso en vez de quedar "reconectando" para siempre.
@@ -715,6 +754,7 @@ export function useVoice({
 		reconnects.current = 0;
 		// Nada de una consulta anterior pasa a esta.
 		pendingNotes.current = [];
+		pendingSay.current = null;
 		awaitingReply.current = false;
 		reconnecting.current = false;
 		const mine = ++attempt.current;
@@ -851,7 +891,13 @@ export function useVoice({
 			// Si se cortó mientras cargaba y ya está reconectando, no se pisa.
 			setStatus((st) => (st === "reconnecting" ? st : "live"));
 		} catch (e) {
-			if (cancelled()) return;
+			if (cancelled()) {
+				// Cortó mientras pedía el micrófono: stop() no conoce este
+				// contexto todavía (out.current se asigna después). Sin esto queda
+				// uno abierto por intento, y Safari en iPhone tiene un tope.
+				if (out.current?.ctx !== outCtx) outCtx.close().catch(() => {});
+				return;
+			}
 			// Cortó la usuaria mientras conectaba: no es un error.
 			if (e instanceof Error && e.message === "Conexión de voz descartada") {
 				outCtx.close().catch(() => {});
@@ -944,18 +990,9 @@ export function useVoice({
 		[deliverNote],
 	);
 
-	// Algo que el paciente tiene que decir ya (turnComplete true): por
-	// ejemplo, "sí" o "no" cuando el estudiante le toca la rodilla (Persona 3).
-	const say = useCallback((text: string) => {
-		const target = openSession(live.current);
-		if (!target) return;
-		safeSend(() =>
-			target.sendClientContent({
-				turns: [{ role: "user", parts: [{ text }] }],
-				turnComplete: true,
-			}),
-		);
-	}, []);
+	// Algo que el paciente tiene que decir (deliverSay): por ejemplo, "sí" o
+	// "no" cuando el estudiante le toca la rodilla (Persona 3).
+	const say = deliverSay;
 
 	const setExamining = useCallback((value: boolean) => {
 		examining.current = value;

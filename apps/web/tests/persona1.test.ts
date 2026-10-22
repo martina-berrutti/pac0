@@ -178,3 +178,20 @@ describe("reconexión de la voz", () => {
 		expect(text).not.toContain(lucia.truth.diagnosis);
 	});
 });
+
+describe("margen para terminar un examen después de los 8 minutos", () => {
+	test("el cuello y la temperatura se pueden terminar en el primer minuto extra", async () => {
+		const { palpateNeck } = await import("@/server/neck");
+		const { takeTemperature } = await import("@/server/temperature");
+		const ana = student();
+		const id = await startSession(ana, lucia.id, "caso");
+		await store.updateSession(id, {
+			startedAt: Date.now() - 8 * 60_000 - 20_000,
+		});
+		await expect(palpateNeck(ana, id)).resolves.toHaveProperty("finding");
+		await expect(takeTemperature(ana, id)).resolves.toBeDefined();
+		// Pasado el margen, no.
+		await store.updateSession(id, { startedAt: Date.now() - 10 * 60_000 });
+		await expect(palpateNeck(ana, id)).rejects.toThrow("8 minutos");
+	});
+});

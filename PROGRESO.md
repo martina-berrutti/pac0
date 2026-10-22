@@ -2,6 +2,17 @@
 
 Registro de avances. Lo más nuevo arriba. Cada entrada dice quién, qué se hizo, cómo se validó y qué quedó pendiente. Las tareas están en [`TODO.md`](TODO.md).
 
+## 22/10 · Persona 1 · Segundo barrido de bugs (navegador y servidor)
+
+- **Errores críticos falsos en el informe:** «tenés que tomar líquido» después de «no quiero que sea algo grave» contaba como insistir contra la negativa. Ahora la negativa tiene que ser sobre el examen, se resuelve también cuando después se deja examinar, y «tenés que…»/«no seas…» solo cuentan si apuntan al examen. «Los antibióticos son inútiles» o «no me importa el tiempo» ya no son trato irrespetuoso; «sos un inútil» o «no me importa lo que sientas» sí.
+- **Rodilla por voz:** el «sí» o «no» del paciente al tocarlo cortaba su propia respuesta anterior y le contaba al estudiante una interrupción. Ahora espera a que el paciente termine (vale el último toque) y las notas no le cortan la respuesta.
+- **Cuello:** el panel se abría aunque hubiera otra medición en curso (se perdía la temperatura o la presión) o quedaba escondido detrás de otro examen. Ahora tiene la misma protección que los demás.
+- **Modo texto:** un pedido de cierre viejo podía cerrar el siguiente examen apenas se abría; un examen pedido por texto podía pisar la presión a medio medir.
+- **Margen de 1 minuto** para terminar de palpar el cuello o tomar la temperatura después de los 8 minutos, como la presión y el otoscopio.
+- **Voz:** cancelar mientras el navegador pide el micrófono dejaba un contexto de audio abierto (Safari en iPhone tiene un tope).
+- Sin hallazgos en permisos, fugas del diagnóstico, topes ni Convex.
+- Validación: 1449 tests en web (12 nuevos); lint y tipos.
+
 ## 21/10 · Persona 1 · Barrido de bugs: IA lenta, juez por reglas y nivel de trato
 
 - **IA colgada:** `gemini-3.5-flash-lite` se colgaba en cada pedido. Cada respuesta del paciente por texto tardaba 11 s, y el evaluador con IA terminaba en el juez por reglas (en producción y en local). Ahora va primero `gemini-3.8-flash`; un modelo que se cuelga o se queda sin cuota se saltea 5 minutos, y la pausa por tiempo es por tipo de pedido (chat o evaluador). Si están todos en pausa, el pedido falla enseguida y sigue el respaldo por reglas sin esperar.

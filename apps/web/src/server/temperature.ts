@@ -10,7 +10,11 @@ import {
 	THERMOMETRY,
 } from "@/lib/contracts/exam";
 
-import { activeSession, limitExamRecords } from "./consultation";
+import {
+	activeSession,
+	FINISH_EXAM_GRACE_MS,
+	limitExamRecords,
+} from "./consultation";
 import { newId, store } from "./store";
 import type { Viewer } from "./token";
 
@@ -18,7 +22,14 @@ export async function takeTemperature(
 	viewer: Viewer,
 	sessionId: string,
 ): Promise<TemperatureReading> {
-	const { clinicalCase, elapsed } = await activeSession(viewer, sessionId);
+	// Mismo margen que la presión y el otoscopio: el panel se pudo abrir antes
+	// de los 8 minutos (o la voz lo abrió justo después) y sin margen se
+	// perdería el hallazgo.
+	const { clinicalCase, elapsed } = await activeSession(
+		viewer,
+		sessionId,
+		FINISH_EXAM_GRACE_MS,
+	);
 	await limitExamRecords(sessionId);
 	const action: ExamAction = {
 		id: newId("exam"),

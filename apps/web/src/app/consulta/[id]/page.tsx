@@ -152,7 +152,12 @@ export default function ConsultationPage() {
 		lastStudent.current = turn.text;
 		// Una respuesta que llega con la consulta ya cerrándose no abre nada.
 		if (closingNow.current) return;
-		if (examOpen) {
+		// Los refs y no el estado del render: en el modo texto esto corre
+		// después de esperar la respuesta del paciente, y en esos segundos el
+		// examen pudo cerrarse solo (un pedido de cierre viejo cerraría el
+		// próximo examen apenas se abre).
+		const tool = toolOpen.current;
+		if (examOpenNow.current) {
 			// Por voz ya lo juzgó lo que se iba escuchando (el turno guardado
 			// trae también lo dicho antes de abrir el examen).
 			if (byText && asksToEndExam(turn.text)) setEndRequest((n) => n + 1);
@@ -187,7 +192,10 @@ export default function ConsultationPage() {
 			// pisa el abierto (garganta y oído sí pueden convivir).
 			if (
 				measuring.current &&
-				(ui.kind === "exam" || ui.kind === "otoscope" || ui.kind === "vitals")
+				(ui.kind === "exam" ||
+					ui.kind === "otoscope" ||
+					ui.kind === "vitals" ||
+					ui.kind === "neck")
 			) {
 				voice.sendNote(
 					"El estudiante está en medio de otro examen: esperá a que termine, no abras la boca ni muestres nada.",
@@ -212,7 +220,15 @@ export default function ConsultationPage() {
 					open ? (ui.side ?? open) : (ui.side ?? earIn(lastStudent.current)),
 				);
 			}
-			if (ui.kind === "neck" && !closingNow.current) setNeck(true);
+			// Con otro examen abierto, el cuello no se abre escondido detrás: el
+			// paciente sabe que se lo revisan después.
+			if (ui.kind === "neck" && !closingNow.current) {
+				if (toolOpen.current)
+					voice.sendNote(
+						"El estudiante todavía está con otro examen: el cuello te lo revisa después. Esperá.",
+					);
+				else setNeck(true);
+			}
 			// Con el tensiómetro abierto se sigue con el que está (el servidor
 			// actualiza esa medición si todavía no tiene manguito).
 			if (ui.kind === "vitals" && !closingNow.current)
@@ -457,7 +473,13 @@ export default function ConsultationPage() {
 			checkStudent(r.studentTurn, true);
 			// Si nombró el oído, el servidor no devuelve examen: se abre el oído.
 			// Con el examen de este momento, no el de cuando se mandó el texto.
-			if (r.exam && openExam.current?.action.variant !== "completa")
+			// Midiendo presión, temperatura o cuello, otro examen no pisa el
+			// abierto (la misma regla que por voz).
+			if (
+				r.exam &&
+				!measuring.current &&
+				openExam.current?.action.variant !== "completa"
+			)
 				setExam(r.exam);
 		} catch (e) {
 			toast.error(

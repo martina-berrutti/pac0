@@ -50,21 +50,60 @@ const ACKNOWLEDGES = [
 	"es normal",
 	"uy",
 ];
-// El paciente se niega a que lo examinen.
+// El paciente se niega a que lo examinen. Las frases generales ("no quiero",
+// "dejame") solo cuentan junto a algo del examen: "no quiero que sea grave" o
+// "dejame pensar" no son una negativa.
 const REFUSALS = [
 	"no quiero",
 	"prefiero que no",
-	"no me toques",
-	"no me revises",
-	"no me examines",
 	"dejame",
 	"ni loco",
 	"ni loca",
 ];
-// Presionar, ordenar o minimizar ante la negativa.
+const EXAM_REFUSALS = [
+	"no me toques",
+	"no me revises",
+	"no me examines",
+	"no me mires",
+	"no voy a abrir",
+	"no la voy a abrir",
+	"no abro",
+];
+// Lo que hace que una negativa general sea sobre el examen.
+const EXAM_WORDS = [
+	"boca",
+	"garganta",
+	"revis",
+	"exami",
+	"mirar",
+	"mires",
+	"toc",
+	"oido",
+	"oreja",
+	"cuello",
+	"abr",
+	"linterna",
+	"presion",
+	"rodilla",
+	"palp",
+	"lengua",
+];
+// Presionar, ordenar o minimizar ante la negativa. "Tenés que" y "no seas"
+// solos son la forma de dar indicaciones ("tenés que tomar líquido"): solo
+// cuentan cuando apuntan al examen o a la negativa.
 const PRESSURE = [
-	"tenes que",
-	"no seas",
+	"tenes que abrir",
+	"tenes que dejar",
+	"tenes que mostrar",
+	"tenes que sacar",
+	"tenes que quedarte quiet",
+	"no seas exagerad",
+	"no seas miedos",
+	"no seas cagon",
+	"no seas asi",
+	"no seas dificil",
+	"no seas cabez",
+	"no seas maleducad",
 	"quieras o no",
 	"igual te voy",
 	"abri igual",
@@ -96,8 +135,16 @@ const DISRESPECT = [
 	"idiota",
 	"estupid",
 	"tarad",
-	"inutil",
-	"no me importa",
+	// "Los antibióticos son inútiles" o "no me importa el tiempo" no son
+	// insultos: solo cuentan dichos al paciente.
+	"sos un inutil",
+	"sos una inutil",
+	"sos inutil",
+	"que inutil",
+	"no me importa lo que",
+	"no me importa como te",
+	"no me importa si te",
+	"no me importa tu",
 	"dejate de joder",
 	"deja de llorar",
 	"no te quejes",
@@ -148,15 +195,23 @@ function findInsistence(
 ): { turn?: Turn; examActionId?: string } | null {
 	const refusals = [
 		...ordered
-			.filter((t) => t.speaker === "paciente" && says(t.text, REFUSALS))
+			.filter(
+				(t) =>
+					t.speaker === "paciente" &&
+					(says(t.text, EXAM_REFUSALS) ||
+						(says(t.text, REFUSALS) && says(t.text, EXAM_WORDS))),
+			)
 			.map((t) => t.startMs),
 		...examActions.filter((a) => a.variant === "negado").map((a) => a.startMs),
 	].sort((a, b) => a - b);
-	const consents = events
-		.filter((e) => e.type === "consentimiento")
-		.map((e) => e.atMs);
+	// La negativa queda resuelta con el consentimiento o cuando después se deja
+	// examinar.
+	const resolved = [
+		...events.filter((e) => e.type === "consentimiento").map((e) => e.atMs),
+		...examActions.filter((a) => a.variant !== "negado").map((a) => a.startMs),
+	].sort((a, b) => a - b);
 	for (const at of refusals) {
-		const until = consents.find((c) => c > at) ?? Number.POSITIVE_INFINITY;
+		const until = resolved.find((c) => c > at) ?? Number.POSITIVE_INFINITY;
 		const said = ordered.filter(
 			(t) => t.speaker === "estudiante" && t.startMs > at && t.startMs < until,
 		);
